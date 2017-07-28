@@ -99,3 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# input files
+*.hdf5
+
+# test stuff
+test_output/

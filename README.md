@@ -1,3 +1,3 @@
 # landshark
 
-Large-scale spatial inference with Tensorflow
+Large-scale spatial inference with Tensorflow.
