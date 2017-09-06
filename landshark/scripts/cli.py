@@ -1,50 +1,58 @@
-import logging
-import click
-import tensorflow as tf
-import signal
-import sys
+"""Main landshark commands."""
 
-def signal_handler(signal, frame):
-        print('You pressed Ctrl+C!')
-        sys.exit(0)
-signal.signal(signal.SIGINT, signal_handler)
+import logging
+import os.path
+
+import click
+# mypy type checking
+from typing import List
+
+from landshark import geoio
 
 log = logging.getLogger(__name__)
 
+# SOME USEFUL PREPROCESSING COMMANDS
+# ----------------------------------
+# gdal_translate -co "COMPRESS=NONE" src dest
+
 
 @click.group()
-@click.option('-v', '--verbosity',
-              type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']),
-              default='INFO', help='Level of logging')
-def cli(verbosity):
+@click.option("-v", "--verbosity",
+              type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+              default="INFO", help="Level of logging")
+def cli(verbosity: str) -> int:
+    """Parse the command line arguments."""
     logging.basicConfig()
     lg = logging.getLogger("")
     lg.setLevel(verbosity)
+    return 0
+
+
+def _tifnames(names: List[str]) -> List[str]:
+    result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+    return result
 
 
 @cli.command()
-@click.argument("task_number", type=int)
-def run(task_number):
-    cluster = tf.train.ClusterSpec({"local": ["localhost:2222", "localhost:2223"]})
-    server = tf.train.Server(cluster, job_name="local", task_index=task_number)
-    log.info("Starting server #{}".format(task_number))
-    server.start()
-    # if task_namber == 0:
-    #     signal.pause()
-    log.info("Started server #{}".format(task_number))
-    x = tf.constant(2)
+@click.argument("files", type=click.Path(exists=True), nargs=-1)
+@click.option("--name", type=str, required=True,
+              help="Name of output file")
+def build(files: List[str], name: str) -> int:
+    """Build a tif stack from a set of input files."""
+    out_filename = os.path.join(os.getcwd(), name + ".hdf5")
+    tif_filenames = _tifnames(files)
+
+    stack = geoio.ImageStack(tif_filenames)
+    geoio.write_datafile(stack, out_filename)
+    return 0
 
 
-    with tf.device("/job:local/task:1"):
-        y2 = x - 66
-
-    with tf.device("/job:local/task:0"):
-        y1 = x + 300
-        y = y1 + y2
-
-
-    with tf.Session("grpc://localhost:2222") as sess:
-        result = sess.run(y)
-        print(result)
-
-
+@cli.command()
+@click.argument("fname", type=click.Path(exists=True))
+def targets(fname: str) -> int:
+    """Build a target file from shapefile."""
+    out_filename = os.path.join(
+        os.getcwd(), os.path.basename(fname).rsplit(".")[0] + ".hdf5")
+    sf = geoio.ShapefileTargets(fname)
+    geoio.write_targetfile(sf, out_filename)
+    return 0
