@@ -117,9 +117,9 @@ def test_windows():
     """Checks window list covers whole image."""
     w_list = geoio._windows(1024, 768, 10)
     assert np.all([k[1] == (0, 1024) for k in w_list])
-    assert np.all([k[0][1] - k[0][0] == 10 for k in w_list])
+    assert np.all([k[0][1] - k[0][0] == 10 for k in w_list[:-1]])
     assert w_list[-1][0][0] < 768
-    assert w_list[-1][0][1] >= 768
+    assert w_list[-1][0][1] == 768
 
     w_list = geoio._windows(1024, 450, 5)
     assert np.all([k[1] == (0, 1024) for k in w_list])
@@ -128,10 +128,14 @@ def test_windows():
     assert w_list[-1][0][1] == 450
 
 
-def test_block_pixels():
+def test_block_shape():
     """Checks the (simple) multiplication for total size."""
-    r = geoio._block_pixels(3, 4, 5)
-    assert r == 60
+    width = 4
+    height = 5
+    nbands = 3
+    w = ((1, 1 + width), (3, 3 + height))
+    r = geoio._block_shape(w, nbands)
+    assert r == (width * height, nbands)
 
 
 def test_read(mocker):
@@ -150,12 +154,10 @@ def test_read(mocker):
     im2 = mocker.Mock()
     im2.read = mocker.Mock(side_effect=a2)
     bands = [geoio.Band(image=im, index=1), geoio.Band(image=im2, index=2)]
-    block_pixels = 10 * 25
     windows = [((0, 10), (0, 25)), ((10, 20), (0, 25)), ((20, 30), (0, 25))]
-    it = geoio._read(bands, block_pixels, windows, dtype=np.int32)
+    it = geoio._read(bands, windows, dtype=np.int32)
     for res, ans in zip(it, answers):
         assert np.all(res == ans)
-        assert res.shape == (block_pixels, 2)
 
     assert im.read.call_count == 3
     assert im2.read.call_count == 3
@@ -176,8 +178,11 @@ def test_imagestack(mocker, block_rows):
     m_open = mocker.patch('landshark.geoio.rasterio.open')
     m_open.return_value = [mocker.Mock(), mocker.Mock()]
 
+    width = 10
+    height = 20
+    affine = rasterio.transform.IDENTITY
     m_match = mocker.patch('landshark.geoio._match')
-    m_match.return_value = mocker.Mock()
+    m_match.side_effect = [width, height, affine]
 
     m_bands = mocker.patch('landshark.geoio._bands')
     m_bands.return_value = geoio.BandCollection(ordinal=[mocker.Mock()],
@@ -188,8 +193,6 @@ def test_imagestack(mocker, block_rows):
 
     m_block_rows = mocker.patch('landshark.geoio._block_rows')
     m_block_rows.return_value = 2
-    m_block_pixels = mocker.patch('landshark.geoio._block_pixels')
-    m_block_pixels.return_value = mocker.Mock()
     m_missing = mocker.patch('landshark.geoio._missing')
     m_missing.return_value = mocker.Mock()
     m_windows = mocker.patch('landshark.geoio._windows')
@@ -201,16 +204,15 @@ def test_imagestack(mocker, block_rows):
     m_open_calls = [call(paths[0], 'r'), call(paths[1], 'r')]
     m_open.assert_has_calls(m_open_calls, any_order=False)
 
-    assert stack.width == m_match.return_value
-    assert stack.height == m_match.return_value
-    assert stack.affine == m_match.return_value
+    assert stack.width == width
+    assert stack.height == height
+    assert stack.affine == affine
     assert stack.ordinal_bands == m_bands.return_value.ordinal
     assert stack.categorical_bands == m_bands.return_value.categorical
     assert stack.ordinal_names == m_names.return_value
     assert stack.categorical_names == m_names.return_value
     assert stack.ordinal_dtype == np.float32
     assert stack.categorical_dtype == np.int32
-    assert stack.block_pixels == m_block_pixels.return_value
     assert stack.windows == m_windows.return_value
     assert stack.block_rows == (block_rows if block_rows
                                 else m_block_rows.return_value)
@@ -223,13 +225,11 @@ def test_imagestack(mocker, block_rows):
     m_read = mocker.patch('landshark.geoio._read')
     stack.categorical_blocks()
     m_read.assert_called_with(stack.categorical_bands,
-                              stack.block_pixels,
                               stack.windows,
                               stack.categorical_dtype)
 
     stack.ordinal_blocks()
     m_read.assert_called_with(stack.ordinal_bands,
-                              stack.block_pixels,
                               stack.windows,
                               stack.ordinal_dtype)
 
@@ -269,7 +269,6 @@ def test_imagestack_real(mocker):
     assert stack.width == 10
     assert stack.height == 5
     assert stack.block_rows == 3
-    assert stack.block_pixels == 150
     assert stack.categorical_bands == cat_bands
     assert stack.ordinal_bands == ord_bands
     assert stack.categorical_dtype == np.int32
@@ -278,7 +277,7 @@ def test_imagestack_real(mocker):
     assert stack.ordinal_missing == [-1., -1.]
     assert stack.categorical_names == ['im1_2', 'im2_1']
     assert stack.ordinal_names == ['im1_1', 'im2_2']
-    assert stack.windows == [((0, 3), (0, 10)), ((3, 6), (0, 10))]
+    assert stack.windows == [((0, 3), (0, 10)), ((3, 5), (0, 10))]
     assert np.all(stack.coordinates_x == np.arange(10 + 1, dtype=float))
     assert np.all(stack.coordinates_y == -1.0 * np.arange(5 + 1, dtype=float))
 
@@ -301,15 +300,15 @@ def test_write_datafile(mocker):
     image_stack.width = width
     image_stack.height = height
     image_stack.block_rows = 2
-    image_stack.block_pixels = 20
     image_stack.ordinal_names = ['name1', 'name2']
     image_stack.categorical_names = ['cat1', 'cat2']
     image_stack.ordinal_missing = [None, 0.0]
     image_stack.categorical_missing = [None, 0]
-    block_it_ord = (np.zeros((image_stack.block_pixels, 2), dtype=np.float32)
-                      for i in range(3))
-    block_it_cat = (np.zeros((image_stack.block_pixels, 2), dtype=np.int32)
-                      for i in range(3))
+    image_stack.windows = [((0, 2), (0, 10)), ((2, 4), (0, 10)), ((4, 5), (0, 10))]
+    block_it_ord = (np.zeros(geoio._block_shape(w, 2), dtype=np.float32)
+                    for i, w in enumerate(image_stack.windows))
+    block_it_cat = (np.zeros(geoio._block_shape(w, 2), dtype=np.int32)
+                    for i, w in enumerate(image_stack.windows))
 
     image_stack.categorical_blocks = mocker.Mock(return_value=block_it_ord)
     image_stack.ordinal_blocks = mocker.Mock(return_value=block_it_cat)
@@ -317,7 +316,6 @@ def test_write_datafile(mocker):
     m_cat_array = mocker.MagicMock()
     m_ord_array = mocker.MagicMock()
     m_hfile.create_carray.side_effect = [m_cat_array, m_ord_array]
-
 
     filename = 'filename'
     geoio.write_datafile(image_stack, filename)
@@ -335,12 +333,12 @@ def test_write_datafile(mocker):
     m_hfile.create_array.assert_has_calls(coord_calls, any_order=True)
 
     n = width * height
-    cat_atom = tables.Int32Atom(shape=(2,))
-    ord_atom = tables.Float32Atom(shape=(2,))
+    cat_atom = tables.Int32Atom()
+    ord_atom = tables.Float32Atom()
     filters = tables.Filters(complevel=1, complib='blosc:lz4')
-    carray_calls =[call(m_hfile.root, name='categorical_data', shape=(n,),
+    carray_calls =[call(m_hfile.root, name='categorical_data', shape=(n, 2),
                         filters=filters, atom=cat_atom),
-                   call(m_hfile.root, name='ordinal_data', shape=(n,),
+                   call(m_hfile.root, name='ordinal_data', shape=(n, 2),
                         filters=filters, atom=ord_atom)]
 
     m_hfile.create_carray.assert_has_calls(carray_calls)
@@ -356,12 +354,12 @@ def test_write_datafile(mocker):
     assert cat_slices[0].start == 0
     assert cat_slices[0].stop == 20
     assert cat_slices[-1].start == 40
-    assert cat_slices[-1].stop == 60     # 3 * 20
+    assert cat_slices[-1].stop == 50
 
     assert ord_slices[0].start == 0
     assert ord_slices[0].stop == 20
     assert ord_slices[-1].start == 40
-    assert ord_slices[-1].stop == 60     # 3 * 20
+    assert ord_slices[-1].stop == 50
 
     m_hfile.close.assert_called_once()
 

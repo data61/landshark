@@ -118,24 +118,29 @@ def _windows(width: int, height: int,
     assert height > 0
     assert block_rows > 0
     n = height // block_rows
-    n = n + 1 if (height % block_rows) != 0 else n
     ret = [((i * block_rows, (i + 1) * block_rows), (0, width))
            for i in range(n)]
+    if height % block_rows != 0:
+        final_window = ((n * block_rows, height), (0, width))
+        ret.append(final_window)
     return ret
 
 
-def _block_pixels(width: int, height: int, block_rows: int) -> int:
-    """Compute the number of pixels per band in a window."""
-    n = width * height * block_rows
-    return n
+def _block_shape(window: WindowType, nbands: int) -> Tuple[int, int]:
+    """Compute the shape of the output of iterators from the window size."""
+    rows = window[0][1] - window[0][0]
+    cols = window[1][1] - window[1][0]
+    n = rows * cols
+    result = (n, nbands)
+    return result
 
 
-def _read(band_list: List[Band], block_pixels: int, windows: List[WindowType],
+def _read(band_list: List[Band], windows: List[WindowType],
           dtype: np.dtype) -> Iterator[np.ndarray]:
     """Create a generator that yields blocks of the image stack."""
-    nbands = len(band_list)
-    out_array = np.zeros((block_pixels, nbands), dtype=dtype)
     for w in windows:
+        block_shape = _block_shape(w, len(band_list))
+        out_array = np.empty(block_shape, dtype=dtype)
         for i, b in enumerate(band_list):
             a = b.image.read(b.index, window=w)
             out_array[:, i] = a.astype(dtype).flatten()
@@ -179,17 +184,17 @@ class ImageStack:
         categorical_missing = _missing(categorical_bands,
                                        dtype=categorical_dtype)
         if not block_rows:
-            log.info("Using block size of {} rows".format(block_rows))
             block_rows = max(_block_rows(ordinal_bands),
                              _block_rows(categorical_bands))
+            log.info("Using block size of {} rows".format(block_rows))
         else:
             log.info("User set block size of {} rows".format(block_rows))
         windows = _windows(width, height, block_rows)
-        block_pixels = _block_pixels(width, height, block_rows)
         log.info("Found {} ordinal bands".format(len(ordinal_bands)))
         log.info("Found {} categorical bands".format(len(categorical_bands)))
         log.info("Image resolution is {} x {}".format(width, height))
 
+        self.max_block_size = block_rows * width
         self.categorical_dtype = categorical_dtype
         self.ordinal_dtype = ordinal_dtype
         self.width = width
@@ -199,7 +204,6 @@ class ImageStack:
         self.coordinates_y = coords_y
         self.block_rows = block_rows
         self.windows = windows
-        self.block_pixels = block_pixels
         self.ordinal_bands = ordinal_bands
         self.categorical_bands = categorical_bands
         self.ordinal_names = ordinal_names
@@ -220,7 +224,7 @@ class ImageStack:
             with block_rows rows of data from the image stack.
 
         """
-        gen = _read(self.categorical_bands, self.block_pixels, self.windows,
+        gen = _read(self.categorical_bands, self.windows,
                     self.categorical_dtype)
         return gen
 
@@ -237,7 +241,7 @@ class ImageStack:
             with block_rows rows of data from the image stack.
 
         """
-        gen = _read(self.ordinal_bands, self.block_pixels, self.windows,
+        gen = _read(self.ordinal_bands, self.windows,
                     self.ordinal_dtype)
         return gen
 
@@ -274,18 +278,18 @@ def write_datafile(image_stack: ImageStack, filename: str) -> None:
     n = image_stack.width * image_stack.height
     nbands_cat = len(image_stack.categorical_bands)
     nbands_ord = len(image_stack.ordinal_bands)
-    cat_atom = tables.Int32Atom(shape=(nbands_cat,))
-    ord_atom = tables.Float32Atom(shape=(nbands_ord,))
+    cat_atom = tables.Int32Atom()
+    ord_atom = tables.Float32Atom()
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
 
     log.info("Creating data arrays")
     cat_array = h5file.create_carray(h5file.root, name="categorical_data",
-                                     atom=cat_atom, shape=(n,),
+                                     atom=cat_atom, shape=(n, nbands_cat),
                                      filters=filters)
     cat_array.attrs.labels = image_stack.categorical_names
     cat_array.attrs.missing_values = image_stack.categorical_missing
     ord_array = h5file.create_carray(h5file.root, name="ordinal_data",
-                                     atom=ord_atom, shape=(n,),
+                                     atom=ord_atom, shape=(n, nbands_ord),
                                      filters=filters)
     ord_array.attrs.labels = image_stack.ordinal_names
     ord_array.attrs.missing_values = image_stack.ordinal_missing
