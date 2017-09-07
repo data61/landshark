@@ -1,10 +1,16 @@
-.PHONY: help clean clean-pyc clean-build list test test-all coverage
+.PHONY: help clean clean-pyc clean-build typecheck typecheck-xml lint lint-xml test test-xml
 
 help:
-	@echo "clean-build - remove build artifacts"
-	@echo "clean-pyc - remove Python file artifacts"
-	@echo "lint - check style with flake8"
+	@echo "clean - clean all artefacts"
+	@echo "clean-build - remove build artefacts"
+	@echo "clean-pyc - remove Python file artefacts"
+	@echo "typecheck - check types with mypy"
 	@echo "test - run tests and check coverage"
+	@echo "lint - check style with flake8"
+	@echo "typecheck-xml - check types with mypy with xml output"
+	@echo "test-xml - run tests and check coverage with xml output"
+	@echo "lint-xml - check style with flake8 with xml output"
+
 
 clean: clean-build clean-pyc
 
