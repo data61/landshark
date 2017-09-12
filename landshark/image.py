@@ -1,5 +1,6 @@
 """Image operations that move between world and image coordinates."""
 import logging
+from collections import namedtuple
 
 import numpy as np
 from affine import Affine
@@ -7,6 +8,9 @@ from affine import Affine
 from typing import Tuple
 
 log = logging.getLogger(__name__)
+
+
+BoundingBox = namedtuple("BoundingBox", ["x0", "xn", "y0", "yn"])
 
 
 def pixel_coordinates(width: int,
@@ -50,6 +54,34 @@ def pixel_coordinates(width: int,
     coords_y = (pix_y * pixel_height) + origin_y
 
     return coords_x, coords_y
+
+
+def bounds(x_pixel_coords: np.ndarray,
+           y_pixel_coords: np.ndarray) -> BoundingBox:
+    """
+    Get the bounding box of the image.
+
+    Returns the corners at 0,0 and (width, height).
+
+    Parameters
+    ----------
+    x_pixel_coords : np.ndarray
+        Array of pixel coordinates in world space. each edge must be
+    the minimum mag side, and it must extend one pixel beyond
+    y_pixel_coords : np.ndarray
+        Array of pixel coordinates in y. See x_pixel_coords.
+
+    Returns
+    -------
+    bbox : BoundingBox
+        Struct giving the 4 coordinates of the bounding box. They are
+        labelled x0 and y0 for the corner of the 0,0 pixel, and xn yn for
+        the (outer) corner of the last pixel.
+
+    """
+    bbox = BoundingBox(x0=x_pixel_coords[0], xn=x_pixel_coords[-1],
+                       y0=y_pixel_coords[0], yn=y_pixel_coords[-1])
+    return bbox
 
 
 def image_to_world(indices: np.ndarray,

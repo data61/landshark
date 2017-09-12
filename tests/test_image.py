@@ -74,3 +74,14 @@ def test_world_to_image_centers(random_image_transform):
     assert np.all(true_idx_x == idx_x)
     assert np.all(true_idx_y == idx_y)
 
+
+def test_bounding_box():
+
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+
+    b = image.bounds(x_coords, y_coords)
+    assert b.x0 == x_coords[0]
+    assert b.xn == x_coords[-1]
+    assert b.y0 == y_coords[0]
+    assert b.yn == y_coords[-1]
