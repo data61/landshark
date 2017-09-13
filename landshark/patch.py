@@ -38,7 +38,6 @@ class Patch:
         n = halfwidth * 2 + 1
         ymax = ymin + n - 1  # INCLUSIVE
         xmax = xmin + n - 1  # INCLUSIVE
-        self.mask = np.ones((n, n), dtype=bool)
         # What lines to read?
         ystart = max(0, ymin)
         xstart = max(0, xmin)
@@ -51,5 +50,21 @@ class Patch:
         self.x = slice(xstart, xstop)
         self.patch_x = slice(xstart - xmin, xstop - xmin)
 
+        patch_flat = []
+        flat = []
+
+        self.mask = np.ones((n, n), dtype=bool)
         for y in self.patch_y_indices:
             self.mask[y, self.patch_x] = False
+
+        #  Create data structures for flattened masks and images
+        self.flat_mask = self.mask.flatten("C")
+        for y, yp in zip(self.y_indices, self.patch_y_indices):
+            start = y * image_width + xstart
+            stop = y * image_width + xstop
+            flat.append(slice(start, stop))
+            pstart = yp * n + (xstart - xmin)
+            pstop = yp * n + (xstop - xmin)
+            patch_flat.append(slice(pstart, pstop))
+        self.patch_flat = patch_flat
+        self.flat = flat
