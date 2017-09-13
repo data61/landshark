@@ -43,7 +43,7 @@ def pixel_coordinates(width: int,
     assert affine.is_rectilinear
 
     pixel_width = affine[0]
-    pixel_height = -1.0 * affine[4]  # origin is TOP left
+    pixel_height = affine[4]
     origin_x = affine[2]
     origin_y = affine[5]
 
@@ -82,6 +82,20 @@ def bounds(x_pixel_coords: np.ndarray,
     bbox = BoundingBox(x0=x_pixel_coords[0], xn=x_pixel_coords[-1],
                        y0=y_pixel_coords[0], yn=y_pixel_coords[-1])
     return bbox
+
+
+def in_bounds(coords_x: np.ndarray, coords_y: np.ndarray,
+              bbox: BoundingBox) -> np.ndarray:
+    """Do Stuff."""
+    minx = min(bbox.x0, bbox.xn)
+    maxx = max(bbox.x0, bbox.xn)
+    miny = min(bbox.y0, bbox.yn)
+    maxy = max(bbox.y0, bbox.yn)
+
+    in_x = np.logical_and(coords_x >= minx, coords_x <= maxx)
+    in_y = np.logical_and(coords_y >= miny, coords_y <= maxy)
+    in_bbox = np.logical_and(in_x, in_y)
+    return in_bbox
 
 
 def image_to_world(indices: np.ndarray,
