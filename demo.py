@@ -1,4 +1,5 @@
 import logging
+from itertools import product, islice
 
 import tensorflow as tf
 import numpy as np
@@ -18,13 +19,12 @@ from tensorflow.contrib.data import Dataset
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-halfwidth = 2
-patch_pixels = ((2 * halfwidth) + 1) ** 2
+halfwidth = 25
+patchwidth = (2 * halfwidth) + 1
+patch_pixels = patchwidth ** 2
 target_label = 'Na_ppm_i_1'
 # target_label = 'Na_ppm_imp'
 
-xfile = tables.open_file("lbalpha.hdf5")
-yfile = tables.open_file("geochem_sites.hdf5")
 
 # Aboleth settings
 l_samples = 5
@@ -36,40 +36,49 @@ bsize = 50
 config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
 variance = 10.0
 
+batchsize = 10
 
-def read_data() -> Tuple[np.ndarray, np.ma.MaskedArray, np.ma.MaskedArray]:
-    #  TODO iterate these properly in batches
-    #  TODO save these in the opposite order so dont transpose
-    #  TODO sort the coordinates in the Y
-    #  TODO find n_categories at image read time
-    coords_x, coords_y = yfile.root.coordinates.read().transpose()
-    targets = yfile.root.targets.read()
-    labels = yfile.root.targets.attrs.labels
-    Y = targets[:, labels.index(target_label)]
-    n = targets.shape[0]
 
-    x_pixel_array = xfile.root.x_coordinates.read()
-    y_pixel_array = xfile.root.y_coordinates.read()
-    bounds = ls.image.bounds(x_pixel_array, y_pixel_array)
-    image_height = xfile.root._v_attrs.height
-    image_width = xfile.root._v_attrs.width
+def get_coords_training(coords, x_pixel_array, y_pixel_array):
+    n = coords.shape[0]
+    c = 0
+    while c < n:
+        start = c
+        stop = min(c + batchsize, n)
+        out = coords[start:stop].transpose()
+        c += batchsize
+        coords_x, coords_y = out
+        im_coords_x = ls.image.world_to_image(coords_x, x_pixel_array)
+        im_coords_y = ls.image.world_to_image(coords_y, y_pixel_array)
+        yield im_coords_x, im_coords_y
 
-    data_in_bounds = ls.image.in_bounds(coords_x, coords_y, bounds)
-    assert np.all(data_in_bounds)
 
-    coords_x_image = ls.image.world_to_image(coords_x, x_pixel_array)
-    coords_y_image = ls.image.world_to_image(coords_y, y_pixel_array)
+def get_coords_query(image_width, image_height):
+    coords_it = product(range(image_width), range(image_height))
+    while True:
+        out = islice(coords_it, batchsize)
+        if out is None:
+            return
+        else:
+            coords_x, coords_y = zip(*out)
+            cx = np.array(coords_x)
+            cy = np.array(coords_y)
+            yield cx, cy
 
-    ord_data = xfile.root.ordinal_data
-    cat_data = xfile.root.categorical_data
 
-    # TODO could make these at batch time if there are billions of points
+def read_batch(coords_x, coords_y, hfile):
+    image_height = hfile.root._v_attrs.height
+    image_width = hfile.root._v_attrs.width
+    ord_data = hfile.root.ordinal_data
+    cat_data = hfile.root.categorical_data
+    n = coords_x.shape[0]
+    n_feats_ord = ord_data.shape[1]
+    n_feats_cat = cat_data.shape[1]
     patches = [ls.patch.Patch(x, y, halfwidth, image_width, image_height)
-               for x, y in zip(coords_x_image, coords_y_image)]
-
-    ord_patch_data = np.empty((n, patch_pixels, ord_data.shape[1]),
+               for x, y in zip(coords_x, coords_y)]
+    ord_patch_data = np.empty((n, patch_pixels, n_feats_ord),
                               dtype=np.float32)
-    cat_patch_data = np.empty((n, patch_pixels, cat_data.shape[1]),
+    cat_patch_data = np.empty((n, patch_pixels, n_feats_cat),
                               dtype=np.int32)
 
     for i, p in enumerate(patches):
@@ -78,36 +87,129 @@ def read_data() -> Tuple[np.ndarray, np.ma.MaskedArray, np.ma.MaskedArray]:
             ord_patch_data[i, rp] = ord_data[r]
             cat_patch_data[i, rp] = cat_data[r]
 
-    # TODO missing data harder if everything flat
-    cat_missing = cat_data.attrs.missing_values
-    ord_missing = ord_data.attrs.missing_values
+    return ord_patch_data, cat_patch_data
 
-    ord_mask = np.zeros_like(ord_patch_data, dtype=bool)
-    cat_mask = np.zeros_like(cat_patch_data, dtype=bool)
 
-    for i, v in enumerate(cat_missing):
-        if v is not None:
-            cat_mask[:, :, i] = cat_patch_data[:, :, i] == v
+def read_targets(xfile, yfile):
+    x_pixel_array = xfile.root.x_coordinates.read()
+    y_pixel_array = xfile.root.y_coordinates.read()
+    coords_it = get_coords_training(yfile.root.coordinates, x_pixel_array,
+                                    y_pixel_array)
+    labels = yfile.root.targets.attrs.labels
+    targets = yfile.root.targets.read()
+    Y = targets[:, labels.index(target_label)]
+    return coords_it, Y
 
-    for i, v in enumerate(ord_missing):
-        if v is not None:
-            ord_mask[:, :, i] = ord_patch_data[:, :, i] == v
+def read_features(xfile, coords_it=None):
+    image_height = xfile.root._v_attrs.height
+    image_width = xfile.root._v_attrs.width
+    if coords_it is None:
+        coords_it = get_coords_query(image_width, image_height)
+    data_batches = (read_batch(cx, cy, xfile) for cx, cy in coords_it)
+    return data_batches
 
-    ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_mask)
-    cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_mask)
 
-    # Normalise patches
-    ord_marray -= (ord_marray.mean(axis=0)).mean(axis=0)
-    ord_marray /= (ord_marray.reshape((-1, ord_marray.shape[2]))).std(axis=0)
-    import IPython; IPython.embed()
+# def read_data() -> Tuple[np.ndarray, np.ma.MaskedArray, np.ma.MaskedArray]:
+#     #  TODO iterate these properly in batches
+#     #  TODO save these in the opposite order so dont transpose
+#     #  TODO sort the coordinates in the Y
+#     #  TODO find n_categories at image read time
+#     n = targets.shape[0]
 
-    ord_flat = ord_marray.reshape((ord_marray.shape[0], -1))
-    cat_flat = cat_marray.reshape((cat_marray.shape[0], -1))
+#     x_pixel_array = xfile.root.x_coordinates.read()
+#     y_pixel_array = xfile.root.y_coordinates.read()
+#     bounds = ls.image.bounds(x_pixel_array, y_pixel_array)
+#     image_height = xfile.root._v_attrs.height
+#     image_width = xfile.root._v_attrs.width
 
-    Y -= Y.mean()
-    Y /= Y.std()
+#     data_in_bounds = ls.image.in_bounds(coords_x, coords_y, bounds)
+#     assert np.all(data_in_bounds)
 
-    return Y, ord_flat, cat_flat
+#     coords_x_image = ls.image.world_to_image(coords_x, x_pixel_array)
+#     coords_y_image = ls.image.world_to_image(coords_y, y_pixel_array)
+
+#     ord_data = xfile.root.ordinal_data
+#     cat_data = xfile.root.categorical_data
+
+#     n_feats_ord = ord_data.shape[1]
+#     n_feats_cat = cat_data.shape[1]
+
+#     # TODO could make these at batch time if there are billions of points
+#     patches = [ls.patch.Patch(x, y, halfwidth, image_width, image_height)
+#                for x, y in zip(coords_x_image, coords_y_image)]
+
+#     ord_patch_data = np.empty((n, patch_pixels, n_feats_ord),
+#                               dtype=np.float32)
+#     cat_patch_data = np.empty((n, patch_pixels, n_feats_cat),
+#                               dtype=np.int32)
+
+#     for i, p in enumerate(patches):
+#         #  iterating over contiguous reads for a patch
+#         for rp, r in zip(p.patch_flat, p.flat):
+#             ord_patch_data[i, rp] = ord_data[r]
+#             cat_patch_data[i, rp] = cat_data[r]
+
+#     # ord_patch_data = np.empty((n, patchwidth, patchwidth, ord_data.shape[1]),
+#     #                           dtype=np.float32)
+
+
+#     # for i, p in enumerate(patches):
+#     #     for yp, r in zip(p.patch_y_indices, p.flat):
+#     #         ord_patch_data[i, yp, p.patch_x] = ord_data[r]
+
+
+#     # TODO missing data harder if everything flat
+#     cat_missing = cat_data.attrs.missing_values
+#     ord_missing = ord_data.attrs.missing_values
+
+#     ord_mask = np.zeros_like(ord_patch_data, dtype=bool)
+#     cat_mask = np.zeros_like(cat_patch_data, dtype=bool)
+
+#     for i, v in enumerate(cat_missing):
+#         if v is not None:
+#             cat_mask[:, :, i] = cat_patch_data[:, :, i] == v
+
+#     for i, v in enumerate(ord_missing):
+#         if v is not None:
+#             ord_mask[:, :, i] = ord_patch_data[:, :, i] == v
+
+#     ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_mask)
+#     cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_mask)
+
+#     # Normalise patches
+#     ord_marray -= (ord_marray.mean(axis=0)).mean(axis=0)
+#     ord_marray /= (ord_marray.reshape((-1, n_feats_ord))).std(axis=0)
+
+#     # # visualise
+#     # ord_marray = ord_marray.reshape((n, patchwidth, patchwidth, n_feats_ord))
+
+#     # # print some patches
+#     # tile_nwidth = 10
+#     # tile_nheight = 10
+#     # cov_index = 15
+#     # image = np.zeros((tile_nheight * patchwidth, tile_nwidth * patchwidth))
+#     # for i in range(tile_nwidth):
+#     #     for j in range(tile_nheight):
+#     #         c = i * tile_nheight + j
+#     #         imxstart = i * patchwidth
+#     #         imxend = imxstart + patchwidth
+#     #         imystart = j * patchwidth
+#     #         imyend = imystart + patchwidth
+#     #         image[imystart:imyend, imxstart:imxend] = \
+#     #             ord_marray.data[c, :, :, cov_index]
+
+#     # import matplotlib.pyplot as pl
+#     # pl.imshow(image, cm=pl.cm.plasma)
+#     # pl.show()
+
+
+#     ord_flat = ord_marray.reshape((ord_marray.shape[0], -1))
+#     cat_flat = cat_marray.reshape((cat_marray.shape[0], -1))
+
+#     Y -= Y.mean()
+#     Y /= Y.std()
+
+#     return Y, ord_flat, cat_flat
 
 
 def sk_validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
@@ -220,6 +322,13 @@ def batch_training(X, Y, M, batch_size, n_epochs):
 
 
 if __name__ == "__main__":
-    Y, ord_data, cat_data = read_data()
+    xfile = tables.open_file("lbalpha.hdf5")
+    yfile = tables.open_file("geochem_sites.hdf5")
+    train_coords_it, Y = read_targets(xfile, yfile)
+    train_X_it = read_features(xfile, train_coords_it)
+    predict_X_it = read_features(xfile)
+
+
+    # ord_data, cat_data = read_data(xfile)
     # ab_validate(Y, ord_data, cat_data)
     sk_validate(Y, ord_data, cat_data)
