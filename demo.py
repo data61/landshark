@@ -11,6 +11,7 @@ import aboleth as ab
 from typing import Tuple
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
+from sklearn.ensemble import RandomForestRegressor
 from tensorflow.contrib.data import Dataset
 
 # Set up a python logger so we can see the output of MonitoredTrainingSession
@@ -30,7 +31,7 @@ l_samples = 5
 p_samples = 10
 rseed = 666
 frac_test = 0.1
-n_epochs = 300
+n_epochs = 2000
 bsize = 50
 config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
 variance = 10.0
@@ -95,11 +96,13 @@ def read_data() -> Tuple[np.ndarray, np.ma.MaskedArray, np.ma.MaskedArray]:
     ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_mask)
     cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_mask)
 
+    # Normalise patches
+    ord_marray -= (ord_marray.mean(axis=0)).mean(axis=0)
+    ord_marray /= (ord_marray.reshape((-1, ord_marray.shape[2]))).std(axis=0)
+    import IPython; IPython.embed()
+
     ord_flat = ord_marray.reshape((ord_marray.shape[0], -1))
     cat_flat = cat_marray.reshape((cat_marray.shape[0], -1))
-
-    ord_flat -= ord_flat.mean(axis=0)
-    ord_flat /= ord_flat.std(axis=0)
 
     Y -= Y.mean()
     Y /= Y.std()
@@ -107,18 +110,44 @@ def read_data() -> Tuple[np.ndarray, np.ma.MaskedArray, np.ma.MaskedArray]:
     return Y, ord_flat, cat_flat
 
 
-def validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
+def sk_validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
+        -> None:
+    N, D = Xo.shape
+
+    # Split the training and testing data
+    X_tr, X_ts, Y_tr, Y_ts, M_tr, M_ts = train_test_split(
+        Xo.data.astype(np.float32),
+        Y.astype(np.float32),
+        Xo.mask,
+        test_size=frac_test,
+        random_state=rseed
+        )
+    N_tr, D = X_tr.shape
+
+    # Means should be zero, so this is a mean impute
+    X_tr[M_tr] = 0.
+    X_ts[M_ts] = 0.
+
+    rf = RandomForestRegressor(n_estimators=100)
+    rf.fit(X_tr, Y_tr)
+    Ey = rf.predict(X_ts)
+    r2 = r2_score(Y_ts.flatten(), Ey.flatten())
+    print("Random Forest r2: {}".format(r2))
+
+
+def ab_validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
         -> None:
     """Train and validate an aboleth model."""
     N, D = Xo.shape
 
-    # import IPython; IPython.embed()
-
+    l = tf.Variable(1. * np.ones((D, 1), dtype=np.float32))
+    kernel = ab.RBF(lenscale=ab.pos(l))
     layers = ab.LearnedNormalImpute(
         ab.InputLayer('Xo', n_samples=l_samples),
         ab.InputLayer('Xo_m')
         ) >> \
-        ab.DenseVariational(output_dim=1)
+        ab.RandomFourier(n_features=100, kernel=kernel) >> \
+        ab.DenseVariational(output_dim=1, full=True)
 
     # Split the training and testing data
     X_tr, X_ts, Y_tr, Y_ts, M_tr, M_ts = train_test_split(
@@ -141,11 +170,10 @@ def validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
     with tf.name_scope("Deepnet"):
         lkhood = ab.likelihoods.Normal(variance=ab.pos(tf.Variable(variance)))
         nn, kl = layers(Xo=X_, Xo_m=M_)
-        # import IPython; IPython.embed(); exit()
         loss = ab.elbo(nn, Y_, N_tr, kl, lkhood)
 
     with tf.name_scope("Train"):
-        optimizer = tf.train.AdamOptimizer(0.001)
+        optimizer = tf.train.AdamOptimizer()
         global_step = tf.train.create_global_step()
         train = optimizer.minimize(loss, global_step=global_step)
 
@@ -177,8 +205,8 @@ def validate(Y: np.ndarray, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
 
     Ey = Eys.mean(axis=0)
     r2 = r2_score(Y_ts.flatten(), Ey.flatten())
-    print("r2: {}".format(r2))
-    import IPython; IPython.embed()
+    print("Aboleth r2: {}".format(r2))
+    # import IPython; IPython.embed()
 
 
 def batch_training(X, Y, M, batch_size, n_epochs):
@@ -193,4 +221,5 @@ def batch_training(X, Y, M, batch_size, n_epochs):
 
 if __name__ == "__main__":
     Y, ord_data, cat_data = read_data()
-    validate(Y, ord_data, cat_data)
+    # ab_validate(Y, ord_data, cat_data)
+    sk_validate(Y, ord_data, cat_data)
