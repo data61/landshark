@@ -58,7 +58,7 @@ def get_coords_training(coords, x_pixel_array, y_pixel_array):
 
 
 def get_coords_query(image_width, image_height):
-    image_width, image_height = fake_width, fake_height
+    # image_width, image_height = fake_width, fake_height
     coords_it = product(range(image_height), range(image_width))
     while True:
         out = list(islice(coords_it, batchsize))
@@ -72,11 +72,20 @@ def get_coords_query(image_width, image_height):
             yield cx, cy
 
 
+ord_data_array = None
+cat_data_array = None
+
 def read_batch(coords_x, coords_y, hfile):
     image_height = hfile.root._v_attrs.height
     image_width = hfile.root._v_attrs.width
+    global ord_data_array
+    global cat_data_array
     ord_data = hfile.root.ordinal_data
     cat_data = hfile.root.categorical_data
+    if ord_data_array is None:
+        ord_data_array = hfile.root.ordinal_data.read()
+    if cat_data_array is None:
+        cat_data_array = hfile.root.categorical_data.read()
     n = coords_x.shape[0]
     n_feats_ord = ord_data.shape[1]
     n_feats_cat = cat_data.shape[1]
@@ -90,8 +99,8 @@ def read_batch(coords_x, coords_y, hfile):
     for i, p in enumerate(patches):
         #  iterating over contiguous reads for a patch
         for rp, r in zip(p.patch_flat, p.flat):
-            ord_patch_data[i, rp] = ord_data[r]
-            cat_patch_data[i, rp] = cat_data[r]
+            ord_patch_data[i, rp] = ord_data_array[r]
+            cat_patch_data[i, rp] = cat_data_array[r]
 
     cat_missing = cat_data.attrs.missing_values
     ord_missing = ord_data.attrs.missing_values
@@ -253,7 +262,7 @@ def predict(model, X_it):
 def show(Y_it, xfile):
     image_height = xfile.root._v_attrs.height
     image_width = xfile.root._v_attrs.width
-    image_width, image_height = fake_width, fake_height
+    # image_width, image_height = fake_width, fake_height
     Y = np.concatenate(list(Y_it))
     im = Y.reshape((image_height, image_width))
     # im = Y.reshape((100, 100))
