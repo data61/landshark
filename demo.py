@@ -13,13 +13,14 @@ from typing import Tuple, Iterator
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from tensorflow.contrib.data import Dataset
 
 # Set up a python logger so we can see the output of MonitoredTrainingSession
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-halfwidth = 1
+halfwidth = 0
 patchwidth = (2 * halfwidth) + 1
 patch_pixels = patchwidth ** 2
 target_label = 'Na_ppm_i_1'
@@ -36,7 +37,10 @@ bsize = 50
 config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
 variance = 10.0
 
-batchsize = 10000
+batchsize = 100000
+
+fake_width = 400
+fake_height = 400
 
 
 def get_coords_training(coords, x_pixel_array, y_pixel_array):
@@ -54,13 +58,15 @@ def get_coords_training(coords, x_pixel_array, y_pixel_array):
 
 
 def get_coords_query(image_width, image_height):
-    coords_it = product(range(image_width), range(image_height))
+    image_width, image_height = fake_width, fake_height
+    coords_it = product(range(image_height), range(image_width))
     while True:
         out = list(islice(coords_it, batchsize))
         if len(out) == 0:
             return
         else:
-            coords_x, coords_y = zip(*out)
+            #  reversed on purpose so we get row-major indexing
+            coords_y, coords_x = zip(*out)
             cx = np.array(coords_x)
             cy = np.array(coords_y)
             yield cx, cy
@@ -150,6 +156,7 @@ def sk_validate(Y: np.ndarray, Xiter: Iterator[Tuple[np.ndarray, np.ndarray]])\
     X_ts[M_ts] = 0.
 
     rf = RandomForestRegressor(n_estimators=10)
+    # rf = LinearRegression()
     rf.fit(X_tr, Y_tr)
     Ey = rf.predict(X_ts)
     r2 = r2_score(Y_ts.flatten(), Ey.flatten())
@@ -238,20 +245,21 @@ def predict(model, X_it):
         Xs[x[0].mask] = 0.  # impute
         Xs = Xs.reshape((len(Xs), -1))
         ys = model.predict(Xs)
-        print(np.max(ys), np.min(ys), np.any(np.isinf(ys)),
-              np.any(np.isnan(ys)))
+        # print(np.max(ys), np.min(ys), np.any(np.isinf(ys)),
+        #       np.any(np.isnan(ys)))
         yield ys
 
 
 def show(Y_it, xfile):
     image_height = xfile.root._v_attrs.height
     image_width = xfile.root._v_attrs.width
-
+    image_width, image_height = fake_width, fake_height
     Y = np.concatenate(list(Y_it))
     im = Y.reshape((image_height, image_width))
     # im = Y.reshape((100, 100))
     import matplotlib.pyplot as pl
-    pl.imshow(im)
+    from matplotlib import cm
+    pl.imshow(im, cmap=cm.inferno)
     pl.show()
 
 
