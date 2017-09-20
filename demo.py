@@ -44,18 +44,37 @@ fake_height = 400
 
 
 class RowCache:
-    def __init__(self, harray, nrows):
+    def __init__(self, harray, rows_per_block, nblocks):
         self._harray = harray
-        self._d = LRU(nrows)
+
+        def evicted(key, value):
+            print("Row cache evicting block {}".format(key))
+
+        self._d = LRU(nblocks, callback=evicted)
         self.total_rows = harray.shape[0]
-        start_rows = min(nrows, self.total_rows)
-        for i in range(start_rows):
-            self._d[i] = harray[i]
+        self.rows_per_block = rows_per_block
+        total_blocks = (self.total_rows // rows_per_block) + \
+            int(self.total_rows % rows_per_block != 0)
+        block_starts = np.arange(total_blocks, dtype=int) * rows_per_block
+        block_stops = block_starts + rows_per_block
+        block_stops[-1] = self.total_rows
+
+        self.block_slices = [slice(i, j) for i, j in
+                             zip(block_starts, block_stops)]
+
+        # fill the buffer initially
+        for i, s in enumerate(self.block_slices):
+            self._d[i] = harray[s]
 
     def __call__(self, idx):
-        if idx not in self._d:
-            self._d[idx] = self._harray[idx]
-        return self._d[idx]
+
+        b = idx // self.rows_per_block
+        if b not in self._d:
+            print("Row cache adding block {}".format(b))
+            self._d[b] = self._harray[self.block_slices[b]]
+        in_block_idx = idx - (b * self.rows_per_block)
+        row = self._d[b][in_block_idx]
+        return row
 
 
 def get_coords_training(coords, x_pixel_array, y_pixel_array):
@@ -295,8 +314,8 @@ if __name__ == "__main__":
     xfile = tables.open_file("lbalpha.hdf5")
     yfile = tables.open_file("geochem_sites.hdf5")
 
-    ord_cache = RowCache(xfile.root.ordinal_data, 500)
-    cat_cache = RowCache(xfile.root.categorical_data, 500)
+    ord_cache = RowCache(xfile.root.ordinal_data, 100, 5)
+    cat_cache = RowCache(xfile.root.categorical_data, 100, 5)
 
     train_coords_it, Y = read_targets(xfile, yfile)
     train_X_it = read_features(xfile, ord_cache, cat_cache, train_coords_it)
