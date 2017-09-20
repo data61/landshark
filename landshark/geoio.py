@@ -126,12 +126,11 @@ def _windows(width: int, height: int,
     return ret
 
 
-def _block_shape(window: WindowType, nbands: int) -> Tuple[int, int]:
+def _block_shape(window: WindowType, nbands: int) -> Tuple[int, int, int]:
     """Compute the shape of the output of iterators from the window size."""
     rows = window[0][1] - window[0][0]
     cols = window[1][1] - window[1][0]
-    n = rows * cols
-    result = (n, nbands)
+    result = (rows, cols, nbands)
     return result
 
 
@@ -143,7 +142,7 @@ def _read(band_list: List[Band], windows: List[WindowType],
         out_array = np.empty(block_shape, dtype=dtype)
         for i, b in enumerate(band_list):
             a = b.image.read(b.index, window=w)
-            out_array[:, i] = a.astype(dtype).flatten()
+            out_array[:, :, i] = a.astype(dtype)
         yield out_array
 
 
@@ -186,9 +185,9 @@ class ImageStack:
         if not block_rows:
             block_rows = max(_block_rows(ordinal_bands),
                              _block_rows(categorical_bands))
-            log.info("Using block size of {} rows".format(block_rows))
+            log.info("Using tif block size of {} rows".format(block_rows))
         else:
-            log.info("User set block size of {} rows".format(block_rows))
+            log.info("User set tif block size of {} rows".format(block_rows))
         windows = _windows(width, height, block_rows)
         log.info("Found {} ordinal bands".format(len(ordinal_bands)))
         log.info("Found {} categorical bands".format(len(categorical_bands)))
@@ -275,24 +274,27 @@ def write_datafile(image_stack: ImageStack, filename: str) -> None:
     h5file.create_array(h5file.root, name="x_coordinates", obj=coords_x)
     h5file.create_array(h5file.root, name="y_coordinates", obj=coords_y)
 
-    n = image_stack.width * image_stack.height
     nbands_cat = len(image_stack.categorical_bands)
     nbands_ord = len(image_stack.ordinal_bands)
-    cat_atom = tables.Int32Atom()
-    ord_atom = tables.Float32Atom()
+    cat_atom = tables.Int32Atom(shape=(nbands_cat,))
+    ord_atom = tables.Float32Atom(shape=(nbands_ord,))
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
 
     log.info("Creating data arrays")
+    im_shape = (image_stack.height, image_stack.width)
     cat_array = h5file.create_carray(h5file.root, name="categorical_data",
-                                     atom=cat_atom, shape=(n, nbands_cat),
+                                     atom=cat_atom, shape=im_shape,
                                      filters=filters)
     cat_array.attrs.labels = image_stack.categorical_names
     cat_array.attrs.missing_values = image_stack.categorical_missing
     ord_array = h5file.create_carray(h5file.root, name="ordinal_data",
-                                     atom=ord_atom, shape=(n, nbands_ord),
+                                     atom=ord_atom, shape=im_shape,
                                      filters=filters)
     ord_array.attrs.labels = image_stack.ordinal_names
     ord_array.attrs.missing_values = image_stack.ordinal_missing
+
+    log.info("Categorical HDF5 block shape: {}".format(cat_array.chunkshape))
+    log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
 
     start_idx = 0
     log.info("Writing categorical data")

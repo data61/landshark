@@ -15,14 +15,14 @@ from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from tensorflow.contrib.data import Dataset
+from lru import LRU
 
 # Set up a python logger so we can see the output of MonitoredTrainingSession
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-halfwidth = 0
+halfwidth = 1
 patchwidth = (2 * halfwidth) + 1
-patch_pixels = patchwidth ** 2
 target_label = 'Na_ppm_i_1'
 # target_label = 'Na_ppm_imp'
 
@@ -37,10 +37,25 @@ bsize = 50
 config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
 variance = 10.0
 
-batchsize = 100000
+batchsize = 10
 
 fake_width = 400
 fake_height = 400
+
+
+class RowCache:
+    def __init__(self, harray, nrows):
+        self._harray = harray
+        self._d = LRU(nrows)
+        self.total_rows = harray.shape[0]
+        start_rows = min(nrows, self.total_rows)
+        for i in range(start_rows):
+            self._d[i] = harray[i]
+
+    def __call__(self, idx):
+        if idx not in self._d:
+            self._d[idx] = self._harray[idx]
+        return self._d[idx]
 
 
 def get_coords_training(coords, x_pixel_array, y_pixel_array):
@@ -72,52 +87,45 @@ def get_coords_query(image_width, image_height):
             yield cx, cy
 
 
-ord_data_array = None
-cat_data_array = None
-
-def read_batch(coords_x, coords_y, hfile):
+def read_batch(coords_x, coords_y, hfile, ord_cache, cat_cache):
     image_height = hfile.root._v_attrs.height
     image_width = hfile.root._v_attrs.width
-    global ord_data_array
-    global cat_data_array
     ord_data = hfile.root.ordinal_data
     cat_data = hfile.root.categorical_data
-    if ord_data_array is None:
-        ord_data_array = hfile.root.ordinal_data.read()
-    if cat_data_array is None:
-        cat_data_array = hfile.root.categorical_data.read()
     n = coords_x.shape[0]
-    n_feats_ord = ord_data.shape[1]
-    n_feats_cat = cat_data.shape[1]
-    patches = [ls.patch.Patch(x, y, halfwidth, image_width, image_height)
-               for x, y in zip(coords_x, coords_y)]
-    ord_patch_data = np.empty((n, patch_pixels, n_feats_ord),
-                              dtype=np.float32)
-    cat_patch_data = np.empty((n, patch_pixels, n_feats_cat),
-                              dtype=np.int32)
+    n_feats_ord = ord_data.atom.shape[0]
+    n_feats_cat = cat_data.atom.shape[0]
 
-    for i, p in enumerate(patches):
-        #  iterating over contiguous reads for a patch
-        for rp, r in zip(p.patch_flat, p.flat):
-            ord_patch_data[i, rp] = ord_data_array[r]
-            cat_patch_data[i, rp] = cat_data_array[r]
+    ord_patch_data = np.zeros((n, patchwidth, patchwidth, n_feats_ord),
+                              dtype=np.float32)
+    cat_patch_data = np.zeros((n, patchwidth, patchwidth, n_feats_cat),
+                              dtype=np.int32)
+    ord_patch_mask = np.ones_like(ord_patch_data, dtype=bool)
+    cat_patch_mask = np.ones_like(cat_patch_data, dtype=bool)
+    patch_reads = ls.patch.patches(coords_x, coords_y, halfwidth, image_width,
+                                   image_height)
+
+    for r in patch_reads:
+        ord_patch_data[r.idx, r.yp, r.xp] = ord_cache(r.y)[r.x]
+        cat_patch_data[r.idx, r.yp, r.xp] = cat_cache(r.y)[r.x]
+        ord_patch_mask[r.idx, r.yp, r.xp] = False
+        cat_patch_mask[r.idx, r.yp, r.xp] = False
 
     cat_missing = cat_data.attrs.missing_values
     ord_missing = ord_data.attrs.missing_values
 
-    ord_mask = np.zeros_like(ord_patch_data, dtype=bool)
-    cat_mask = np.zeros_like(cat_patch_data, dtype=bool)
-
     for i, v in enumerate(cat_missing):
         if v is not None:
-            cat_mask[:, :, i] = cat_patch_data[:, :, i] == v
+            cat_patch_mask[:, :, :, i] = np.logical_or(
+                cat_patch_mask[:, :, :, i], cat_patch_data[:, :, :, i] == v)
 
     for i, v in enumerate(ord_missing):
         if v is not None:
-            ord_mask[:, :, i] = ord_patch_data[:, :, i] == v
+            ord_patch_mask[:, :, :, i] = np.logical_or(
+                ord_patch_mask[:, :, :, i], ord_patch_data[:, :, :, i] == v)
 
-    ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_mask)
-    cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_mask)
+    ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_patch_mask)
+    cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_patch_mask)
 
     return ord_marray, cat_marray
 
@@ -133,13 +141,14 @@ def read_targets(xfile, yfile):
     return coords_it, Y
 
 
-def read_features(xfile, coords_it=None):
+def read_features(xfile, ord_cache, cat_cache, coords_it=None):
     image_height = xfile.root._v_attrs.height
     image_width = xfile.root._v_attrs.width
     if coords_it is None:
         coords_it = get_coords_query(image_width, image_height)
         # coords_it = get_coords_query(100, 100)
-    data_batches = (read_batch(cx, cy, xfile) for cx, cy in coords_it)
+    data_batches = (read_batch(cx, cy, xfile, ord_cache, cat_cache)
+                    for cx, cy in coords_it)
     return data_batches
 
 
@@ -165,7 +174,7 @@ def sk_validate(Y: np.ndarray, Xiter: Iterator[Tuple[np.ndarray, np.ndarray]])\
     X_ts[M_ts] = 0.
 
     rf = RandomForestRegressor(n_estimators=10)
-    # rf = LinearRegression()
+    #rf = LinearRegression()
     rf.fit(X_tr, Y_tr)
     Ey = rf.predict(X_ts)
     r2 = r2_score(Y_ts.flatten(), Ey.flatten())
@@ -285,10 +294,13 @@ def batch_training(X, Y, M, batch_size, n_epochs):
 if __name__ == "__main__":
     xfile = tables.open_file("lbalpha.hdf5")
     yfile = tables.open_file("geochem_sites.hdf5")
+
+    ord_cache = RowCache(xfile.root.ordinal_data, 500)
+    cat_cache = RowCache(xfile.root.categorical_data, 500)
+
     train_coords_it, Y = read_targets(xfile, yfile)
-    train_X_it = read_features(xfile, train_coords_it)
-    predict_X_it = read_features(xfile)
-    # import IPython; IPython.embed()
+    train_X_it = read_features(xfile, ord_cache, cat_cache, train_coords_it)
+    predict_X_it = read_features(xfile, ord_cache, cat_cache)
 
     # ab_validate(Y, ord_data, cat_data)
     model = sk_validate(Y, train_X_it)

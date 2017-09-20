@@ -133,9 +133,9 @@ def test_block_shape():
     width = 4
     height = 5
     nbands = 3
-    w = ((1, 1 + width), (3, 3 + height))
+    w = ((1, 1 + height), (3, 3 + width))
     r = geoio._block_shape(w, nbands)
-    assert r == (width * height, nbands)
+    assert r == (height, width, nbands)
 
 
 def test_read(mocker):
@@ -147,8 +147,9 @@ def test_read(mocker):
     a2 = [np.random.rand(10, 25) * 100,
           np.random.rand(10, 25) * 50,
           np.random.rand(10, 25) * 10]
-    answers = [np.vstack((i1.flatten(), i2.flatten())).T.astype(np.int32) for
-                i1, i2 in zip(a1, a2)]
+    answers = [np.concatenate((i1[..., np.newaxis],
+                               i2[..., np.newaxis]), axis=-1).astype(np.int32)
+               for i1, i2 in zip(a1, a2)]
     im = mocker.Mock()
     im.read = mocker.Mock(side_effect=a1)
     im2 = mocker.Mock()
@@ -279,7 +280,7 @@ def test_imagestack_real(mocker):
     assert stack.ordinal_names == ['im1_1', 'im2_2']
     assert stack.windows == [((0, 3), (0, 10)), ((3, 5), (0, 10))]
     assert np.all(stack.coordinates_x == np.arange(10 + 1, dtype=float))
-    assert np.all(stack.coordinates_y == -1.0 * np.arange(5 + 1, dtype=float))
+    assert np.all(stack.coordinates_y == np.arange(5 + 1, dtype=float))
 
 
 def test_write_datafile(mocker):
@@ -292,6 +293,7 @@ def test_write_datafile(mocker):
     m_size.return_value = 1000
     width = 10
     height = 5
+    im_shape = (height, width)
     image_stack = mocker.Mock()
     image_stack.coordinates_x = np.arange(width + 1, dtype=np.float64)
     image_stack.coordinates_y = np.arange(height + 1, dtype=np.float64)
@@ -332,13 +334,12 @@ def test_write_datafile(mocker):
                         obj=image_stack.coordinates_y)]
     m_hfile.create_array.assert_has_calls(coord_calls, any_order=True)
 
-    n = width * height
-    cat_atom = tables.Int32Atom()
-    ord_atom = tables.Float32Atom()
+    cat_atom = tables.Int32Atom(shape=(2,))
+    ord_atom = tables.Float32Atom(shape=(2,))
     filters = tables.Filters(complevel=1, complib='blosc:lz4')
-    carray_calls =[call(m_hfile.root, name='categorical_data', shape=(n, 2),
+    carray_calls =[call(m_hfile.root, name='categorical_data', shape=im_shape,
                         filters=filters, atom=cat_atom),
-                   call(m_hfile.root, name='ordinal_data', shape=(n, 2),
+                   call(m_hfile.root, name='ordinal_data', shape=im_shape,
                         filters=filters, atom=ord_atom)]
 
     m_hfile.create_carray.assert_has_calls(carray_calls)
@@ -352,14 +353,14 @@ def test_write_datafile(mocker):
     ord_slices = [k[0][0] for k in m_ord_array.__setitem__.call_args_list]
 
     assert cat_slices[0].start == 0
-    assert cat_slices[0].stop == 20
-    assert cat_slices[-1].start == 40
-    assert cat_slices[-1].stop == 50
+    assert cat_slices[0].stop == 2
+    assert cat_slices[-1].start == 4
+    assert cat_slices[-1].stop == 5
 
     assert ord_slices[0].start == 0
-    assert ord_slices[0].stop == 20
-    assert ord_slices[-1].start == 40
-    assert ord_slices[-1].stop == 50
+    assert ord_slices[0].stop == 2
+    assert ord_slices[-1].start == 4
+    assert ord_slices[-1].stop == 5
 
     m_hfile.close.assert_called_once()
 
