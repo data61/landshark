@@ -1,7 +1,7 @@
 import logging
 from itertools import product, islice
 
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 import landshark as ls
 #  TODO do this in the __init__
@@ -14,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from tensorflow.contrib.data import Dataset
+# from tensorflow.contrib.data import Dataset
 from lru import LRU
 
 # Set up a python logger so we can see the output of MonitoredTrainingSession
@@ -34,7 +34,7 @@ rseed = 666
 frac_test = 0.1
 n_epochs = 2000
 bsize = 50
-config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
+# config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU ?
 variance = 10.0
 
 batchsize = 10
@@ -44,13 +44,14 @@ fake_height = 400
 
 
 class RowCache:
-    def __init__(self, harray, rows_per_block, nblocks):
+    def __init__(self, harray, rows_per_block, nblocks, missing_values):
         self._harray = harray
+        self.missing_values = missing_values
 
-        def evicted(key, value):
-            print("Row cache evicting block {}".format(key))
+        # def evicted(key, value):
+        #     print("Row cache evicting block {}".format(key))
 
-        self._d = LRU(nblocks, callback=evicted)
+        self._d = LRU(nblocks)
         self.total_rows = harray.shape[0]
         self.rows_per_block = rows_per_block
         total_blocks = (self.total_rows // rows_per_block) + \
@@ -64,14 +65,23 @@ class RowCache:
 
         # fill the buffer initially
         for i, s in enumerate(self.block_slices):
-            self._d[i] = harray[s]
+            self._d[i] = self._read_slice(s)
+
+    def _read_slice(self, s):
+        d = self._harray[s]
+        m = np.zeros_like(d, dtype=bool)
+        for i, v in enumerate(self.missing_values):
+            if v is not None:
+                m[..., i] = d[..., i] == v
+        md = np.ma.MaskedArray(data=d, mask=m)
+        return md
+        self._d[i] = md
+
 
     def __call__(self, idx):
-
         b = idx // self.rows_per_block
         if b not in self._d:
-            print("Row cache adding block {}".format(b))
-            self._d[b] = self._harray[self.block_slices[b]]
+            self._d[b] = self._read_slice(self.block_slices[b])
         in_block_idx = idx - (b * self.rows_per_block)
         row = self._d[b][in_block_idx]
         return row
@@ -106,6 +116,12 @@ def get_coords_query(image_width, image_height):
             yield cx, cy
 
 
+def _write_patches(ord_marray, cat_marray, ord_cache, cat_cache, patch_reads):
+    for r in patch_reads:
+        ord_marray[r.idx, r.yp, r.xp] = ord_cache(r.y)[r.x]
+        cat_marray[r.idx, r.yp, r.xp] = cat_cache(r.y)[r.x]
+
+
 def read_batch(coords_x, coords_y, hfile, ord_cache, cat_cache):
     image_height = hfile.root._v_attrs.height
     image_width = hfile.root._v_attrs.width
@@ -119,32 +135,13 @@ def read_batch(coords_x, coords_y, hfile, ord_cache, cat_cache):
                               dtype=np.float32)
     cat_patch_data = np.zeros((n, patchwidth, patchwidth, n_feats_cat),
                               dtype=np.int32)
-    ord_patch_mask = np.ones_like(ord_patch_data, dtype=bool)
-    cat_patch_mask = np.ones_like(cat_patch_data, dtype=bool)
+    ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=True)
+    cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=True)
+
     patch_reads = ls.patch.patches(coords_x, coords_y, halfwidth, image_width,
                                    image_height)
 
-    for r in patch_reads:
-        ord_patch_data[r.idx, r.yp, r.xp] = ord_cache(r.y)[r.x]
-        cat_patch_data[r.idx, r.yp, r.xp] = cat_cache(r.y)[r.x]
-        ord_patch_mask[r.idx, r.yp, r.xp] = False
-        cat_patch_mask[r.idx, r.yp, r.xp] = False
-
-    cat_missing = cat_data.attrs.missing_values
-    ord_missing = ord_data.attrs.missing_values
-
-    for i, v in enumerate(cat_missing):
-        if v is not None:
-            cat_patch_mask[:, :, :, i] = np.logical_or(
-                cat_patch_mask[:, :, :, i], cat_patch_data[:, :, :, i] == v)
-
-    for i, v in enumerate(ord_missing):
-        if v is not None:
-            ord_patch_mask[:, :, :, i] = np.logical_or(
-                ord_patch_mask[:, :, :, i], ord_patch_data[:, :, :, i] == v)
-
-    ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_patch_mask)
-    cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_patch_mask)
+    _write_patches(ord_marray, cat_marray, ord_cache, cat_cache, patch_reads)
 
     return ord_marray, cat_marray
 
@@ -313,9 +310,12 @@ def batch_training(X, Y, M, batch_size, n_epochs):
 if __name__ == "__main__":
     xfile = tables.open_file("lbalpha.hdf5")
     yfile = tables.open_file("geochem_sites.hdf5")
-
-    ord_cache = RowCache(xfile.root.ordinal_data, 100, 5)
-    cat_cache = RowCache(xfile.root.categorical_data, 100, 5)
+    cat_missing = xfile.root.categorical_data.attrs.missing_values
+    ord_missing = xfile.root.ordinal_data.attrs.missing_values
+    ord_cache = RowCache(xfile.root.ordinal_data, 100, 5,
+                         ord_missing)
+    cat_cache = RowCache(xfile.root.categorical_data, 100, 5,
+                         cat_missing)
 
     train_coords_it, Y = read_targets(xfile, yfile)
     train_X_it = read_features(xfile, ord_cache, cat_cache, train_coords_it)
