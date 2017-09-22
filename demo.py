@@ -105,11 +105,13 @@ def get_coords_query(image_width, image_height):
             yield cx, cy
 
 
-def _write_patches(data, mask, cache, patch_reads, missing_values):
+def _write_patches(data, mask, cache, patch_reads, mask_reads, missing_values):
 
     for r in patch_reads:
         data[r.idx, r.yp, r.xp] = cache(r.y, r.x)
-        mask[r.idx, r.yp, r.xp] = False
+
+    for r in mask_reads:
+        mask[r.idx, r.yp, r.xp] = True
 
     for i, v in enumerate(missing_values):
         if v is not None:
@@ -129,20 +131,21 @@ def read_batch(coords_x, coords_y, hfile, ord_cache, cat_cache):
                               dtype=np.float32)
     cat_patch_data = np.empty((n, patchwidth, patchwidth, n_feats_cat),
                               dtype=np.int32)
-    ord_patch_mask = np.ones_like(ord_patch_data, dtype=bool)
-    cat_patch_mask = np.ones_like(cat_patch_data, dtype=bool)
+    ord_patch_mask = np.zeros_like(ord_patch_data, dtype=bool)
+    cat_patch_mask = np.zeros_like(cat_patch_data, dtype=bool)
 
-    patch_reads = ls.patch.patches(coords_x, coords_y, halfwidth, image_width,
-                                   image_height)
-    pr_ord, pr_cat = tee(patch_reads)
+    patch_reads = list(ls.patch.patches(coords_x, coords_y, halfwidth, image_width,
+                                   image_height))
+    mask_reads = list(ls.patch.mask_patches(coords_x, coords_y, halfwidth,
+                                       image_width, image_height))
 
     ord_missing = xfile.root.ordinal_data.attrs.missing_values
-    _write_patches(ord_patch_data, ord_patch_mask, ord_cache, pr_ord,
-                   ord_missing)
+    _write_patches(ord_patch_data, ord_patch_mask, ord_cache, patch_reads,
+                   mask_reads, ord_missing)
 
     cat_missing = xfile.root.categorical_data.attrs.missing_values
-    _write_patches(cat_patch_data, cat_patch_mask, cat_cache, pr_cat,
-                   cat_missing)
+    _write_patches(cat_patch_data, cat_patch_mask, cat_cache, patch_reads,
+                   mask_reads, cat_missing)
 
     ord_marray = np.ma.MaskedArray(data=ord_patch_data, mask=ord_patch_mask)
     cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_patch_mask)

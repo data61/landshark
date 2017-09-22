@@ -16,14 +16,35 @@ def test_patch_00():
 
     #  0,0 corner
     p_data = np.zeros((n, n), dtype=int) - 1
+    p_mask = np.zeros((n, n), dtype=bool)
     x = np.array([0])
     y = np.array([0])
     for r in patch.patches(x, y, halfwidth, im_width, im_height):
         p_data[r.yp, r.xp] = image[r.y, r.x]
+
     true_answer = np.array([[-1, -1, -1],
                             [-1, 0, 1],
                             [-1, 5, 6]], dtype=int)
     assert np.all(true_answer == p_data)
+
+def test_patch_00_mask():
+    """Check that patches are correctly created from points in 00 corner."""
+    halfwidth = 1
+    im_width = 5
+    im_height = 5
+    n = 2 * halfwidth + 1
+
+    #  0,0 corner
+    p_mask = np.zeros((n, n), dtype=bool)
+    x = np.array([0])
+    y = np.array([0])
+    for r in patch.mask_patches(x, y, halfwidth, im_width, im_height):
+        p_mask[r.yp, r.xp] = True
+
+    true_answer = np.array([[True, True, True],
+                            [True, False, False],
+                            [True, False, False]], dtype=bool)
+    assert np.all(true_answer == p_mask)
 
 
 def test_patch_44():
@@ -45,6 +66,25 @@ def test_patch_44():
                             [23, 24, -1],
                             [-1, -1, -1]], dtype=int)
     assert np.all(true_answer == p_data)
+
+def test_patch_44_mask():
+    """Check that patches are correctly created from points in 00 corner."""
+    halfwidth = 1
+    im_width = 5
+    im_height = 5
+    n = 2 * halfwidth + 1
+
+    #  0,0 corner
+    p_mask = np.zeros((n, n), dtype=bool)
+    x = np.array([4])
+    y = np.array([4])
+    for r in patch.mask_patches(x, y, halfwidth, im_width, im_height):
+        p_mask[r.yp, r.xp] = True
+
+    true_answer = np.array([[False, False, True],
+                            [False, False, True],
+                            [True, True, True]], dtype=bool)
+    assert np.all(true_answer == p_mask)
 
 
 def test_patch_02():
@@ -69,7 +109,28 @@ def test_patch_02():
     assert np.all(true_answer == p_data)
 
 
-def test_patch_02():
+def test_patch_02_mask():
+    """Check that patches are correctly created from points in 00 corner."""
+    halfwidth = 1
+    im_width = 5
+    im_height = 5
+    n = 2 * halfwidth + 1
+
+    #  0,0 corner
+    p_mask = np.zeros((n, n), dtype=bool)
+    x = np.array([0])
+    y = np.array([2])
+    for r in patch.mask_patches(x, y, halfwidth, im_width, im_height):
+        p_mask[r.yp, r.xp] = True
+
+    true_answer = np.array([[True, False, False],
+                            [True, False, False],
+                            [True, False, False]], dtype=bool)
+
+    assert np.all(true_answer == p_mask)
+
+
+def test_patch_20():
     """Check patch code in y edge."""
     halfwidth = 1
     im_width = 5
@@ -88,3 +149,25 @@ def test_patch_02():
                             [1, 2, 3],
                             [6, 7, 8]], dtype=int)
     assert np.all(true_answer == p_data)
+
+
+def test_patch_02_mask():
+    """Check that patches are correctly created from points in 00 corner."""
+    halfwidth = 1
+    im_width = 5
+    im_height = 5
+    n = 2 * halfwidth + 1
+
+    #  0,0 corner
+    p_mask = np.zeros((n, n), dtype=bool)
+    x = np.array([2])
+    y = np.array([0])
+    for r in patch.mask_patches(x, y, halfwidth, im_width, im_height):
+        p_mask[r.yp, r.xp] = True
+
+    true_answer = np.array([[True, True, True],
+                            [False, False, False],
+                            [False, False, False]], dtype=bool)
+
+    assert np.all(true_answer == p_mask)
+
