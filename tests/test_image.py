@@ -1,7 +1,11 @@
 """Tests for the image module."""
+from itertools import product
+
 import numpy as np
 
 from landshark import image
+
+SEED = 666
 
 
 def test_pixel_coordinates(random_image_transform):
@@ -64,7 +68,8 @@ def test_world_to_image_centers(random_image_transform):
     w = np.arange(data.width, dtype=int)
     h = np.arange(data.height, dtype=int)
     coords_x = ((w.astype(float) + 0.5) * data.pixel_width) + data.origin_x
-    coords_y = ((h.astype(float) + 0.5) * (-1.0 * data.pixel_height)) + data.origin_y
+    coords_y = ((h.astype(float) + 0.5) * (-1.0 * data.pixel_height)) \
+        + data.origin_y
     idx_x = image.world_to_image(coords_x, pixel_coords_x)
     idx_y = image.world_to_image(coords_y, pixel_coords_y)
 
@@ -85,3 +90,63 @@ def test_bounding_box():
     assert b.xn == x_coords[-1]
     assert b.y0 == y_coords[0]
     assert b.yn == y_coords[-1]
+
+
+def test_coords_training():
+    """Check we get consistent target coodinates in the batch generator."""
+    batchsize = 10
+    width = 100
+    height = 50
+
+    # Fake up some image coord data, make coords equal indices
+    x = np.arange(width)
+    y = np.arange(height)
+
+    # fake some labels coords
+    rnd = np.random.RandomState(SEED)
+    label_x = rnd.choice(width, 30, replace=False)
+    label_y = rnd.choice(height, 30, replace=False)
+    label_coords = np.stack((label_x, label_y)).T
+
+    # Make the generator
+    coord_gen = image.coords_training(label_coords, x, y, batchsize)
+
+    label_accum = []
+    for cx, cy in coord_gen:
+
+        # Test sensible batch sizes
+        assert len(cx) <= batchsize
+        assert len(cy) <= batchsize
+
+        label_accum.append((cx, cy))
+
+    # Test we can reconstruct the labels array
+    label_accum = np.concatenate(label_accum, axis=-1).T
+    assert np.all(label_accum == label_coords)
+
+
+def test_coords_query():
+    """Check we get consistent image coodinates in the batch generator."""
+    batchsize = 10
+    width = 20
+    height = 10
+    # Fake up some image coord data, make coords equal indices
+    x = np.arange(width)
+    y = np.arange(height)
+    xy = np.array(list(product(y, x)))[..., ::-1]
+
+    # Make the generator
+    coord_gen = image.coords_query(width, height, batchsize)
+
+    coord_accum = []
+    for cx, cy in coord_gen:
+
+        # Test sensible batch sizes
+        assert len(cx) <= batchsize
+        assert len(cy) <= batchsize
+
+        coord_accum.append((cx, cy))
+
+    # Test we can reconstruct the labels array
+    coord_accum = np.concatenate(coord_accum, axis=-1).T
+    assert np.all(coord_accum == xy)

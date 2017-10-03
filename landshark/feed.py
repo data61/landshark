@@ -47,4 +47,3 @@ def read_batch(coords_x, coords_y, hfile, ord_cache, cat_cache):
     cat_marray = np.ma.MaskedArray(data=cat_patch_data, mask=cat_patch_mask)
 
     return ord_marray, cat_marray
-
