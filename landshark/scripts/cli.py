@@ -37,7 +37,7 @@ def _tifnames(names: List[str]) -> List[str]:
 @click.argument("files", type=click.Path(exists=True), nargs=-1)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
-def build(files: List[str], name: str) -> int:
+def import_tifs(files: List[str], name: str) -> int:
     """Build a tif stack from a set of input files."""
     out_filename = os.path.join(os.getcwd(), name + ".hdf5")
     tif_filenames = _tifnames(files)
@@ -49,10 +49,23 @@ def build(files: List[str], name: str) -> int:
 
 @cli.command()
 @click.argument("fname", type=click.Path(exists=True))
-def targets(fname: str) -> int:
+def import_targets(fname: str) -> int:
     """Build a target file from shapefile."""
     out_filename = os.path.join(
         os.getcwd(), os.path.basename(fname).rsplit(".")[0] + ".hdf5")
     sf = geoio.ShapefileTargets(fname)
     geoio.write_targetfile(sf, out_filename)
+    return 0
+
+
+@cli.command()
+def learn():
+    """Learn a model."""
+    # TODO
+    return 0
+
+@cli.command()
+def predict():
+    """Predict using a learned model"""
+    # TODO
     return 0

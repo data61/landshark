@@ -1,5 +1,6 @@
 """Image operations that move between world and image coordinates."""
 import logging
+from itertools import product, islice
 from collections import namedtuple
 
 import numpy as np
@@ -177,3 +178,34 @@ def world_to_image(points: np.ndarray,
     if (not all(np.logical_and(idx >= 0, idx < res))):
         raise ValueError("Queried location is not in the image")
     return idx
+
+
+def coords_training(coords, x_pixel_array, y_pixel_array, batchsize):
+    """Generator that yields batches of coordinates."""
+    n = coords.shape[0]
+    c = 0
+    while c < n:
+        start = c
+        stop = min(c + batchsize, n)
+        out = coords[start:stop].transpose()
+        c += batchsize
+        coords_x, coords_y = out
+        im_coords_x = image.world_to_image(coords_x, x_pixel_array)
+        im_coords_y = image.world_to_image(coords_y, y_pixel_array)
+        yield im_coords_x, im_coords_y
+
+
+def coords_query(image_width, image_height):
+    """Generator that yields batches of coordinates."""
+    coords_it = product(range(image_height), range(image_width))
+    while True:
+        out = list(islice(coords_it, batchsize))
+        if len(out) == 0:
+            return
+        else:
+            #  reversed on purpose so we get row-major indexing
+            coords_y, coords_x = zip(*out)
+            cx = np.array(coords_x)
+            cy = np.array(coords_y)
+            yield cx, cy
+
