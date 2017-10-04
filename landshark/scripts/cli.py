@@ -2,10 +2,10 @@
 
 import logging
 
-import tables
 import click
 
-from landshark.hread import ImageFeatures, Targets, training_data, query_data
+from landshark.hread import ImageFeatures, Targets
+from landshark.feed import training_data, query_data
 from landshark import models
 
 log = logging.getLogger(__name__)

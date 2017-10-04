@@ -68,8 +68,6 @@ def predict(model, X_it):
         Xs[x[0].mask] = 0.  # impute
         Xs = Xs.reshape((len(Xs), -1))
         ys = model.predict(Xs)
-        # print(np.max(ys), np.min(ys), np.any(np.isinf(ys)),
-        #       np.any(np.isnan(ys)))
         yield ys
 
 

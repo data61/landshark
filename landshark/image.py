@@ -14,6 +14,16 @@ log = logging.getLogger(__name__)
 BoundingBox = namedtuple("BoundingBox", ["x0", "xn", "y0", "yn"])
 
 
+class ImageSpec:
+    """Struct encapsulating the geographical information about an image."""
+    def __init__(self, width: int, height: int, x_coordinates: np.ndarray,
+                 y_coordinates: np.ndarray):
+        self.width = width
+        self.height = height
+        self.x_coordinates = x_coordinates
+        self.y_coordinates = y_coordinates
+
+
 def pixel_coordinates(width: int,
                       height: int,
                       affine: Affine) -> Tuple[np.ndarray, np.ndarray]:
