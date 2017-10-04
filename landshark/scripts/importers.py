@@ -1,4 +1,4 @@
-"""Main landshark commands."""
+"""Landshark importing commands."""
 
 import logging
 import os.path
@@ -7,9 +7,14 @@ import click
 # mypy type checking
 from typing import List
 
-from landshark import geoio
+from landshark.importers.tifread import ImageStack
+from landshark.importers.featurewrite import write_datafile
+from landshark.importers.shpread import ShapefileTargets
+from landshark.importers.targetwrite import write_targetfile
+from landshark.scripts.logger import configure_logging
 
 log = logging.getLogger(__name__)
+
 
 # SOME USEFUL PREPROCESSING COMMANDS
 # ----------------------------------
@@ -22,9 +27,7 @@ log = logging.getLogger(__name__)
               default="INFO", help="Level of logging")
 def cli(verbosity: str) -> int:
     """Parse the command line arguments."""
-    logging.basicConfig()
-    lg = logging.getLogger("")
-    lg.setLevel(verbosity)
+    configure_logging(verbosity)
     return 0
 
 
@@ -42,17 +45,17 @@ def tifs(files: List[str], name: str) -> int:
     out_filename = os.path.join(os.getcwd(), name + ".hdf5")
     tif_filenames = _tifnames(files)
 
-    stack = geoio.ImageStack(tif_filenames)
-    geoio.write_datafile(stack, out_filename)
+    stack = ImageStack(tif_filenames)
+    write_datafile(stack, out_filename)
     return 0
 
 
 @cli.command()
 @click.argument("fname", type=click.Path(exists=True))
-def targets(fname: str) -> int:
+def shapefile(fname: str) -> int:
     """Build a target file from shapefile."""
     out_filename = os.path.join(
         os.getcwd(), os.path.basename(fname).rsplit(".")[0] + ".hdf5")
-    sf = geoio.ShapefileTargets(fname)
-    geoio.write_targetfile(sf, out_filename)
+    sf = ShapefileTargets(fname)
+    write_targetfile(sf, out_filename)
     return 0
