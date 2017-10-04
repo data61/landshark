@@ -19,6 +19,7 @@ setup(
     entry_points={
         'console_scripts': [
             'landshark = landshark.scripts.cli:cli',
+            'landshark-import = landshark.scripts.importers:cli',
         ]
     },
     install_requires=[
