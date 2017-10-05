@@ -40,7 +40,7 @@ class RowCache:
         self.rows_per_block = rows_per_block
         total_blocks = (self.total_rows // rows_per_block) + \
             int(self.total_rows % rows_per_block != 0)
-        if (total_blocks != nblocks):
+        if (total_blocks < nblocks):
             log.warning("Image size constraints mean "
                         "{} blocks defined for image but {} requested to be "
                         "cached".format(total_blocks, nblocks))
