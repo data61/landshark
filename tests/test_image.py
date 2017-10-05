@@ -85,11 +85,40 @@ def test_bounding_box():
     x_coords = np.arange(10)
     y_coords = np.arange(5)
 
-    b = image.bounds(x_coords, y_coords)
-    assert b.x0 == x_coords[0]
-    assert b.xn == x_coords[-1]
-    assert b.y0 == y_coords[0]
-    assert b.yn == y_coords[-1]
+    b = image.BoundingBox(x_coords, y_coords)
+    assert b.xmin == x_coords[0]
+    assert b.xmax == x_coords[-1]
+    assert b.ymin == y_coords[0]
+    assert b.ymax == y_coords[-1]
+
+    b = image.BoundingBox(x_coords[::-1], y_coords[::-1])
+    assert b.xmin == x_coords[0]
+    assert b.xmax == x_coords[-1]
+    assert b.ymin == y_coords[0]
+    assert b.ymax == y_coords[-1]
+
+
+def test_bounding_box_contains():
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+
+    b = image.BoundingBox(x_coords, y_coords)
+
+    tests = np.array([[1, 1], [-1, 3], [3, -1],
+                      [8, 7], [0, 0], [9, 4], [10, 10]])
+    result = b.contains(tests)
+    ans = np.array([True, False, False, False, True, True, False])
+    assert np.all(result == ans)
+
+
+def test_image_spec(mocker):
+    p_bbox = mocker.patch("landshark.image.BoundingBox")
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+    spec = image.ImageSpec(x_coords, y_coords)
+    assert spec.width == 9
+    assert spec.height == 4
+    assert spec.bbox == p_bbox.return_value
 
 
 def test_coords_training():

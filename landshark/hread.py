@@ -14,7 +14,9 @@ class ImageFeatures:
         y_coordinates = self._hfile.root.y_coordinates.read()
         height = self._hfile.root._v_attrs.height
         width = self._hfile.root._v_attrs.width
-        spec = image.ImageSpec(width, height, x_coordinates, y_coordinates)
+        assert len(x_coordinates) == width + 1
+        assert len(y_coordinates) == height + 1
+        spec = image.ImageSpec(x_coordinates, y_coordinates)
         self.image_spec = spec
         self.ord = Features(self._hfile.root.ordinal_data,
                             self._hfile.root.ordinal_data.attrs.missing_values,

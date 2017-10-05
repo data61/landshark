@@ -1,7 +1,6 @@
 """Image operations that move between world and image coordinates."""
 import logging
 from itertools import product, islice
-from collections import namedtuple
 
 import numpy as np
 from affine import Affine
@@ -11,17 +10,88 @@ from typing import Tuple, Iterable
 log = logging.getLogger(__name__)
 
 
-BoundingBox = namedtuple("BoundingBox", ["x0", "xn", "y0", "yn"])
+class BoundingBox:
+    """
+    The bounding box of an image.
+
+    Parameters
+    ----------
+    x_pixel_coords : np.ndarray
+        Array of pixel coordinates in world space. each edge must be
+    the minimum mag side, and it must extend one pixel beyond
+    y_pixel_coords : np.ndarray
+        Array of pixel coordinates in y. See x_pixel_coords.
+
+    """
+
+    def __init__(self, x_pixel_coords: np.ndarray,
+                 y_pixel_coords: np.ndarray) -> None:
+        """Construct the bounding box."""
+        assert x_pixel_coords.ndim == 1
+        assert y_pixel_coords.ndim == 1
+        x0 = x_pixel_coords[0]
+        xn = x_pixel_coords[-1]
+        y0 = y_pixel_coords[0]
+        yn = y_pixel_coords[-1]
+        self.xmin = min(x0, xn)
+        self.xmax = max(x0, xn)
+        self.ymin = min(y0, yn)
+        self.ymax = max(y0, yn)
+
+    def contains(self, coords: np.ndarray) -> np.ndarray:
+        """
+        Check membership of coordinates in the bbox.
+
+        This assumes the bbox is closed: points on the boundary are in the box.
+
+        Parameters
+        ----------
+        coords : np.ndarray
+            A (k, 2) array of k 2D points to test for membership
+
+        Returns
+        -------
+        in_bbox : np.array
+            A (k,) shape boolean array specifying whether each point
+            is inside the bbox
+
+        """
+        assert coords.ndim == 2
+        assert coords.shape[1] == 2
+        coords_x = coords[:, 0]
+        coords_y = coords[:, 1]
+        in_x = np.logical_and(coords_x >= self.xmin, coords_x <= self.xmax)
+        in_y = np.logical_and(coords_y >= self.ymin, coords_y <= self.ymax)
+        in_bbox = np.logical_and(in_x, in_y)
+        return in_bbox
 
 
 class ImageSpec:
-    """Struct encapsulating the geographical information about an image."""
-    def __init__(self, width: int, height: int, x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray):
-        self.width = width
-        self.height = height
+    """
+    Struct encapsulating the geographical information about an image.
+
+    Parameters
+    ----------
+    x_coordinates : np.ndarray
+        The x-coordinates of every pixel edge starting from the 0th pixel.
+        If there are k pixels then there are k + 1 edges.
+    y_coordinates : np.ndarray
+        The y-coordinates of every pixel edge. See x_coordinates.
+
+    """
+
+    def __init__(self, x_coordinates: np.ndarray,
+                 y_coordinates: np.ndarray) -> None:
+        """Construct the ImageSpec object."""
+        assert x_coordinates.ndim == 1
+        assert y_coordinates.ndim == 1
+        self.width = x_coordinates.shape[0] - 1
+        self.height = y_coordinates.shape[0] - 1
+        assert self.width > 0
+        assert self.height > 0
         self.x_coordinates = x_coordinates
         self.y_coordinates = y_coordinates
+        self.bbox = BoundingBox(x_coordinates, y_coordinates)
 
 
 def pixel_coordinates(width: int,
@@ -65,48 +135,6 @@ def pixel_coordinates(width: int,
     coords_y = (pix_y * pixel_height) + origin_y
 
     return coords_x, coords_y
-
-
-def bounds(x_pixel_coords: np.ndarray,
-           y_pixel_coords: np.ndarray) -> BoundingBox:
-    """
-    Get the bounding box of the image.
-
-    Returns the corners at 0,0 and (width, height).
-
-    Parameters
-    ----------
-    x_pixel_coords : np.ndarray
-        Array of pixel coordinates in world space. each edge must be
-    the minimum mag side, and it must extend one pixel beyond
-    y_pixel_coords : np.ndarray
-        Array of pixel coordinates in y. See x_pixel_coords.
-
-    Returns
-    -------
-    bbox : BoundingBox
-        Struct giving the 4 coordinates of the bounding box. They are
-        labelled x0 and y0 for the corner of the 0,0 pixel, and xn yn for
-        the (outer) corner of the last pixel.
-
-    """
-    bbox = BoundingBox(x0=x_pixel_coords[0], xn=x_pixel_coords[-1],
-                       y0=y_pixel_coords[0], yn=y_pixel_coords[-1])
-    return bbox
-
-
-def in_bounds(coords_x: np.ndarray, coords_y: np.ndarray,
-              bbox: BoundingBox) -> np.ndarray:
-    """Do Stuff."""
-    minx = min(bbox.x0, bbox.xn)
-    maxx = max(bbox.x0, bbox.xn)
-    miny = min(bbox.y0, bbox.yn)
-    maxy = max(bbox.y0, bbox.yn)
-
-    in_x = np.logical_and(coords_x >= minx, coords_x <= maxx)
-    in_y = np.logical_and(coords_y >= miny, coords_y <= maxy)
-    in_bbox = np.logical_and(in_x, in_y)
-    return in_bbox
 
 
 def image_to_world(indices: np.ndarray,
@@ -196,7 +224,7 @@ def coords_training(
     y_pixel_array: np.ndarray,
     batchsize: int
         ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
-    """Generator that yields batches of coordinates for target locations.
+    """Create a generator of batches of coordinates for target locations.
 
     Parameters
     ----------
@@ -221,6 +249,7 @@ def coords_training(
     im_coords_y : ndarray
         the y coordinates (height) of the targets in pixels indices, of shape
         (batchsize,).
+
     """
     n = coords.shape[0]
     c = 0
@@ -240,7 +269,7 @@ def coords_query(
     image_height: int,
     batchsize: int
         ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
-    """Generator that yields batches of coordinates from an image.
+    """Create a generator of batches of coordinates from an image.
 
     This will iterate through ALL of the pixel coordinates in an image, so is
     useful for querying/prediction.
@@ -262,6 +291,7 @@ def coords_query(
     im_coords_y : ndarray
         the y coordinates (height) of the image in pixels indices, of shape
         (batchsize,).
+
     """
     coords_it = product(range(image_height), range(image_width))
     while True:
