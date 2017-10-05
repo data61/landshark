@@ -1,3 +1,5 @@
+"""Read features and targets from HDF5 files."""
+
 import numpy as np
 import tables
 from typing import Iterable, Tuple, Union, List, Any
@@ -17,6 +19,7 @@ class ImageFeatures:
         The blocksize (in rows) to use for caching the reads of the HDF5.
     cache_nblocks : int
         The number of blocks to hold in a cache at any time.
+
     """
 
     def __init__(self, filename: str, cache_blocksize: int,
@@ -46,7 +49,7 @@ class ImageFeatures:
 
     def pixel_indices(self, batchsize: int) \
             -> Iterable[Tuple[np.ndarray, np.ndarray]]:
-        """Generator that yields batches of coordinates from an image.
+        """Create a generator of batches of coordinates from an image.
 
         This will iterate through ALL of the pixel coordinates an HDF5 file,
         so is useful for querying/prediction.
@@ -64,6 +67,7 @@ class ImageFeatures:
         im_coords_y : ndarray
             the y coordinates (height) of the image in pixels indices, of shape
             (batchsize,).
+
         """
         pixel_it = image.coords_query(self.image_spec.width,
                                       self.image_spec.height, batchsize)
@@ -83,6 +87,7 @@ class Features:
         The blocksize (in rows) to use for caching the reads of the HDF5.
     cache_nblocks : int
         The number of blocks to hold in a cache at any time.
+
     """
 
     def __init__(
@@ -92,6 +97,7 @@ class Features:
             cache_blocksize: int,
             cache_nblocks: int
             ) -> None:
+        """Initialise a Features object."""
         self._carray = carray
         self._missing_values = missing_values
         self._cache = RowCache(carray, cache_blocksize, cache_nblocks)
@@ -139,9 +145,11 @@ class Targets:
         The name of the HDF5 file contains the target information.
     label : str
         The name of the target to read.
+
     """
 
     def __init__(self, filename: str, label: str) -> None:
+        """Initialise a Targets object."""
         self._hfile = tables.open_file(filename)
         labels = self._hfile.root.targets.attrs.labels
         label_index = labels.index(label)
@@ -168,6 +176,7 @@ class Targets:
             array of image/feature "y" indices corresponding to the targets.
         target : np.ndarray
             the target values for each index.
+
         """
         pixel_it = image.coords_training(self.coordinates,
                                          image_spec.x_coordinates,

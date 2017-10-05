@@ -1,25 +1,28 @@
 import numpy as np
-import tables
 
 from landshark import hread
-from landshark import rowcache
 
 
 def test_image_features(mocker):
     """Make sure we get two types (ord, cat) of features from ImageFeatures"""
-    root = mocker.MagicMock()
-    mocker.patch.object(tables, 'open_file')
-    tables.open_file.return_value = root
-    feat = mocker.patch.object(hread, 'Features')
+    p_openfile = mocker.patch('landshark.hread.tables.open_file')
+    feat = mocker.patch('landshark.hread.Features')
+    mocker.patch('landshark.hread.image.ImageSpec')
+
+    hfile = p_openfile.return_value
+    hfile.root._v_attrs.width = 5
+    hfile.root.x_coordinates.read.return_value.__len__.return_value = 6
+    hfile.root._v_attrs.height = 5
+    hfile.root.y_coordinates.read.return_value.__len__.return_value = 6
 
     filename = "path"
     imfeat = hread.ImageFeatures(filename, cache_blocksize=20,
                                  cache_nblocks=10)
 
-    tables.open_file.assert_called_with(filename)
+    p_openfile.assert_called_with(filename)
     feat.assert_called_with(
-        tables.open_file().root.categorical_data,
-        tables.open_file().root.categorical_data.attrs.missing_values,
+        hfile.root.categorical_data,
+        hfile.root.categorical_data.attrs.missing_values,
         20, 10
         )
 
@@ -45,9 +48,7 @@ def test_features(mocker):
 
 def test_target(mocker):
     """Test we keep coordinates aligned with labels."""
-    root = mocker.MagicMock()
-    mocker.patch.object(tables, 'open_file')
-    tables.open_file.return_value = root
+    mocker.patch('landshark.hread.tables.open_file')
     imcoords = mocker.patch("landshark.image.coords_training")
     batches_one = np.stack((np.arange(10), np.arange(10))).T[:, :, np.newaxis]
     imcoords.return_value = batches_one
