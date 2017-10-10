@@ -34,15 +34,17 @@ def cli(verbosity: str) -> int:
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
 @click.option("--target", type=str, required=True)
-def train(featurefile: str, targetfile: str, name: str, model: str, batchsize: int,
-          cache_blocksize: int, cache_nblocks: int, halfwidth: int, target) -> int:
+def train(featurefile: str, targetfile: str, name: str, model: str,
+          batchsize: int, cache_blocksize: int, cache_nblocks: int,
+          halfwidth: int, target: str) -> int:
     """Learn a model."""
-
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     targets = Targets(targetfile, target)
     t = training_data(features, targets, batchsize, halfwidth)
-    m = models.train(t)
+    # m = models.train(t)
+    m = models.train_tf(t)
     models.write(m, halfwidth, target, name)
+    return 0
 
 
 @cli.command()
@@ -51,8 +53,8 @@ def train(featurefile: str, targetfile: str, name: str, model: str, batchsize: i
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
 @click.option("--batchsize", type=int, default=1000)
-def predict(featurefile, modelfile, cache_blocksize, cache_nblocks,
-            batchsize) -> int:
+def predict(featurefile: str, modelfile: str, cache_blocksize: int,
+            cache_nblocks: int, batchsize: int) -> int:
     """Predict using a learned model."""
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     m = models.load(modelfile)
