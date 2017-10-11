@@ -9,7 +9,7 @@ from typing import List
 
 from landshark.importers.tifread import ImageStack
 from landshark.importers.featurewrite import write_datafile
-from landshark.importers.shpread import test_train_targets
+from landshark.importers.shpread import train_test_targets
 from landshark.importers.targetwrite import write_targetfile
 from landshark.scripts.logger import configure_logging
 
@@ -59,7 +59,7 @@ def shapefile(fname: str, test_frac: float, random_seed: int) -> int:
     file_str = os.path.basename(fname).rsplit(".")[0]
     tr_filename = os.path.join(os.getcwd(), file_str + "_train" + ".hdf5")
     ts_filename = os.path.join(os.getcwd(), file_str + "_test" + ".hdf5")
-    sf_tr, sf_ts = test_train_targets(fname, test_frac, random_seed)
+    sf_tr, sf_ts = train_test_targets(fname, test_frac, random_seed)
     write_targetfile(sf_tr, tr_filename)
     write_targetfile(sf_ts, ts_filename)
     return 0

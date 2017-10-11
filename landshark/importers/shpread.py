@@ -49,8 +49,9 @@ class ShapefileTargets:
     ----------
     filename : str
         The shapefile (.shp)
-    indices : ndarray
-        array of indices of shape coordinates to read
+    indices : ndarray, None
+        array of indices of shape coordinates to read, if None read the whole
+        shape file.
 
     """
 
@@ -110,7 +111,7 @@ class ShapefileTargets:
             yield res
 
 
-def test_train_targets(
+def train_test_targets(
         filename: str,
         test_proportion: float,
         random_state: Union[int, None]=None
