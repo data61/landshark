@@ -9,7 +9,7 @@ from typing import List
 
 from landshark.importers.tifread import ImageStack
 from landshark.importers.featurewrite import write_datafile
-from landshark.importers.shpread import ShapefileTargets
+from landshark.importers.shpread import test_train_targets
 from landshark.importers.targetwrite import write_targetfile
 from landshark.scripts.logger import configure_logging
 
@@ -52,10 +52,14 @@ def tifs(files: List[str], name: str) -> int:
 
 @cli.command()
 @click.argument("fname", type=click.Path(exists=True))
-def shapefile(fname: str) -> int:
+@click.option("--test_frac", type=float, default=0.1)
+@click.option("--random_seed", type=int, default=666)
+def shapefile(fname: str, test_frac: float, random_seed: int) -> int:
     """Build a target file from shapefile."""
-    out_filename = os.path.join(
-        os.getcwd(), os.path.basename(fname).rsplit(".")[0] + ".hdf5")
-    sf = ShapefileTargets(fname)
-    write_targetfile(sf, out_filename)
+    file_str = os.path.basename(fname).rsplit(".")[0]
+    tr_filename = os.path.join(os.getcwd(), file_str + "_train" + ".hdf5")
+    ts_filename = os.path.join(os.getcwd(), file_str + "_test" + ".hdf5")
+    sf_tr, sf_ts = test_train_targets(fname, test_frac, random_seed)
+    write_targetfile(sf_tr, tr_filename)
+    write_targetfile(sf_ts, ts_filename)
     return 0
