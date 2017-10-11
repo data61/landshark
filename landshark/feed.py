@@ -1,8 +1,10 @@
 """Feeding iterators for training and querying data."""
 
+from itertools import chain
 from collections import namedtuple
 
 import numpy as np
+import tensorflow as tf
 from typing import Iterator, List, Tuple
 
 from landshark import patch
@@ -13,8 +15,35 @@ TrainingBatch = namedtuple("TrainingBatch", ["x_ord", "x_cat", "y"])
 QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
 
-def training_data(features: ImageFeatures,
-                  targets: Targets, batchsize: int, halfwidth: int) \
+class SliceTrainingData:
+
+    def __init__(self, data: Iterator[TrainingBatch]) -> None:
+        peek_d = next(data)
+
+        self.types = (
+            tf.as_dtype(peek_d.x_ord.dtype),
+            tf.as_dtype(peek_d.x_cat.dtype),
+            tf.as_dtype(peek_d.y.dtype)
+            )
+
+        self.shapes = (
+            peek_d.x_ord.shape[1:],
+            peek_d.x_cat.shape[1:],
+            peek_d.y.shape[1:]
+            )
+
+        self.data = chain([peek_d], data)
+
+    def __call__(self) -> Iterator[TrainingBatch]:
+        # TODO deal with the masks!
+        for d in self.data:
+            for xo, xc, y in zip(d.x_ord, d.x_cat, d.y):
+                tslice = TrainingBatch(xo, xc, y)
+                yield tslice
+
+
+def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
+                  halfwidth: int, epochs: int=1, flatten: bool=False) \
         -> Iterator[TrainingBatch]:
     """
     Create an iterator over batches of training data.
@@ -30,9 +59,14 @@ def training_data(features: ImageFeatures,
     halfwidth : int
         The half-width of image patches in X, ie number of additional
         pixels from centre
+    epochs : int
+        Number of times to repeat yielding the training dataset
+    flatten : bool
+        Flatten the training data features from patches into arrays of shape
+        (batchsize, D)
 
-    Returns
-    -------
+    Yields
+    ------
     t : Iterator[TrainingBatch]
         An iterator that produces batches of x,y pairs
 
@@ -40,12 +74,18 @@ def training_data(features: ImageFeatures,
     assert batchsize > 0
     assert halfwidth >= 0
 
-    it = targets.training(features.image_spec, batchsize)
-    for x_indices, y_indices, target_batch in it:
-        ord_marray, cat_marray = _read_batch(x_indices, y_indices,
-                                             features, halfwidth)
-        t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray, y=target_batch)
-        yield t
+    for _ in range(epochs):
+        it = targets.training(features.image_spec, batchsize)
+        for x_indices, y_indices, target_batch in it:
+            ord_marray, cat_marray = _read_batch(x_indices, y_indices,
+                                                 features, halfwidth)
+            if flatten:
+                ord_marray = np.ma.reshape(ord_marray, [len(ord_marray), -1])
+                cat_marray = np.ma.reshape(cat_marray, [len(cat_marray), -1])
+
+            t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
+                              y=target_batch)
+            yield t
 
 
 def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \

@@ -2,7 +2,6 @@
 import os
 import logging
 import pickle
-from itertools import chain
 from collections import namedtuple
 
 import tensorflow as tf
@@ -22,8 +21,7 @@ config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU? 0 is no
 
 def train_tf(data):
 
-    data_gen = ModronData(data)
-    X_ord, X_cat, Y = batch_training(data_gen, batch_size, n_epochs)
+    X_ord, X_cat, Y = batch_training(data, batch_size, n_epochs)
     cat = tf.concat((X_ord, tf.to_float(X_cat)), axis=1)
 
     # Logging learning progress
@@ -40,9 +38,11 @@ def train_tf(data):
             hooks=[]
             ) as sess:
         try:
+            i = 0
             while not sess.should_stop():
                 res = sess.run(cat)
-                print(res.shape)
+                print(i, res.shape)
+                i += 1
         except tf.errors.OutOfRangeError:
             print('Input queues have been exhausted!')
             pass
@@ -54,44 +54,9 @@ def batch_training(data, batch_size, n_epochs):
     """Batch training queue convenience function."""
     data_tr = tf.data.Dataset.from_generator(data, data.types, data.shapes) \
         .shuffle(buffer_size=100, seed=rseed) \
-        .repeat(n_epochs) \
         .batch(batch_size)
     batches = data_tr.make_one_shot_iterator().get_next()
     return batches
-
-
-class ModronData:
-
-    def __init__(self, data_generator, flatten=True):
-        self.flatten = flatten
-        peek_d = next(data_generator)
-        self.types = (
-            tf.as_dtype(peek_d.x_ord.dtype),
-            tf.as_dtype(peek_d.x_cat.dtype),
-            tf.as_dtype(peek_d.y.dtype)
-            )
-        self.shapes = (
-            self._batch_shaper(peek_d.x_ord),
-            self._batch_shaper(peek_d.x_cat),
-            self._batch_shaper(peek_d.y)
-            )
-        self.data = chain([peek_d], data_generator)
-
-    def __call__(self):
-        # TODO deal with the masks!
-        for d in self.data:
-            for xo, xc, y in zip(d.x_ord, d.x_cat, d.y):
-                if self.flatten:
-                    dtup = (xo.flatten(), xc.flatten(), y.flatten())
-                else:
-                    dtup = (xo, xc, y)
-                yield dtup
-
-    def _batch_shaper(self, item):
-        shape = item.shape[1:]
-        if self.flatten:
-            shape = np.prod(shape)
-        return shape
 
 
 def train(data):
