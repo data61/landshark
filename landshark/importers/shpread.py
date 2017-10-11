@@ -133,6 +133,7 @@ def train_test_targets(
         the training data shape file reader
     ts_read : ShapefileTargets
         the testing data shape file reader
+
     """
     assert test_proportion > 0. and test_proportion < 1.0
 
