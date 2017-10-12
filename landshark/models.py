@@ -5,37 +5,35 @@ import pickle
 from collections import namedtuple
 
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 
 log = logging.getLogger(__name__)
 
 frac_test = 0.1
 rseed = 666
 
-def train(data):
-    X_ord_list = []
-    X_cat_list = []
-    Y_list = []
-    for d in data:
-        X_ord_list.append(d.x_ord)
-        X_cat_list.append(d.x_cat)
-        Y_list.append(d.y)
-    X_ord = np.ma.concatenate(X_ord_list, axis=0)
-    X_cat = np.ma.concatenate(X_cat_list, axis=0)
-    Y = np.concatenate(Y_list, axis=0)
-    Xo = np.ma.concatenate(X_ord, axis=0).reshape((len(Y), -1))
-    N, D = Xo.shape
+def train(data_train, data_test):
 
-    # Split the training and testing data
-    X_tr, X_ts, Y_tr, Y_ts, M_tr, M_ts = train_test_split(
-        Xo.data, Y, Xo.mask, test_size=frac_test, random_state=rseed)
+    def cat_data(data):
+        X_ord_list = []
+        X_cat_list = []
+        Y_list = []
+        for d in data:
+            X_ord_list.append(d.x_ord)
+            X_cat_list.append(d.x_cat)
+            Y_list.append(d.y)
+        Y = np.concatenate(Y_list, axis=0)
+        X_ord = np.ma.concatenate(X_ord_list, axis=0).reshape((len(Y), -1))
+        X_cat = np.ma.concatenate(X_cat_list, axis=0).reshape((len(Y), -1))
+        X_ord.data[X_ord.mask] = 0  # 0 mean impute
+        X_cat.data[X_cat.mask] = 0
+        X = np.concatenate((X_ord.data, X_cat.data), axis=1)
+        return Y, X
 
-    # Means should be zero, so this is a mean impute
-    X_tr[M_tr] = 0.
-    X_ts[M_ts] = 0.
+    Y_tr, X_tr = cat_data(data_train)
+    Y_ts, X_ts = cat_data(data_test)
 
     rf = RandomForestRegressor(n_estimators=10)
     #rf = LinearRegression()
@@ -48,12 +46,14 @@ def train(data):
 
 Model = namedtuple("Model", ['skmodel', 'halfwidth', 'y_label'])
 
+
 def write(model, halfwidth, y_label, name):
     path = os.path.join(os.getcwd(), name + ".lsmodel")
     m = Model(skmodel=model, halfwidth=halfwidth, y_label=y_label)
     with open(path, 'wb') as f:
         log.info("Writing model to disk")
         pickle.dump(m, f)
+
 
 def load(fname):
     with open(fname, 'rb') as f:
