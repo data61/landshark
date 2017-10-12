@@ -1,10 +1,8 @@
 """Feeding iterators for training and querying data."""
 
-from itertools import chain
 from collections import namedtuple
 
 import numpy as np
-import tensorflow as tf
 from typing import Iterator, List, Tuple
 
 from landshark import patch
@@ -14,32 +12,6 @@ from landshark.hread import ImageFeatures, Features, Targets
 TrainingBatch = namedtuple("TrainingBatch", ["x_ord", "x_cat", "y"])
 QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
-
-class SliceTrainingData:
-
-    def __init__(self, data: Iterator[TrainingBatch]) -> None:
-        peek_d = next(data)
-
-        self.types = (
-            tf.as_dtype(peek_d.x_ord.dtype),
-            tf.as_dtype(peek_d.x_cat.dtype),
-            tf.as_dtype(peek_d.y.dtype)
-            )
-
-        self.shapes = (
-            peek_d.x_ord.shape[1:],
-            peek_d.x_cat.shape[1:],
-            peek_d.y.shape[1:]
-            )
-
-        self.data = chain([peek_d], data)
-
-    def __call__(self) -> Iterator[TrainingBatch]:
-        # TODO deal with the masks!
-        for d in self.data:
-            for xo, xc, y in zip(d.x_ord, d.x_cat, d.y):
-                tslice = TrainingBatch(xo, xc, y)
-                yield tslice
 
 
 def training_data(features: ImageFeatures, targets: Targets, batchsize: int,

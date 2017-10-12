@@ -5,7 +5,7 @@ import logging
 import click
 
 from landshark.hread import ImageFeatures, Targets
-from landshark.feed import training_data, query_data, SliceTrainingData
+from landshark.feed import training_data, query_data
 from landshark import models
 
 log = logging.getLogger(__name__)
@@ -58,7 +58,6 @@ def train(
     s = training_data(features, testing_targets, batchsize, halfwidth,
                       float("inf"), flatten=True)
     # m = models.train(t, s)
-    t = SliceTrainingData(t)
     m = models.train_tf(t, s)
     models.write(m, halfwidth, target, name)
     return 0

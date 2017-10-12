@@ -2,61 +2,132 @@
 import os
 import logging
 import pickle
+from itertools import chain
 from collections import namedtuple
 
+from typing import Iterator, Tuple
 import tensorflow as tf
 import numpy as np
+import aboleth as ab
 from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
 # from sklearn.linear_model import LinearRegression
+
+from landshark.feed import TrainingBatch
 
 log = logging.getLogger(__name__)
 
 frac_test = 0.1
 rseed = 666
-n_epochs = 2
 batch_size = 10
 config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU? 0 is no
 
 
+class SliceTrainingData:
+
+    def __init__(self, data: Iterator[TrainingBatch]) -> None:
+        peek_d = next(data)
+
+        self.types = (
+            tf.as_dtype(peek_d.x_ord.dtype),  # ord data
+            tf.bool,  # ord mask
+            tf.as_dtype(peek_d.x_cat.dtype),  # cat data
+            tf.bool,  # cat mask
+            tf.as_dtype(peek_d.y.dtype)  # target
+            )
+
+        self.shapes = (
+            peek_d.x_ord.shape[1:],
+            peek_d.x_ord.shape[1:],
+            peek_d.x_cat.shape[1:],
+            peek_d.x_cat.shape[1:],
+            peek_d.y.shape[1:]
+            )
+
+        self.data = chain([peek_d], data)
+
+    def __call__(self) -> Iterator[Tuple[np.array, np.array, np.array,
+                                         np.array, np.array]]:
+        for d in self.data:
+            for xo, xc, y in zip(d.x_ord, d.x_cat, d.y):
+                tslice = (xo.data, xo.mask, xc.data, xc.mask, y)
+                yield tslice
+
+
+def extract_masks_query(data):
+    gen = (
+        (d.x_ord.data,
+         d.x_ord.mask,
+         d.x_cat.data,
+         d.x_cat.mask) for d in data)
+    return gen
+
+
+def batch_training(data, batch_size):
+    """Batch training queue convenience function."""
+
+    # Make the training data iterator
+    data_tr = tf.data.Dataset.from_generator(data, data.types, data.shapes) \
+        .shuffle(buffer_size=100, seed=rseed) \
+        .batch(batch_size)
+    batches = data_tr.make_one_shot_iterator().get_next()
+
+    # Make placeholders for prediction
+    Xo = tf.placeholder_with_default(batches[0], (None,) + data.shapes[0])
+    Xom = tf.placeholder_with_default(batches[1], (None,) + data.shapes[1])
+    Xc = tf.placeholder_with_default(batches[2], (None,) + data.shapes[2])
+    Xcm = tf.placeholder_with_default(batches[3], (None,) + data.shapes[3])
+    Y = tf.placeholder_with_default(batches[4], (None,) + data.shapes[4])
+
+    return Xo, Xom, Xc, Xcm, Y
+
+
 def train_tf(data_train, data_test):
 
-    X_ord, X_cat, Y = batch_training(data_train, batch_size, n_epochs)
-    cat = tf.concat((X_ord, tf.to_float(X_cat)), axis=1)
+    datgen = SliceTrainingData(data_train)
+    Xo, Xom, Xc, Xcm, Y = batch_training(datgen, batch_size)
+
+    net = (
+        ab.InputLayer(name="X", n_samples=5) >>
+        ab.Activation(tf.layers.batch_normalization) >>
+        ab.DenseVariational(output_dim=1, std=1., full=True)
+        )
+
+    # This is where we build the actual GP model
+    with tf.name_scope("Deepnet"):
+        N = round(1026 * 0.9)
+        phi, kl = net(X=Xo)
+        noise = tf.Variable(1.)
+        lkhood = tf.distributions.Normal(loc=phi, scale=ab.pos(noise))
+        loss = ab.elbo(lkhood, Y, N, kl)
+
+    # Set up the trainig graph
+    with tf.name_scope("Train"):
+        optimizer = tf.train.AdamOptimizer()
+        global_step = tf.train.create_global_step()
+        train = optimizer.minimize(loss, global_step=global_step)
 
     # Logging learning progress
-    # logger = tf.train.LoggingTensorHook(
-    #     {'step': global_step, 'loss': loss},
-    #     every_n_iter=1000
-    # )
+    logger = tf.train.LoggingTensorHook(
+        {'step': global_step, 'loss': loss},
+        every_n_iter=100
+        )
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
             config=config,
             save_summaries_steps=None,
             save_checkpoint_secs=None,
-            hooks=[]
+            hooks=[logger]
             ) as sess:
         try:
-            i = 0
             while not sess.should_stop():
-                res = sess.run(cat)
-                print(i, res.shape)
-                i += 1
+                sess.run(train)
         except tf.errors.OutOfRangeError:
             print('Input queues have been exhausted!')
             pass
 
     return None
-
-
-def batch_training(data, batch_size, n_epochs):
-    """Batch training queue convenience function."""
-    data_tr = tf.data.Dataset.from_generator(data, data.types, data.shapes) \
-        .shuffle(buffer_size=100, seed=rseed) \
-        .batch(batch_size)
-    batches = data_tr.make_one_shot_iterator().get_next()
-    return batches
 
 
 def train(data_train, data_test):
