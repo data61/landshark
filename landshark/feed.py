@@ -1,5 +1,6 @@
 """Feeding iterators for training and querying data."""
 
+from itertools import count
 from collections import namedtuple
 
 import numpy as np
@@ -46,7 +47,7 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
     assert batchsize > 0
     assert halfwidth >= 0
 
-    for _ in range(epochs):
+    for i in count(start=1):
         it = targets.training(features.image_spec, batchsize)
         for x_indices, y_indices, target_batch in it:
             ord_marray, cat_marray = _read_batch(x_indices, y_indices,
@@ -57,7 +58,10 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
 
             t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
                               y=target_batch)
+
             yield t
+        if i >= epochs:
+            break
 
 
 def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \

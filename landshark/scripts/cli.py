@@ -55,10 +55,10 @@ def train(
     testing_targets = Targets(testingfile, target)
     t = training_data(features, training_targets, batchsize, halfwidth, epochs,
                       flatten=True)
-    s = training_data(features, testing_targets, batchsize, halfwidth,
-                      float("inf"), flatten=True)
+    s = training_data(features, testing_targets, batchsize, halfwidth, 1,
+                      flatten=True)
     # m = models.train(t, s)
-    m = models.train_tf(t, s)
+    m = models.train_tf(t, s, name)
     models.write(m, halfwidth, target, name)
     return 0
 

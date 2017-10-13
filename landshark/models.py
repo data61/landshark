@@ -53,6 +53,14 @@ class SliceTrainingData:
                 tslice = (xo.data, xo.mask, xc.data, xc.mask, y)
                 yield tslice
 
+def extract_masks_test(data):
+    gen = (
+        (d.x_ord.data,
+         d.x_ord.mask,
+         d.x_cat.data,
+         d.x_cat.mask,
+         d.y) for d in data)
+    return gen
 
 def extract_masks_query(data):
     gen = (
@@ -82,24 +90,41 @@ def batch_training(data, batch_size):
     return Xo, Xom, Xc, Xcm, Y
 
 
-def train_tf(data_train, data_test):
+def train_tf(data_train, data_test, name):
 
     datgen = SliceTrainingData(data_train)
     Xo, Xom, Xc, Xcm, Y = batch_training(datgen, batch_size)
 
+    # Get training data
+    # TODO, stream this
+    Xo_s = []
+    Xom_s = []
+    Y_s = []
+    for xo, xom, _, _, y in extract_masks_test(data_test):
+        Xo_s.append(xo)
+        Xom_s.append(xom)
+        Y_s.append(y)
+    Xo_s = np.vstack(Xo_s)
+    Xom_s = np.vstack(Xom_s)
+    Y_s = np.vstack(Y_s)
+
+    data_input = ab.InputLayer(name="X", n_samples=5)  # Data input
+    mask_input = ab.InputLayer(name="M")  # Missing data mask input
     net = (
-        ab.InputLayer(name="X", n_samples=5) >>
-        ab.Activation(tf.layers.batch_normalization) >>
+        ab.LearnedNormalImpute(data_input, mask_input) >>
+        ab.Activation(lambda x:
+                      tf.layers.batch_normalization(x, training=True)) >>
         ab.DenseVariational(output_dim=1, std=1., full=True)
         )
 
     # This is where we build the actual GP model
     with tf.name_scope("Deepnet"):
         N = round(1026 * 0.9)
-        phi, kl = net(X=Xo)
-        noise = tf.Variable(1.)
+        phi, kl = net(X=Xo, M=Xom)
+        noise = tf.Variable(10.)
         lkhood = tf.distributions.Normal(loc=phi, scale=ab.pos(noise))
         loss = ab.elbo(lkhood, Y, N, kl)
+        tf.summary.scalar("loss", loss)
 
     # Set up the trainig graph
     with tf.name_scope("Train"):
@@ -109,25 +134,35 @@ def train_tf(data_train, data_test):
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
-        {'step': global_step, 'loss': loss},
+        {"step": global_step, "loss": loss},
         every_n_iter=100
         )
 
+    checkpoint_dir = os.path.join(os.getcwd(), name)
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
             config=config,
+            checkpoint_dir=checkpoint_dir,
             save_summaries_steps=None,
-            save_checkpoint_secs=None,
+            save_checkpoint_secs=20,
+            save_summaries_secs=20,
             hooks=[logger]
             ) as sess:
         try:
             while not sess.should_stop():
                 sess.run(train)
         except tf.errors.OutOfRangeError:
-            print('Input queues have been exhausted!')
+            log.info("Input queues have been exhausted!")
             pass
 
-    return None
+        feed_dict = {Xo: Xo_s, Xom: Xom_s, Y: [None]}
+        Ey = ab.predict_expected(phi, feed_dict=feed_dict, n_groups=10,
+                                 session=sess)
+
+    r2 = r2_score(Y_s.flatten(), Ey.flatten())
+    log.info("Random Forest r2: {}".format(r2))
+
+    return checkpoint_dir
 
 
 def train(data_train, data_test):
