@@ -16,4 +16,3 @@ def test_write_targetfile(mocker):
     m_open.assert_called_once_with(filename, mode='w',
                                    title='Landshark Targets')
     # TODO this code is going to be deleted soon
-

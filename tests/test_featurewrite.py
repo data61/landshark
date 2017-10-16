@@ -86,3 +86,32 @@ def test_write_datafile(mocker):
     assert ord_slices[-1].stop == 5
 
     m_hfile.close.assert_called_once()
+
+
+def test_statistics():
+    n_features = 2
+    n_rows = 10
+    n_blocks = 5
+    stats = featurewrite._Statistics(n_features)
+    data = [np.random.randn(n_rows, n_features) for i in range(n_blocks)]
+    all_data = np.concatenate(data, axis=0)
+    for d in data:
+        stats.update(d)
+    mean = stats.mean
+    var = stats.var
+    true_mean = np.mean(all_data, axis=0)
+    true_var = np.var(all_data, axis=0)
+    assert np.allclose(mean, true_mean)
+    assert np.allclose(var, true_var)
+
+
+def test_to_masked():
+    cols = 4
+    rows = 10
+    data = np.arange(cols * rows).reshape(rows, cols)
+    missing_values = [None, 5, 0, 11]
+    result = featurewrite._to_masked(data, missing_values)
+    answer = np.zeros_like(data, dtype=bool)
+    answer[1, 1] = True
+    answer[2, 3] = True
+    assert np.all(answer == result.mask)
