@@ -23,7 +23,7 @@ setup(
         ]
     },
     install_requires=[
-        'numpy==1.13.1',
+        'numpy==1.13.3',
         'scipy==0.19.1',
         'click==6.7',
         'GDAL==2.1.0',
@@ -31,7 +31,8 @@ setup(
         'tables==3.4.2',
         'pyshp==1.2.12',
         'mypy==0.521',
-        'mypy_extensions==0.3.0'
+        'mypy_extensions==0.3.0',
+        'lru-dict==1.1.6'
     ],
 
     extras_require={
