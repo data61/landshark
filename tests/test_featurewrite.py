@@ -124,3 +124,26 @@ def test_to_masked():
     answer[1, 1] = True
     answer[2, 3] = True
     assert np.all(answer == result.mask)
+
+
+def test_write():
+    rows = 10
+    cols = 2
+    data = np.arange(rows * cols).reshape((rows, cols))
+    blocks = [data[0:3], data[3:6], data[6:9], data[9:10]]
+    import IPython; IPython.embed(); import sys; sys.exit()
+
+    def block_f():
+        data = [np.array([[0, 1, 2], [3, 4, 5]], [6])]
+        return
+
+
+
+    pass
+
+
+def test_standardise_write():
+    pass
+
+
+
