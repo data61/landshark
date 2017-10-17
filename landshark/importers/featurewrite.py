@@ -5,16 +5,19 @@ import logging
 
 import numpy as np
 import tables
+from typing import List, Union, Callable, Iterator
 
 from landshark.importers.tifread import ImageStack
 
 log = logging.getLogger(__name__)
 
+MissingValueList = List[Union[np.float32, np.int32, None]]
+
 
 class _Statistics:
     """Class that computes online mean and variance."""
 
-    def __init__(self, n_features):
+    def __init__(self, n_features: int) -> None:
         """Initialise the counters."""
         self._mean = np.zeros(n_features)
         self._m2 = np.zeros(n_features)
@@ -50,10 +53,10 @@ class _Statistics:
         return var
 
 
-def _to_masked(array, missing_values):
+def _to_masked(array: np.ndarray, missing_values: MissingValueList) \
+        -> np.ma.MaskedArray:
     """Create a masked array from array plus list of missing."""
     assert len(missing_values) == array.shape[-1]
-
     mask = np.zeros_like(array, dtype=bool)
     for i, m in enumerate(missing_values):
         if m:
@@ -62,7 +65,8 @@ def _to_masked(array, missing_values):
     return marray
 
 
-def write_datafile(image_stack: ImageStack, filename: str) -> None:
+def write_datafile(image_stack: ImageStack, filename: str,
+                   standardise: bool) -> None:
     """
     Write an ImageStack object to an HDF5 representation on disk.
 
@@ -75,6 +79,8 @@ def write_datafile(image_stack: ImageStack, filename: str) -> None:
         The stack to write out (incrementally, need not fit on disk)
     filename : str
         The filename of the output HDF5 file.
+    standardise : bool
+        If true, rescale each ordinal feature to have mean 0 and std 1.
 
     """
     title = "Landshark Image Stack"
@@ -113,40 +119,60 @@ def write_datafile(image_stack: ImageStack, filename: str) -> None:
     log.info("Categorical HDF5 block shape: {}".format(cat_array.chunkshape))
     log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
 
-    start_idx = 0
-    log.info("Writing categorical data")
-    for b in image_stack.categorical_blocks():
-        end_idx = start_idx + b.shape[0]
-        cat_array[start_idx:end_idx] = b
-        start_idx = end_idx
-
-    ord_stats = _Statistics(nbands_ord)
-
-    log.info("Computing statistics")
+    # Default is to not store statistics
     cat_array.attrs.mean = None
     cat_array.attrs.variance = None
-    start_idx = 0
-    for b in image_stack.ordinal_blocks():
-        bm = _to_masked(b.reshape((-1, nbands_ord)),
-                        image_stack.ordinal_missing)
-        ord_stats.update(bm)
-        end_idx = start_idx + b.shape[0]
-        start_idx = end_idx
+    ord_array.attrs.mean = None
+    ord_array.attrs.variance = None
 
-    ord_array.attrs.mean = ord_stats.mean
-    ord_array.attrs.variance = ord_stats.var
+    log.info("Writing categorical data")
+    _write(cat_array, image_stack.categorical_blocks)
 
-    start_idx = 0
     log.info("Writing ordinal data")
-    for b in image_stack.ordinal_blocks():
-        bm = _to_masked(b, image_stack.ordinal_missing)
-        bm -= ord_stats.mean
-        bm /= np.sqrt(ord_stats.var)
-        end_idx = start_idx + b.shape[0]
-        ord_array[start_idx:end_idx] = bm.data
-        start_idx = end_idx
+    if standardise:
+        _standardise_write(ord_array, image_stack.ordinal_blocks,
+                           image_stack.ordinal_missing)
+    else:
+        _write(ord_array, image_stack.ordinal_blocks)
 
     log.info("Closing file")
     h5file.close()
     file_size = os.path.getsize(filename) // (1024 ** 2)
     log.info("Written {}MB file to disk.".format(file_size))
+
+
+def _standardise_write(array: tables.CArray,
+                       blocks: Callable[[], Iterator[np.ndarray]],
+                       missing_values: MissingValueList) -> None:
+    """Write standardised data."""
+    nbands = array.atom.shape[0]
+    stats = _Statistics(nbands)
+    log.info("Computing statistics for standardisation")
+    start_idx = 0
+    for b in blocks():
+        bm = _to_masked(b.reshape((-1, nbands)), missing_values)
+        stats.update(bm)
+        end_idx = start_idx + b.shape[0]
+        start_idx = end_idx
+    array.attrs.mean = stats.mean
+    array.attrs.variance = stats.var
+
+    start_idx = 0
+    log.info("Writing standardised data")
+    for b in blocks():
+        end_idx = start_idx + b.shape[0]
+        bm = _to_masked(b, missing_values)
+        bm -= stats.mean
+        bm /= np.sqrt(stats.var)
+        array[start_idx:end_idx] = bm.data
+        start_idx = end_idx
+
+
+def _write(array: tables.CArray,
+           blocks: Callable[[], Iterator[np.ndarray]]) -> None:
+    """Write without standardising."""
+    start_idx = 0
+    for b in blocks():
+        end_idx = start_idx + b.shape[0]
+        array[start_idx:end_idx] = b
+        start_idx = end_idx

@@ -2,14 +2,20 @@
 
 import numpy as np
 import tables
+import pytest
 
 from landshark.importers.tifread import _block_shape
 from landshark.importers import featurewrite
 
-def test_write_datafile(mocker):
+
+@pytest.mark.parametrize("standardise", [True, False])
+def test_write_datafile(mocker, standardise):
     """Checks that write_datafile calls all the right functions."""
     call = mocker.mock_module.call
     m_open = mocker.patch('landshark.importers.featurewrite.tables.open_file')
+    m_write = mocker.patch('landshark.importers.featurewrite._write')
+    m_std_write = mocker.patch(
+        'landshark.importers.featurewrite._standardise_write')
     m_hfile = mocker.MagicMock()
     m_open.return_value = m_hfile
     m_size = mocker.patch('landshark.importers.featurewrite.os.path.getsize')
@@ -43,7 +49,7 @@ def test_write_datafile(mocker):
     m_hfile.create_carray.side_effect = [m_cat_array, m_ord_array]
 
     filename = 'filename'
-    featurewrite.write_datafile(image_stack, filename)
+    featurewrite.write_datafile(image_stack, filename, standardise)
 
     m_open.assert_called_once_with(filename, mode='w',
                                    title='Landshark Image Stack')
@@ -72,19 +78,22 @@ def test_write_datafile(mocker):
     assert m_ord_array.attrs.labels == image_stack.ordinal_names
     assert m_ord_array.attrs.missing_values == image_stack.ordinal_missing
 
-    cat_slices = [k[0][0] for k in m_cat_array.__setitem__.call_args_list]
-    ord_slices = [k[0][0] for k in m_ord_array.__setitem__.call_args_list]
+    assert m_cat_array.attrs.mean is None
+    assert m_cat_array.attrs.variance is None
+    assert m_ord_array.attrs.mean is None
+    assert m_ord_array.attrs.variance is None
 
-    assert cat_slices[0].start == 0
-    assert cat_slices[0].stop == 2
-    assert cat_slices[-1].start == 4
-    assert cat_slices[-1].stop == 5
-
-    assert ord_slices[0].start == 0
-    assert ord_slices[0].stop == 2
-    assert ord_slices[-1].start == 4
-    assert ord_slices[-1].stop == 5
-
+    if standardise:
+        m_write.assert_has_calls([call(m_cat_array,
+                                       image_stack.categorical_blocks)])
+        m_std_write.assert_called_with(m_ord_array,
+                                       image_stack.ordinal_blocks,
+                                       image_stack.ordinal_missing)
+    else:
+        m_write.assert_has_calls([call(m_cat_array,
+                                       image_stack.categorical_blocks),
+                                  call(m_ord_array,
+                                       image_stack.ordinal_blocks)])
     m_hfile.close.assert_called_once()
 
 
