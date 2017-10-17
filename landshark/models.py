@@ -10,17 +10,16 @@ import tensorflow as tf
 import numpy as np
 import aboleth as ab
 from sklearn.metrics import r2_score
-from sklearn.ensemble import RandomForestRegressor
-# from sklearn.linear_model import LinearRegression
+# from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 
 from landshark.feed import TrainingBatch
 
 log = logging.getLogger(__name__)
 
-frac_test = 0.1
 rseed = 666
 batch_size = 10
-config = tf.ConfigProto(device_count={'GPU': 0})  # Use GPU? 0 is no
+config = tf.ConfigProto(device_count={'GPU': 1})  # Use GPU? 0 is no
 
 
 class SliceTrainingData:
@@ -53,6 +52,7 @@ class SliceTrainingData:
                 tslice = (xo.data, xo.mask, xc.data, xc.mask, y)
                 yield tslice
 
+
 def extract_masks_test(data):
     gen = (
         (d.x_ord.data,
@@ -61,6 +61,7 @@ def extract_masks_test(data):
          d.x_cat.mask,
          d.y) for d in data)
     return gen
+
 
 def extract_masks_query(data):
     gen = (
@@ -81,11 +82,17 @@ def batch_training(data, batch_size):
     batches = data_tr.make_one_shot_iterator().get_next()
 
     # Make placeholders for prediction
-    Xo = tf.placeholder_with_default(batches[0], (None,) + data.shapes[0])
-    Xom = tf.placeholder_with_default(batches[1], (None,) + data.shapes[1])
-    Xc = tf.placeholder_with_default(batches[2], (None,) + data.shapes[2])
-    Xcm = tf.placeholder_with_default(batches[3], (None,) + data.shapes[3])
-    Y = tf.placeholder_with_default(batches[4], (None,) + data.shapes[4])
+    with tf.name_scope("Inputs"):
+        Xo = tf.placeholder_with_default(batches[0], (None,) + data.shapes[0],
+                                         name="Xo")
+        Xom = tf.placeholder_with_default(batches[1], (None,) + data.shapes[1],
+                                          name="Xom")
+        Xc = tf.placeholder_with_default(batches[2], (None,) + data.shapes[2],
+                                         name="Xc")
+        Xcm = tf.placeholder_with_default(batches[3], (None,) + data.shapes[3],
+                                          name="Xcm")
+        Y = tf.placeholder_with_default(batches[4], (None,) + data.shapes[4],
+                                        name="Y")
 
     return Xo, Xom, Xc, Xcm, Y
 
@@ -108,12 +115,12 @@ def train_tf(data_train, data_test, name):
     Xom_s = np.vstack(Xom_s)
     Y_s = np.vstack(Y_s)
 
-    data_input = ab.InputLayer(name="X", n_samples=5)  # Data input
-    mask_input = ab.InputLayer(name="M")  # Missing data mask input
+    data_input = ab.InputLayer(name="X", n_samples=1)  # Data input
+    mask_input = ab.MaskInputLayer(name="M")  # Missing data mask input
+    kern = ab.RBF(lenscale=ab.pos(tf.Variable(10.)))
     net = (
-        ab.LearnedNormalImpute(data_input, mask_input) >>
-        ab.Activation(lambda x:
-                      tf.layers.batch_normalization(x, training=True)) >>
+        ab.LearnedScalarImpute(data_input, mask_input) >>
+        ab.RandomFourier(n_features=50, kernel=kern) >>
         ab.DenseVariational(output_dim=1, std=1., full=True)
         )
 
@@ -121,8 +128,10 @@ def train_tf(data_train, data_test, name):
     with tf.name_scope("Deepnet"):
         N = round(1026 * 0.9)
         phi, kl = net(X=Xo, M=Xom)
-        noise = tf.Variable(10.)
+        phi = tf.identity(phi, name="nnet")
+        noise = tf.Variable(1.)
         lkhood = tf.distributions.Normal(loc=phi, scale=ab.pos(noise))
+        lkhood = tf.identity(lkhood, name="lkhood")
         loss = ab.elbo(lkhood, Y, N, kl)
         tf.summary.scalar("loss", loss)
 
@@ -139,6 +148,7 @@ def train_tf(data_train, data_test, name):
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
+
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
             config=config,
@@ -155,12 +165,12 @@ def train_tf(data_train, data_test, name):
             log.info("Input queues have been exhausted!")
             pass
 
-        feed_dict = {Xo: Xo_s, Xom: Xom_s, Y: [None]}
+        feed_dict = {Xo: Xo_s, Xom: Xom_s, Y: [[None]]}
         Ey = ab.predict_expected(phi, feed_dict=feed_dict, n_groups=10,
                                  session=sess)
 
     r2 = r2_score(Y_s.flatten(), Ey.flatten())
-    log.info("Random Forest r2: {}".format(r2))
+    log.info("Aboleth r2: {}".format(r2))
 
     return checkpoint_dir
 
@@ -186,14 +196,15 @@ def train(data_train, data_test):
     Y_tr, X_tr = cat_data(data_train)
     Y_ts, X_ts = cat_data(data_test)
 
-    rf = RandomForestRegressor(n_estimators=10)
-    #rf = LinearRegression()
+    # rf = RandomForestRegressor(n_estimators=10)
+    rf = LinearRegression()
     log.info("Training random forest")
     rf.fit(X_tr, Y_tr)
     Ey = rf.predict(X_ts)
     r2 = r2_score(Y_ts.flatten(), Ey.flatten())
     log.info("Random Forest r2: {}".format(r2))
     return rf
+
 
 Model = namedtuple("Model", ['skmodel', 'halfwidth', 'y_label'])
 
@@ -222,6 +233,9 @@ def predict(model, X_it):
         yield ys
 
 
+# def predict_tf(model, data_test):
+
+
 def show(Y_it, image_spec):
     image_height = image_spec.height
     image_width = image_spec.width
@@ -232,4 +246,3 @@ def show(Y_it, image_spec):
     from matplotlib import cm
     pl.imshow(im, cmap=cm.inferno)
     pl.show()
-

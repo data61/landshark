@@ -58,7 +58,7 @@ def patches(x_coords: np.ndarray, y_coords: np.ndarray, halfwidth: int,
     assert x_coords.shape[0] == y_coords.shape[0]
     assert x_coords.ndim == 1
     assert y_coords.ndim == 1
-    assert halfwidth > 0
+    assert halfwidth >= 0
     assert image_width > 0
 
     ncoords = x_coords.shape[0]

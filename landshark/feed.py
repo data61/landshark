@@ -14,7 +14,6 @@ TrainingBatch = namedtuple("TrainingBatch", ["x_ord", "x_cat", "y"])
 QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
 
-
 def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
                   halfwidth: int, epochs: int=1, flatten: bool=False) \
         -> Iterator[TrainingBatch]:
