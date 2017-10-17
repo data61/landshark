@@ -93,14 +93,24 @@ def batch_training(data, batch_size):
                                           name="Xcm")
         Y = tf.placeholder_with_default(batches[4], (None,) + data.shapes[4],
                                         name="Y")
-
     return Xo, Xom, Xc, Xcm, Y
+
+
+def flatten_features(Xo, Xom, Xc, Xcm):
+
+    Xof = tf.reshape(Xo, (tf.shape(Xo)[0], np.prod(Xo.shape[1:])))
+    Xomf = tf.reshape(Xom, (tf.shape(Xom)[0], np.prod(Xom.shape[1:])))
+    Xcf = tf.reshape(Xc, (tf.shape(Xc)[0], np.prod(Xc.shape[1:])))
+    Xcmf = tf.reshape(Xcm, (tf.shape(Xcm)[0], np.prod(Xcm.shape[1:])))
+
+    return Xof, Xomf, Xcf, Xcmf
 
 
 def train_tf(data_train, data_test, name):
 
     datgen = SliceTrainingData(data_train)
     Xo, Xom, Xc, Xcm, Y = batch_training(datgen, batch_size)
+    Xof, Xomf, Xcf, Xcmf = flatten_features(Xo, Xom, Xc, Xcm)
 
     # Get training data
     # TODO, stream this
@@ -127,11 +137,10 @@ def train_tf(data_train, data_test, name):
     # This is where we build the actual GP model
     with tf.name_scope("Deepnet"):
         N = round(1026 * 0.9)
-        phi, kl = net(X=Xo, M=Xom)
+        phi, kl = net(X=Xof, M=Xomf)
         phi = tf.identity(phi, name="nnet")
         noise = tf.Variable(1.)
         lkhood = tf.distributions.Normal(loc=phi, scale=ab.pos(noise))
-        lkhood = tf.identity(lkhood, name="lkhood")
         loss = ab.elbo(lkhood, Y, N, kl)
         tf.summary.scalar("loss", loss)
 

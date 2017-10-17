@@ -15,8 +15,7 @@ QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
 
 def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
-                  halfwidth: int, epochs: int=1, flatten: bool=False) \
-        -> Iterator[TrainingBatch]:
+                  halfwidth: int, epochs: int=1) -> Iterator[TrainingBatch]:
     """
     Create an iterator over batches of training data.
 
@@ -33,9 +32,6 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
         pixels from centre
     epochs : int
         Number of times to repeat yielding the training dataset
-    flatten : bool
-        Flatten the training data features from patches into arrays of shape
-        (batchsize, D)
 
     Yields
     ------
@@ -51,13 +47,8 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
         for x_indices, y_indices, target_batch in it:
             ord_marray, cat_marray = _read_batch(x_indices, y_indices,
                                                  features, halfwidth)
-            if flatten:
-                ord_marray = np.ma.reshape(ord_marray, [len(ord_marray), -1])
-                cat_marray = np.ma.reshape(cat_marray, [len(cat_marray), -1])
-
             t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
                               y=target_batch)
-
             yield t
         if i >= epochs:
             break

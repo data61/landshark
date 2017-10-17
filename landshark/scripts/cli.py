@@ -53,10 +53,8 @@ def train(
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     training_targets = Targets(trainingfile, target)
     testing_targets = Targets(testingfile, target)
-    t = training_data(features, training_targets, batchsize, halfwidth, epochs,
-                      flatten=True)
-    s = training_data(features, testing_targets, batchsize, halfwidth, 1,
-                      flatten=True)
+    t = training_data(features, training_targets, batchsize, halfwidth, epochs)
+    s = training_data(features, testing_targets, batchsize, halfwidth, 1)
     # m = models.train(t, s)
     m = models.train_tf(t, s, name)
     models.write(m, halfwidth, target, name)
