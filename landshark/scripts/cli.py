@@ -77,9 +77,10 @@ def predict(
     """Predict using a learned model."""
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     m = models.load(modelfile)
-    model = m.skmodel
+    model = m.model
     halfwidth = m.halfwidth
     d = query_data(features, batchsize, halfwidth)
-    y_dash = models.predict(model, d)
+    # y_dash = models.predict(model, d)
+    y_dash = models.predict_tf(model, d)
     models.show(y_dash, features.image_spec)
     return 0
