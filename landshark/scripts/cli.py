@@ -1,11 +1,13 @@
 """Main landshark commands."""
 
 import logging
+import os
 
 import click
 
 from landshark.hread import ImageFeatures, Targets
 from landshark.feed import training_data, query_data
+from landshark.export import to_tfrecords
 from landshark import models
 
 log = logging.getLogger(__name__)
@@ -84,3 +86,36 @@ def predict(
     y_dash = models.predict_tf(model, d)
     models.show(y_dash, features.image_spec)
     return 0
+
+
+@cli.command()
+@click.argument("featurefile", type=click.Path(exists=True))
+@click.argument("trainingfile", type=click.Path(exists=True))
+@click.argument("testingfile", type=click.Path(exists=True))
+@click.option("--batchsize", type=int, default=1000)
+@click.option("--halfwidth", type=int, default=1)
+@click.option("--cache_blocksize", type=int, default=100)
+@click.option("--cache_nblocks", type=int, default=10)
+@click.option("--target", type=str, required=True)
+def export(
+        featurefile: str,
+        trainingfile: str,
+        testingfile: str,
+        batchsize: int,
+        cache_blocksize: int,
+        cache_nblocks: int,
+        halfwidth: int,
+        target: str
+        ) -> int:
+    """Export data to tfrecord files."""
+    features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
+    training_targets = Targets(trainingfile, target)
+    testing_targets = Targets(testingfile, target)
+    t = training_data(features, training_targets, batchsize, halfwidth)
+    s = training_data(features, testing_targets, batchsize, halfwidth)
+    directory = os.getcwd()
+    to_tfrecords(t, directory, "training")
+    to_tfrecords(s, directory, "testing")
+    return 0
+
+
