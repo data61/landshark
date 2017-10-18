@@ -139,7 +139,7 @@ def test_statistics_masked():
     mean = stats.mean
     var = stats.variance
     true_mean = np.ma.mean(all_marray, axis=0)
-    true_var = np.var(all_marray, axis=0)
+    true_var = np.ma.var(all_marray, axis=0)
     assert np.allclose(mean, true_mean)
     assert np.allclose(var, true_var)
 
