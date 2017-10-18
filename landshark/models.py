@@ -19,7 +19,10 @@ log = logging.getLogger(__name__)
 
 rseed = 666
 batch_size = 10
-config = tf.ConfigProto(device_count={'GPU': 1})  # Use GPU? 0 is no
+psamps = 10
+nsamps = 5
+train_config = tf.ConfigProto(device_count={'GPU': 1})  # Use GPU? 0 is no
+predict_config = tf.ConfigProto(device_count={'GPU': 1})
 
 
 class SliceTrainingData:
@@ -53,22 +56,13 @@ class SliceTrainingData:
                 yield tslice
 
 
-def extract_masks_test(data):
-    gen = (
-        (d.x_ord.data,
-         d.x_ord.mask,
-         d.x_cat.data,
-         d.x_cat.mask,
-         d.y) for d in data)
-    return gen
-
-
 def extract_masks_query(data):
     gen = (
         (d.x_ord.data,
          d.x_ord.mask,
          d.x_cat.data,
-         d.x_cat.mask) for d in data)
+         d.x_cat.mask,
+         *d[2:]) for d in data)
     return gen
 
 
@@ -111,25 +105,14 @@ def train_tf(data_train, data_test, name):
     datgen = SliceTrainingData(data_train)
     Xo, Xom, Xc, Xcm, Y = batch_training(datgen, batch_size)
     Xof, Xomf, Xcf, Xcmf = flatten_features(Xo, Xom, Xc, Xcm)
+    ls = np.ones((Xof.shape[1], 1), dtype=np.float32) * 10.
 
-    # Get training data
-    # TODO, stream this
-    Xo_s = []
-    Xom_s = []
-    Y_s = []
-    for xo, xom, _, _, y in extract_masks_test(data_test):
-        Xo_s.append(xo)
-        Xom_s.append(xom)
-        Y_s.append(y)
-    Xo_s = np.vstack(Xo_s)
-    Xom_s = np.vstack(Xom_s)
-    Y_s = np.vstack(Y_s)
-
-    data_input = ab.InputLayer(name="X", n_samples=1)  # Data input
+    data_input = ab.InputLayer(name="X", n_samples=nsamps)  # Data input
     mask_input = ab.MaskInputLayer(name="M")  # Missing data mask input
-    kern = ab.RBF(lenscale=ab.pos(tf.Variable(10.)))
+    kern = ab.RBF(lenscale=ab.pos(tf.Variable(ls)))
     net = (
         ab.LearnedScalarImpute(data_input, mask_input) >>
+        # ab.MeanImpute(data_input, mask_input) >>
         ab.RandomFourier(n_features=50, kernel=kern) >>
         ab.DenseVariational(output_dim=1, std=1., full=True)
         )
@@ -139,8 +122,8 @@ def train_tf(data_train, data_test, name):
         N = round(1026 * 0.9)
         phi, kl = net(X=Xof, M=Xomf)
         phi = tf.identity(phi, name="nnet")
-        noise = tf.Variable(1.)
-        lkhood = tf.distributions.Normal(loc=phi, scale=ab.pos(noise))
+        noise = tf.Variable(1.0)
+        lkhood = tf.distributions.StudentT(df=5., loc=phi, scale=ab.pos(noise))
         loss = ab.elbo(lkhood, Y, N, kl)
         tf.summary.scalar("loss", loss)
 
@@ -160,7 +143,7 @@ def train_tf(data_train, data_test, name):
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
-            config=config,
+            config=train_config,
             checkpoint_dir=checkpoint_dir,
             save_summaries_steps=None,
             save_checkpoint_secs=20,
@@ -174,11 +157,10 @@ def train_tf(data_train, data_test, name):
             log.info("Input queues have been exhausted!")
             pass
 
-        feed_dict = {Xo: Xo_s, Xom: Xom_s, Y: [[None]]}
-        Ey = ab.predict_expected(phi, feed_dict=feed_dict, n_groups=10,
-                                 session=sess)
-
-    r2 = r2_score(Y_s.flatten(), Ey.flatten())
+    Ey, Sf, Y_s = zip(*predict_tf(checkpoint_dir, data_test))
+    Ey = np.vstack(Ey).squeeze()
+    Y_s = np.vstack(Y_s).squeeze()
+    r2 = r2_score(Y_s, Ey)
     log.info("Aboleth r2: {}".format(r2))
 
     return checkpoint_dir
@@ -215,12 +197,12 @@ def train(data_train, data_test):
     return rf
 
 
-Model = namedtuple("Model", ['skmodel', 'halfwidth', 'y_label'])
+Model = namedtuple("Model", ['model', 'halfwidth', 'y_label'])
 
 
 def write(model, halfwidth, y_label, name):
     path = os.path.join(os.getcwd(), name + ".lsmodel")
-    m = Model(skmodel=model, halfwidth=halfwidth, y_label=y_label)
+    m = Model(model=model, halfwidth=halfwidth, y_label=y_label)
     with open(path, 'wb') as f:
         log.info("Writing model to disk")
         pickle.dump(m, f)
@@ -239,18 +221,47 @@ def predict(model, X_it):
         Xs[x[0].mask] = 0.  # impute
         Xs = Xs.reshape((len(Xs), -1))
         ys = model.predict(Xs)
-        yield ys
+        yield ys, None
 
 
-# def predict_tf(model, data_test):
+def predict_tf(model, data_test):
+
+    model_file = tf.train.latest_checkpoint(model)
+    print("Loading model: {}".format(model_file))
+
+    graph = tf.Graph()
+    with graph.as_default():
+        sess = tf.Session(config=predict_config)
+        with sess.as_default():
+            saver = tf.train.import_meta_graph("{}.meta".format(model_file))
+            saver.restore(sess, model_file)
+
+            # Restore place holders and prediction network
+            Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
+            Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
+            Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
+            Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
+            placeholders = [Xo, Xom, Xc, Xcm]
+
+            phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
+            # TODO plus noise
+
+            datgen = extract_masks_query(data_test)
+            for i, d in enumerate(datgen):
+                log.info("predicting batch {}".format(i))
+                fd = dict(zip(placeholders, d[:4]))
+                y_samples = ab.predict_samples(phi, fd, psamps, sess)
+                Ey = y_samples.mean(axis=0)
+                Sf = y_samples.std(axis=0)
+                yield (Ey, Sf, *d[4:])
 
 
-def show(Y_it, image_spec):
+def show(pred, image_spec):
     image_height = image_spec.height
     image_width = image_spec.width
-    Y = np.concatenate(list(Y_it))
+    Y, _ = zip(*pred)
+    Y = np.concatenate(Y).squeeze()
     im = Y.reshape((image_height, image_width))
-    # im = Y.reshape((100, 100))
     import matplotlib.pyplot as pl
     from matplotlib import cm
     pl.imshow(im, cmap=cm.inferno)
