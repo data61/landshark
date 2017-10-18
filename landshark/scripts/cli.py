@@ -1,5 +1,6 @@
 """Main landshark commands."""
 
+from glob import glob
 import logging
 import os
 
@@ -8,7 +9,7 @@ import click
 from landshark.hread import ImageFeatures, Targets
 from landshark.feed import training_data, query_data
 from landshark.export import to_tfrecords
-from landshark import models
+from landshark import models, recordmodel
 
 log = logging.getLogger(__name__)
 
@@ -116,6 +117,19 @@ def export(
     directory = os.getcwd()
     to_tfrecords(t, directory, "training")
     to_tfrecords(s, directory, "testing")
+    return 0
+
+
+@cli.command()
+@click.argument("trainingdir", type=click.Path(exists=True))
+@click.argument("testingdir", type=click.Path(exists=True))
+def rtrain(
+        trainingdir: str,
+        testingdir: str) -> int:
+    """Do stuff."""
+    training_records = glob(os.path.join(trainingdir, "*.tfrecord"))
+    testing_records = glob(os.path.join(testingdir, "*.tfrecord"))
+    recordmodel.train_test(training_records, testing_records)
     return 0
 
 
