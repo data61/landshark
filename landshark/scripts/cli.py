@@ -35,6 +35,7 @@ def cli(verbosity: str) -> int:
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
 @click.option("--target", type=str, required=True)
+@click.option("--epochs", type=int, default=1)
 def train(
         featurefile: str,
         trainingfile: str,
@@ -45,15 +46,17 @@ def train(
         cache_blocksize: int,
         cache_nblocks: int,
         halfwidth: int,
-        target: str
+        target: str,
+        epochs: int
         ) -> int:
     """Learn a model."""
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     training_targets = Targets(trainingfile, target)
     testing_targets = Targets(testingfile, target)
-    t = training_data(features, training_targets, batchsize, halfwidth)
-    s = training_data(features, testing_targets, batchsize, halfwidth)
-    m = models.train(t, s)
+    t = training_data(features, training_targets, batchsize, halfwidth, epochs)
+    s = training_data(features, testing_targets, batchsize, halfwidth, 1)
+    # m = models.train(t, s)
+    m = models.train_tf(t, s, name)
     models.write(m, halfwidth, target, name)
     return 0
 

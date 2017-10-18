@@ -1,5 +1,6 @@
 """Feeding iterators for training and querying data."""
 
+from itertools import count
 from collections import namedtuple
 
 import numpy as np
@@ -13,9 +14,8 @@ TrainingBatch = namedtuple("TrainingBatch", ["x_ord", "x_cat", "y"])
 QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
 
-def training_data(features: ImageFeatures,
-                  targets: Targets, batchsize: int, halfwidth: int) \
-        -> Iterator[TrainingBatch]:
+def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
+                  halfwidth: int, epochs: int=1) -> Iterator[TrainingBatch]:
     """
     Create an iterator over batches of training data.
 
@@ -30,9 +30,11 @@ def training_data(features: ImageFeatures,
     halfwidth : int
         The half-width of image patches in X, ie number of additional
         pixels from centre
+    epochs : int
+        Number of times to repeat yielding the training dataset
 
-    Returns
-    -------
+    Yields
+    ------
     t : Iterator[TrainingBatch]
         An iterator that produces batches of x,y pairs
 
@@ -40,12 +42,16 @@ def training_data(features: ImageFeatures,
     assert batchsize > 0
     assert halfwidth >= 0
 
-    it = targets.training(features.image_spec, batchsize)
-    for x_indices, y_indices, target_batch in it:
-        ord_marray, cat_marray = _read_batch(x_indices, y_indices,
-                                             features, halfwidth)
-        t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray, y=target_batch)
-        yield t
+    for i in count(start=1):
+        it = targets.training(features.image_spec, batchsize)
+        for x_indices, y_indices, target_batch in it:
+            ord_marray, cat_marray = _read_batch(x_indices, y_indices,
+                                                 features, halfwidth)
+            t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
+                              y=target_batch)
+            yield t
+        if i >= epochs:
+            break
 
 
 def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \

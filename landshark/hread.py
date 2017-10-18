@@ -184,5 +184,8 @@ class Targets:
             stop = start + n
             s = slice(start, stop)
             target = self._data[s]
+            # Make sure regression targets are 2D
+            if target.ndim == 1:
+                target = target[:, np.newaxis]
             start = stop
             yield px, py, target
