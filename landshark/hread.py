@@ -36,13 +36,11 @@ class ImageFeatures:
         self.image_spec = spec
         self.ord = Features(
             self._hfile.root.ordinal_data,
-            self._hfile.root.ordinal_data.attrs.missing_values,
             cache_blocksize,
             cache_nblocks
             )
         self.cat = Features(
             self._hfile.root.categorical_data,
-            self._hfile.root.categorical_data.attrs.missing_values,
             cache_blocksize,
             cache_nblocks
             )
@@ -93,13 +91,12 @@ class Features:
     def __init__(
             self,
             carray: tables.carray.CArray,
-            missing_values: List[Union[None, float, int]],
             cache_blocksize: int,
             cache_nblocks: int
             ) -> None:
         """Initialise a Features object."""
         self._carray = carray
-        self._missing_values = missing_values
+        self._missing_values = carray.attrs.missing_values
         self._cache = RowCache(carray, cache_blocksize, cache_nblocks)
 
     @property

@@ -20,11 +20,7 @@ def test_image_features(mocker):
                                  cache_nblocks=10)
 
     p_openfile.assert_called_with(filename)
-    feat.assert_called_with(
-        hfile.root.categorical_data,
-        hfile.root.categorical_data.attrs.missing_values,
-        20, 10
-        )
+    feat.assert_called_with(hfile.root.categorical_data, 20, 10)
 
     assert hasattr(imfeat, 'ord')
     assert hasattr(imfeat, 'cat')
@@ -36,9 +32,10 @@ def test_features(mocker):
     carray.atom.dtype.base = np.float32
     carray.atom.shape = [10]
     missing_values = [None, None]
+    carray.attrs.missing_values = missing_values
 
     rcache = mocker.patch("landshark.hread.RowCache")
-    feat = hread.Features(carray, missing_values, 20, 10)
+    feat = hread.Features(carray, 20, 10)
 
     rcache.assert_called_with(carray, 20, 10)
     assert feat.dtype == np.float32

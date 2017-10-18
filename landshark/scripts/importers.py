@@ -40,13 +40,15 @@ def _tifnames(names: List[str]) -> List[str]:
 @click.argument("files", type=click.Path(exists=True), nargs=-1)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
-def tifs(files: List[str], name: str) -> int:
+@click.option("--standardise/--no-standardise", default=True,
+              help="Standardise the input features")
+def tifs(files: List[str], name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""
     out_filename = os.path.join(os.getcwd(), name + ".hdf5")
     tif_filenames = _tifnames(files)
 
     stack = ImageStack(tif_filenames)
-    write_datafile(stack, out_filename)
+    write_datafile(stack, out_filename, standardise)
     return 0
 
 
