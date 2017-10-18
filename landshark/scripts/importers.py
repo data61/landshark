@@ -40,7 +40,7 @@ def _tifnames(names: List[str]) -> List[str]:
 @click.argument("files", type=click.Path(exists=True), nargs=-1)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
-@click.option('--standardise/--no-standardise', default=True,
+@click.option("--standardise/--no-standardise", default=True,
               help="Standardise the input features")
 def tifs(files: List[str], name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""

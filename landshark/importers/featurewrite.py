@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 import tables
-from typing import List, Union, Callable, Iterator
+from typing import List, Union, Callable, Iterator, Tuple
 
 from landshark.importers.tifread import ImageStack
 
@@ -46,7 +46,7 @@ class _Statistics:
         return self._mean
 
     @property
-    def var(self) -> np.ndarray:
+    def variance(self) -> np.ndarray:
         """Get the current estimate of the variance."""
         assert np.all(self._n > 1)
         var = self._m2 / self._n
@@ -130,8 +130,13 @@ def write_datafile(image_stack: ImageStack, filename: str,
 
     log.info("Writing ordinal data")
     if standardise:
+
+        mean, var = _get_stats(ord_array, image_stack.ordinal_blocks,
+                               image_stack.ordinal_missing)
+        ord_array.attrs.mean = mean
+        ord_array.attrs.variance = var
         _standardise_write(ord_array, image_stack.ordinal_blocks,
-                           image_stack.ordinal_missing)
+                           image_stack.ordinal_missing, mean, var)
     else:
         _write(ord_array, image_stack.ordinal_blocks)
 
@@ -141,29 +146,34 @@ def write_datafile(image_stack: ImageStack, filename: str,
     log.info("Written {}MB file to disk.".format(file_size))
 
 
-def _standardise_write(array: tables.CArray,
-                       blocks: Callable[[], Iterator[np.ndarray]],
-                       missing_values: MissingValueList) -> None:
-    """Write standardised data."""
+def _get_stats(array: tables.CArray,
+               blocks: Callable[[], Iterator[np.ndarray]],
+               missing_values: MissingValueList) \
+        -> Tuple[np.ndarray, np.ndarray]:
+    """Compute the mean and variance of the data."""
     nbands = array.atom.shape[0]
     stats = _Statistics(nbands)
     log.info("Computing statistics for standardisation")
-    start_idx = 0
     for b in blocks():
-        bm = _to_masked(b.reshape((-1, nbands)), missing_values)
+        bs = b.reshape((-1, nbands))
+        bm = _to_masked(bs, missing_values)
         stats.update(bm)
-        end_idx = start_idx + b.shape[0]
-        start_idx = end_idx
-    array.attrs.mean = stats.mean
-    array.attrs.variance = stats.var
+    return stats.mean, stats.variance
 
+
+def _standardise_write(array: tables.CArray,
+                       blocks: Callable[[], Iterator[np.ndarray]],
+                       missing_values: MissingValueList,
+                       mean: np.ndarray,
+                       variance: np.ndarray) -> None:
+    """Write out standardised data."""
     start_idx = 0
     log.info("Writing standardised data")
     for b in blocks():
         end_idx = start_idx + b.shape[0]
         bm = _to_masked(b, missing_values)
-        bm -= stats.mean
-        bm /= np.sqrt(stats.var)
+        bm -= mean
+        bm /= np.sqrt(variance)
         array[start_idx:end_idx] = bm.data
         start_idx = end_idx
 

@@ -7,7 +7,6 @@ import pytest
 from landshark.importers.tifread import _block_shape
 from landshark.importers import featurewrite
 
-
 @pytest.mark.parametrize("standardise", [True, False])
 def test_write_datafile(mocker, standardise):
     """Checks that write_datafile calls all the right functions."""
@@ -16,6 +15,9 @@ def test_write_datafile(mocker, standardise):
     m_write = mocker.patch('landshark.importers.featurewrite._write')
     m_std_write = mocker.patch(
         'landshark.importers.featurewrite._standardise_write')
+    m_get_stats = mocker.patch(
+        'landshark.importers.featurewrite._get_stats')
+    m_get_stats.return_value = (mocker.Mock(), mocker.Mock())
     m_hfile = mocker.MagicMock()
     m_open.return_value = m_hfile
     m_size = mocker.patch('landshark.importers.featurewrite.os.path.getsize')
@@ -80,16 +82,22 @@ def test_write_datafile(mocker, standardise):
 
     assert m_cat_array.attrs.mean is None
     assert m_cat_array.attrs.variance is None
-    assert m_ord_array.attrs.mean is None
-    assert m_ord_array.attrs.variance is None
 
     if standardise:
+        assert m_ord_array.attrs.mean == m_get_stats.return_value[0]
+        assert m_ord_array.attrs.variance == m_get_stats.return_value[1]
+        m_get_stats.assert_called_with(m_ord_array, image_stack.ordinal_blocks,
+                                       image_stack.ordinal_missing)
         m_write.assert_has_calls([call(m_cat_array,
                                        image_stack.categorical_blocks)])
         m_std_write.assert_called_with(m_ord_array,
                                        image_stack.ordinal_blocks,
-                                       image_stack.ordinal_missing)
+                                       image_stack.ordinal_missing,
+                                       m_ord_array.attrs.mean,
+                                       m_ord_array.attrs.variance)
     else:
+        assert m_ord_array.attrs.mean is None
+        assert m_ord_array.attrs.variance is None
         m_write.assert_has_calls([call(m_cat_array,
                                        image_stack.categorical_blocks),
                                   call(m_ord_array,
@@ -107,7 +115,7 @@ def test_statistics():
     for d in data:
         stats.update(d)
     mean = stats.mean
-    var = stats.var
+    var = stats.variance
     true_mean = np.mean(all_data, axis=0)
     true_var = np.var(all_data, axis=0)
     assert np.allclose(mean, true_mean)
@@ -131,19 +139,79 @@ def test_write():
     cols = 2
     data = np.arange(rows * cols).reshape((rows, cols))
     blocks = [data[0:3], data[3:6], data[6:9], data[9:10]]
-    import IPython; IPython.embed(); import sys; sys.exit()
+
+    array = np.zeros_like(data)
 
     def block_f():
-        data = [np.array([[0, 1, 2], [3, 4, 5]], [6])]
-        return
+        return blocks
+
+    featurewrite._write(array, block_f)
+    assert np.all(array == data)
 
 
+def setup_write(parent_mock):
+    m_masked = parent_mock.patch("landshark.importers.featurewrite._to_masked")
+    m_masked.side_effect = [0, 1, 2, 3]
+    m_missing_values = parent_mock.Mock()
+    m_missing_values.side_effect = [4, 5 ,6 ,7]
+    rows = 10
+    cols = 2
+    data = np.arange(rows * cols).reshape((rows, cols))
+    blocks = [data[0:3], data[3:6], data[6:9], data[9:10]]
+    array = parent_mock.MagicMock()
+    array.atom.shape = (data.shape[1],)
 
-    pass
+    def block_f():
+        return blocks
+    return array, block_f, m_missing_values, m_masked
 
 
-def test_standardise_write():
-    pass
+def test_get_stats(mocker):
+    call = mocker.mock_module.call
+    m_stats = mocker.patch("landshark.importers.featurewrite._Statistics",
+                           autospec=True)
+    m_stats_obj = mocker.Mock()
+    m_stats_obj.mean = 10
+    m_stats_obj.variance = 2
+    m_stats.return_value = m_stats_obj
+    array, block_f, m_missing_values, m_masked = setup_write(mocker)
+    mean, variance = featurewrite._get_stats(array, block_f, m_missing_values)
+
+    blocks = block_f()
+    for call, b in zip(m_masked.call_args_list, blocks):
+        assert np.all(call[0][0] == b)
+        assert call[0][1] == m_missing_values
+
+    m_masked_calls = [call(k, m_missing_values) for k in blocks]
+    # m_masked.assert_has_calls(m_masked_calls)
+    m_stats.assert_called_once_with(array.atom.shape[0])
+    # from the side effect of m_masked
+    m_stats_obj.update.assert_has_calls([call(0), call(1), call(2), call(3)])
+
+    assert mean == m_stats_obj.mean
+    assert variance == m_stats_obj.variance
 
 
+def test_standardise_write(mocker):
+    m_masked = mocker.patch("landshark.importers.featurewrite._to_masked")
+    m_missing_data = mocker.Mock()
+    mean = 10.0
+    variance = 2.0
 
+    def fake_masked(b, missing_vals):
+        return np.ma.MaskedArray(data=np.copy(b), mask=False)
+
+    m_masked.side_effect = fake_masked
+
+    rows = 10
+    cols = 2
+    data = np.arange(rows * cols).reshape((rows, cols)).astype(float)
+    blocks = [data[0:3], data[3:6], data[6:9], data[9:10]]
+    array = np.zeros_like(data)
+
+    def block_f():
+        return blocks
+
+    featurewrite._standardise_write(array, block_f,
+                                    m_missing_data, mean, variance)
+    assert np.allclose(array, (data - mean) / np.sqrt(variance))
