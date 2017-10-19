@@ -123,13 +123,20 @@ def export(
 @cli.command()
 @click.argument("trainingdir", type=click.Path(exists=True))
 @click.argument("testingdir", type=click.Path(exists=True))
+@click.argument("name", type=str)
 def rtrain(
         trainingdir: str,
-        testingdir: str) -> int:
+        testingdir: str,
+        name: str) -> int:
     """Do stuff."""
     training_records = glob(os.path.join(trainingdir, "*.tfrecord"))
     testing_records = glob(os.path.join(testingdir, "*.tfrecord"))
-    recordmodel.train_test(training_records, testing_records)
+    train_metadata_path = os.path.join(trainingdir, "METADATA.bin")
+    test_metadata_path = os.path.join(testingdir, "METADATA.bin")
+    train_metadata = recordmodel.load_metadata(train_metadata_path)
+    test_metadata = recordmodel.load_metadata(test_metadata_path)
+    recordmodel.train_test(training_records, testing_records,
+                           train_metadata, test_metadata, name)
     return 0
 
 

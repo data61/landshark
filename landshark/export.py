@@ -1,12 +1,18 @@
 """Export data to tensorflow formats."""
 
 import os.path
+from itertools import chain
+from collections import namedtuple
+import pickle
 
 import numpy as np
 import tensorflow as tf
 from typing import Iterator
 
 from landshark.feed import TrainingBatch
+
+
+RecordShape = namedtuple("RecordShape", ["x_ord", "x_cat", "halfwidth", "N"])
 
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
@@ -44,10 +50,15 @@ def to_tfrecords(data: Iterator[TrainingBatch],
     directory = os.path.join(output_directory, "tfrecords_" + name)
     if not os.path.exists(directory):
         os.makedirs(directory)
-    path = os.path.join(directory, "00001.tfrecord")
 
+    path = os.path.join(directory, "00001.tfrecord")
     with tf.python_io.TFRecordWriter(path) as writer:
-        for d in data:
+
+        N = 0
+
+        d0 = next(data)
+        for d in chain([d0], data):
+            N += d.x_ord.shape[0]
             for x_ord, x_cat, y in zip(d.x_ord, d.x_cat, d.y):
                 fdict = _make_features(x_ord, x_cat, y)
                 example = tf.train.Example(
@@ -55,4 +66,10 @@ def to_tfrecords(data: Iterator[TrainingBatch],
 
                 writer.write(example.SerializeToString())
 
-    # import IPython; IPython.embed(); import sys; sys.exit()
+    shape = RecordShape(x_ord=d0.x_ord.shape[3],
+                        x_cat=d0.x_cat.shape[3],
+                        halfwidth=(d0.x_ord.shape[1] - 1) // 2,
+                        N=N)
+    spec_path = os.path.join(directory, "METADATA.bin")
+    with open(spec_path, "wb") as f:
+        pickle.dump(shape, f)
