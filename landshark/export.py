@@ -23,22 +23,14 @@ def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     return feature
 
 
-def _int64_vec_feature(x: np.ndarray) -> tf.train.Feature:
-    """Create a int64 vector feature."""
-    feature = tf.train.Feature(int64_list=tf.train.Int64List(value=x))
-    return feature
-
-
 def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
                    y: np.ndarray) -> dict:
     """Do stuff."""
     fdict = {
         "x_cat": _ndarray_feature(x_cat.data),
         "x_cat_mask": _ndarray_feature(x_cat.mask),
-        "x_cat_shape": _int64_vec_feature(x_cat.shape),
         "x_ord": _ndarray_feature(x_ord.data),
         "x_ord_mask": _ndarray_feature(x_ord.mask),
-        "x_ord_shape": _int64_vec_feature(x_ord.shape),
         "y": _ndarray_feature(y)
         }
     return fdict

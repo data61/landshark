@@ -7,6 +7,7 @@ from typing import List
 import tensorflow as tf
 import aboleth as ab
 import pickle
+from sklearn.metrics import r2_score
 
 rseed = 666
 batch_size = 10
@@ -14,7 +15,7 @@ psamps = 10
 nsamps = 5
 train_config = tf.ConfigProto(device_count={"GPU": 0})
 predict_config = tf.ConfigProto(device_count={"GPU": 0})
-epochs = 20
+epochs = 2
 
 log = logging.getLogger(__name__)
 
@@ -27,14 +28,21 @@ fdict = {
     }
 
 
-def batch(records: List[str], record_shape, batch_size: int, epochs: int):
+def dataset(records, batch_size: int, epochs: int=1, shuffle=False):
     """Train and test."""
-    npatch = (2 * record_shape.halfwidth + 1) ** 2
-    dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
-        .shuffle(buffer_size=100).batch(batch_size)
-    iterator = dataset.make_one_shot_iterator().get_next()
-    raw_features = tf.parse_example(iterator, features=fdict)
+    if shuffle:
+        dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
+            .shuffle(buffer_size=1000).batch(batch_size)
+    else:
+        dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
+            .batch(batch_size)
+    return dataset
 
+
+def decode(iterator, record_shape):
+    str_features = iterator.get_next()
+    raw_features = tf.parse_example(str_features, features=fdict)
+    npatch = (2 * record_shape.halfwidth + 1) ** 2
     with tf.name_scope("Inputs"):
         x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -58,12 +66,52 @@ def load_metadata(path):
         obj = pickle.load(f)
     return obj
 
+# def predict(model, records_test):
+
+#     model_file = tf.train.latest_checkpoint(model)
+#     print("Loading model: {}".format(model_file))
+
+#     graph = tf.Graph()
+#     with graph.as_default():
+#         sess = tf.Session(config=predict_config)
+#         with sess.as_default():
+#             saver = tf.train.import_meta_graph("{}.meta".format(model_file))
+#             saver.restore(sess, model_file)
+
+#             # Restore place holders and prediction network
+#             Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
+#             Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
+#             Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
+#             Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
+#             placeholders = [Xo, Xom, Xc, Xcm]
+
+#             phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
+#             # TODO plus noise
+
+#             datgen = extract_masks_query(data_test)
+#             for i, d in enumerate(datgen):
+#                 log.info("predicting batch {}".format(i))
+#                 fd = dict(zip(placeholders, d[:4]))
+#                 y_samples = ab.predict_samples(phi, fd, psamps, sess)
+#                 Ey = y_samples.mean(axis=0)
+#                 Sf = y_samples.std(axis=0)
+#                 yield (Ey, Sf, *d[4:])
+
 
 def train_test(records_train, records_test,
                train_metadata, test_metadata, name):
 
-    Xof, Xomf, Xcf, Xcmf, Y = batch(records_train, train_metadata,
-                                    batch_size, epochs)
+    train_dataset = dataset(records_train, batch_size,
+                            epochs=epochs, shuffle=True)
+    test_dataset = dataset(records_test, batch_size,
+                           epochs=1, shuffle=False)
+
+    iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
+                                               train_dataset.output_shapes)
+    train_init_op = iterator.make_initializer(train_dataset)
+    test_init_op = iterator.make_initializer(test_dataset)
+
+    Xof, Xomf, Xcf, Xcmf, Y = decode(iterator, train_metadata)
 
     lenscale = np.ones((Xof.shape[1], 1), dtype=np.float32) * 10.
 
@@ -109,17 +157,28 @@ def train_test(records_train, records_test,
             save_summaries_secs=20,
             hooks=[logger]
             ) as sess:
+        sess.run(train_init_op)
         try:
             while not sess.should_stop():
                 sess.run(train)
         except tf.errors.OutOfRangeError:
             log.info("Input queues have been exhausted!")
-            pass
 
-    # Ey, Sf, Y_s = zip(*predict_tf(checkpoint_dir, data_test))
-    # Ey = np.vstack(Ey).squeeze()
-    # Y_s = np.vstack(Y_s).squeeze()
-    # r2 = r2_score(Y_s, Ey)
-    # log.info("Aboleth r2: {}".format(r2))
+        sess.run(test_init_op)
+        Ey = []
+        Sf = []
+        Ys = []
+        try:
+            while not sess.should_stop():
+                Ys_i, y_samples = sess.run([Y, phi])
+                Ys.append(Ys_i)
+                Ey.append(y_samples.mean(axis=0))
+                Sf.append(y_samples.std(axis=0))
+        except tf.errors.OutOfRangeError:
+            pass
+    Ey = np.vstack(Ey).squeeze()
+    Ys = np.vstack(Ys).squeeze()
+    r2 = r2_score(Ys, Ey)
+    log.info("Aboleth r2: {}".format(r2))
 
     return checkpoint_dir
