@@ -1,23 +1,26 @@
 """Train/test with tfrecords."""
-
+import signal
 import logging
 import os.path
+import pickle
+from itertools import count
+
 import numpy as np
-from typing import List
 import tensorflow as tf
 import aboleth as ab
-import pickle
-from sklearn.metrics import r2_score
 
+log = logging.getLogger(__name__)
+signal.signal(signal.SIGINT, signal.default_int_handler)
+
+# FIXME Setting, should go in a config
 rseed = 666
 batch_size = 10
 psamps = 10
 nsamps = 5
 train_config = tf.ConfigProto(device_count={"GPU": 0})
 predict_config = tf.ConfigProto(device_count={"GPU": 0})
-epochs = 2
 
-log = logging.getLogger(__name__)
+epochs = 10
 
 fdict = {
     "x_cat": tf.FixedLenFeature([], tf.string),
@@ -101,10 +104,9 @@ def load_metadata(path):
 def train_test(records_train, records_test,
                train_metadata, test_metadata, name):
 
-    train_dataset = dataset(records_train, batch_size,
-                            epochs=epochs, shuffle=True)
-    test_dataset = dataset(records_test, batch_size,
-                           epochs=1, shuffle=False)
+    train_dataset = dataset(records_train, batch_size, epochs=epochs,
+                            shuffle=True)
+    test_dataset = dataset(records_test, batch_size, epochs=1, shuffle=False)
 
     iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
                                                train_dataset.output_shapes)
@@ -113,7 +115,8 @@ def train_test(records_train, records_test,
 
     Xof, Xomf, Xcf, Xcmf, Y = decode(iterator, train_metadata)
 
-    lenscale = np.ones((Xof.shape[1], 1), dtype=np.float32) * 10.
+    # lenscale = np.ones((Xof.shape[1], 1), dtype=np.float32) * 10.
+    lenscale = 10.
 
     data_input = ab.InputLayer(name="X", n_samples=nsamps)  # Data input
     mask_input = ab.MaskInputLayer(name="M")  # Missing data mask input
@@ -157,28 +160,55 @@ def train_test(records_train, records_test,
             save_summaries_secs=20,
             hooks=[logger]
             ) as sess:
-        sess.run(train_init_op)
-        try:
-            while not sess.should_stop():
-                sess.run(train)
-        except tf.errors.OutOfRangeError:
-            log.info("Input queues have been exhausted!")
 
-        sess.run(test_init_op)
-        Ey = []
-        Sf = []
-        Ys = []
-        try:
-            while not sess.should_stop():
-                Ys_i, y_samples = sess.run([Y, phi])
-                Ys.append(Ys_i)
-                Ey.append(y_samples.mean(axis=0))
-                Sf.append(y_samples.std(axis=0))
-        except tf.errors.OutOfRangeError:
-            pass
-    Ey = np.vstack(Ey).squeeze()
-    Ys = np.vstack(Ys).squeeze()
-    r2 = r2_score(Ys, Ey)
-    log.info("Aboleth r2: {}".format(r2))
+        for i in count():
+            log.info("Training round {} with {} epochs.".format(i, epochs))
+            try:
+
+                sess.run(train_init_op)
+                try:
+                    while not sess.should_stop():
+                        sess.run(train)
+                except tf.errors.OutOfRangeError:
+                    log.info("Input queues have been exhausted!")
+
+                EY = {}
+                Ys = {}
+                for _ in range(psamps):
+                    sess.run(test_init_op)
+                    j = 0
+                    try:
+                        while not sess.should_stop():
+                            y, Eysamps = sess.run([Y, phi])
+                            if j not in EY:
+                                EY[j] = 0.
+                                Ys[j] = y.squeeze()
+                            EY[j] += Eysamps.mean(axis=0).squeeze()
+                            j += 1
+                    except tf.errors.OutOfRangeError:
+                        pass
+                EY = np.concatenate([EY[j] for j in range(psamps)]) / psamps
+                Ys = np.concatenate([Ys[j] for j in range(psamps)])
+                r2_score = rsquare(Ys, EY)
+                rsquare_summary(r2_score, sess, i)
+                log.info("Aboleth r2: {:.4f}".format(r2_score))
+
+            except KeyboardInterrupt:
+                log.info("Training ended.")
+                break
 
     return checkpoint_dir
+
+
+def rsquare(Y: np.ndarray, EY: np.ndarray) -> float:
+    SS_ref = np.sum((Y - EY)**2)
+    SS_tot = np.sum((Y - np.mean(Y))**2)
+    R2 = float(1 - SS_ref / SS_tot)
+    return R2
+
+def rsquare_summary(r2_score, sess, step=None):
+    # Get a summary writer for R-square
+    summary_writer = sess._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag='r-square', simple_value=r2_score)
+    score_sum = tf.Summary(value=[sum_val])
+    summary_writer.add_summary(score_sum, step)
