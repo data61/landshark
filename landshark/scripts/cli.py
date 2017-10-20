@@ -140,3 +140,25 @@ def rtrain(
     return 0
 
 
+@cli.command()
+@click.argument("featurefile", type=click.Path(exists=True))
+@click.argument("modeldir", type=click.Path(exists=True))
+@click.argument("metadir", type=click.Path(exists=True))
+@click.option("--cache_blocksize", type=int, default=100)
+@click.option("--cache_nblocks", type=int, default=10)
+@click.option("--batchsize", type=int, default=10000)
+def rpredict(
+        featurefile: str,
+        modeldir: str,
+        metadir: str,
+        cache_blocksize: int,
+        cache_nblocks: int,
+        batchsize: int
+        ) -> int:
+    """Predict using a learned model."""
+    features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
+    metadata = recordmodel.load_metadata(os.path.join(metadir, "METADATA.bin"))
+    d = query_data(features, batchsize, metadata.halfwidth)
+    y_dash = recordmodel.predict(modeldir, d, metadata, batchsize)
+    models.show(y_dash, features.image_spec)
+    return 0

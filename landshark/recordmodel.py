@@ -17,8 +17,8 @@ rseed = 666
 batch_size = 10
 psamps = 10
 nsamps = 5
-train_config = tf.ConfigProto(device_count={"GPU": 0})
-predict_config = tf.ConfigProto(device_count={"GPU": 0})
+train_config = tf.ConfigProto(device_count={"GPU": 1})
+predict_config = tf.ConfigProto(device_count={"GPU": 1})
 
 epochs = 10
 
@@ -69,40 +69,71 @@ def load_metadata(path):
         obj = pickle.load(f)
     return obj
 
-# def predict(model, records_test):
 
-#     model_file = tf.train.latest_checkpoint(model)
-#     print("Loading model: {}".format(model_file))
+def dataset_query(data, metadata, batch_size):
 
-#     graph = tf.Graph()
-#     with graph.as_default():
-#         sess = tf.Session(config=predict_config)
-#         with sess.as_default():
-#             saver = tf.train.import_meta_graph("{}.meta".format(model_file))
-#             saver.restore(sess, model_file)
+    npatch = (2 * metadata.halfwidth + 1) ** 2
+    shapes = {
+        "x_ord": npatch * metadata.x_ord,
+        "x_ord_mask": npatch * metadata.x_ord,
+        "x_cat": npatch * metadata.x_cat,
+        "x_cat_mask": npatch * metadata.x_cat,
+        # 1
+        }
+    types = {
+        "x_ord": tf.float32,
+        "x_ord_mask": tf.bool,
+        "x_cat": tf.int32,
+        "x_cat_mask": tf.bool
+        }
 
-#             # Restore place holders and prediction network
-#             Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
-#             Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
-#             Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
-#             Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
-#             placeholders = [Xo, Xom, Xc, Xcm]
+    def slicer():
+        for d in data:
+            for xo, xc in zip(d.x_ord, d.x_cat):
+                xo = xo.flatten()
+                xc = xc.flatten()
+                tslice = (xo.data, xo.mask, xc.data, xc.mask)
+                yield tslice
 
-#             phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
+    # Make the training data iterator
+    dataset = tf.data.Dataset.from_generator(slicer, types, shapes) \
+        .batch(batch_size)
+    iterator = tf.data.Iterator.from_structure(dataset.output_types,
+                                               dataset.output_shapes)
+    data_init_op = iterator.make_initializer(dataset)
+    return data_init_op
+
+
+def predict(model, data, metadata, batch_size):
+
+    model_file = tf.train.latest_checkpoint(model)
+    print("Loading model: {}".format(model_file))
+
+    data_init_op = dataset_query(data, metadata, batch_size)
+
+    graph = tf.Graph()
+    with graph.as_default():
+        sess = tf.Session(config=predict_config)
+        with sess.as_default():
+            saver = tf.train.import_meta_graph("{}.meta".format(model_file))
+            saver.restore(sess, model_file)
+            phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
 #             # TODO plus noise
 
-#             datgen = extract_masks_query(data_test)
-#             for i, d in enumerate(datgen):
-#                 log.info("predicting batch {}".format(i))
-#                 fd = dict(zip(placeholders, d[:4]))
-#                 y_samples = ab.predict_samples(phi, fd, psamps, sess)
-#                 Ey = y_samples.mean(axis=0)
-#                 Sf = y_samples.std(axis=0)
-#                 yield (Ey, Sf, *d[4:])
+            sess.run(data_init_op)
+            for i in count():
+                if sess.should_stop():
+                    break
+
+                log.info("predicting batch {}".format(i))
+                ys = sess.run(phi)
+                Ey = ys.mean(axis=0)
+                Sf = ys.std(axis=0)
+                yield Ey, Sf
 
 
-def train_test(records_train, records_test,
-               train_metadata, test_metadata, name):
+def train_test(records_train, records_test, train_metadata, test_metadata,
+               name):
 
     train_dataset = dataset(records_train, batch_size, epochs=epochs,
                             shuffle=True)
@@ -115,9 +146,7 @@ def train_test(records_train, records_test,
 
     Xof, Xomf, Xcf, Xcmf, Y = decode(iterator, train_metadata)
 
-    # lenscale = np.ones((Xof.shape[1], 1), dtype=np.float32) * 10.
     lenscale = 10.
-
     data_input = ab.InputLayer(name="X", n_samples=nsamps)  # Data input
     mask_input = ab.MaskInputLayer(name="M")  # Missing data mask input
     kern = ab.RBF(lenscale=ab.pos(tf.Variable(lenscale)))
@@ -150,11 +179,13 @@ def train_test(records_train, records_test,
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
+    r2_score = None
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
             config=train_config,
             checkpoint_dir=checkpoint_dir,
+            scaffold=tf.train.Scaffold(local_init_op=train_init_op),
             save_summaries_steps=None,
             save_checkpoint_secs=20,
             save_summaries_secs=20,
@@ -165,50 +196,82 @@ def train_test(records_train, records_test,
             log.info("Training round {} with {} epochs.".format(i, epochs))
             try:
 
-                sess.run(train_init_op)
+                # Train loop
                 try:
                     while not sess.should_stop():
                         sess.run(train)
                 except tf.errors.OutOfRangeError:
                     log.info("Input queues have been exhausted!")
 
-                EY = {}
-                Ys = {}
+                # Test loop
+                Ys, stats = {}, {}
                 for _ in range(psamps):
                     sess.run(test_init_op)
-                    j = 0
-                    try:
-                        while not sess.should_stop():
-                            y, Eysamps = sess.run([Y, phi])
-                            if j not in EY:
-                                EY[j] = 0.
-                                Ys[j] = y.squeeze()
-                            EY[j] += Eysamps.mean(axis=0).squeeze()
-                            j += 1
-                    except tf.errors.OutOfRangeError:
-                        pass
-                EY = np.concatenate([EY[j] for j in range(psamps)]) / psamps
-                Ys = np.concatenate([Ys[j] for j in range(psamps)])
-                r2_score = rsquare(Ys, EY)
+                    for j, y, ey in prediction_gen(Y, phi, sess):
+                        if j not in stats:
+                            stats[j] = (None, None, None)
+                            Ys[j] = y
+                        stats[j] = incremental_stats(ey, *stats[j])
+
+                # Scores
+                r2_score = rsquare(Ys, stats)
                 rsquare_summary(r2_score, sess, i)
                 log.info("Aboleth r2: {:.4f}".format(r2_score))
 
+                sess.run(train_init_op)
+
             except KeyboardInterrupt:
-                log.info("Training ended.")
+                log.info("Training ended, final R-square = {:.4f}."
+                         .format(r2_score))
                 break
 
     return checkpoint_dir
 
 
-def rsquare(Y: np.ndarray, EY: np.ndarray) -> float:
+def prediction_gen(Y, phi, session):
+    try:
+        for i in count():
+            if session.should_stop():
+                break
+            y, Eysamps = session.run([Y, phi])
+            yield i, y, Eysamps
+    except tf.errors.OutOfRangeError:
+        pass
+
+
+def incremental_stats(samples, mean=None, var=None, count=None):
+    count_s = samples.shape[0]
+    mean_s = samples.mean(axis=0)
+    var_s = samples.var(axis=0)
+
+    if (mean is None) or (var is None) or (count is None):
+        return mean_s, var_s, count_s
+
+    N = count_s + count
+    delta = mean - mean_s
+    ss_s = var_s * count_s
+    ss = var * count
+
+    mean = mean_s + delta * count / N
+    var = (ss_s + ss + delta**2 * count * count_s / N) / N
+
+    return mean, var, N
+
+
+def rsquare(Y: dict, stats: dict) -> float:
+    assert len(Y) == len(stats)
+    Y = np.concatenate([Y[j] for j in range(len(Y))])
+    EY = np.concatenate([stats[j][0] for j in range(len(stats))])
+
     SS_ref = np.sum((Y - EY)**2)
     SS_tot = np.sum((Y - np.mean(Y))**2)
     R2 = float(1 - SS_ref / SS_tot)
     return R2
 
-def rsquare_summary(r2_score, sess, step=None):
+
+def rsquare_summary(r2_score, session, step=None):
     # Get a summary writer for R-square
-    summary_writer = sess._hooks[1]._summary_writer
+    summary_writer = session._hooks[1]._summary_writer
     sum_val = tf.Summary.Value(tag='r-square', simple_value=r2_score)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
