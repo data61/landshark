@@ -16,11 +16,16 @@ MissingValueList = List[Union[np.float32, np.int32, None]]
 
 class _Categories:
     """Class that gets the number of categories for features."""
-    def __init__(self, n_features: int, max_categories=5000) -> None:
+    def __init__(self, missing_values, max_categories=5000) -> None:
+        n_features = len(missing_values)
         self._values = [set() for _ in range(n_features)]
         self._maps = [dict() for _ in range(n_features)]
-        self._maxed_out = [False for _ in range(n_features)]
+        for i, k in enumerate(missing_values):
+            if k is not None:
+                self._values[i].add(k)
+                self._maps[i][k] = 0
         self._max_categories = max_categories
+
 
     def update(self, array: np.ndarray):
         new_array = np.copy(array)
@@ -146,7 +151,6 @@ def write_datafile(image_stack: ImageStack, filename: str,
                                      atom=cat_atom, shape=im_shape,
                                      filters=filters)
     cat_array.attrs.labels = image_stack.categorical_names
-    cat_array.attrs.missing_values = image_stack.categorical_missing
     ord_array = h5file.create_carray(h5file.root, name="ordinal_data",
                                      atom=ord_atom, shape=im_shape,
                                      filters=filters)
@@ -161,9 +165,13 @@ def write_datafile(image_stack: ImageStack, filename: str,
     ord_array.attrs.variance = None
 
     log.info("Writing categorical data")
-    cat_maps = _categorical_write(cat_array, image_stack.categorical_blocks)
+    cat_maps = _categorical_write(cat_array, image_stack.categorical_blocks,
+                                  image_stack.categorical_missing)
     cat_array.attrs.mappings = cat_maps
     cat_array.attrs.ncategories = [len(k) for k in cat_maps]
+    # Our encoding maps missing_values to zero
+    cat_array.attrs.missing_values = [np.int32(0) for _ in
+                                      image_stack.categorical_missing]
 
     log.info("Writing ordinal data")
     if standardise:
@@ -215,9 +223,10 @@ def _standardise_write(array: tables.CArray,
         start_idx = end_idx
 
 def _categorical_write(array: tables.CArray,
-           blocks: Callable[[], Iterator[np.ndarray]]) -> None:
+           blocks: Callable[[], Iterator[np.ndarray]],
+                       missing_values: MissingValueList):
     """Write without standardising."""
-    cats = _Categories(array.atom.shape[0])
+    cats = _Categories(missing_values)
     start_idx = 0
     for b in blocks():
         new_b = cats.update(b)
