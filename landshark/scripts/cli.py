@@ -81,8 +81,8 @@ def train(
 @click.argument("featurefile", type=click.Path(exists=True))
 @click.argument("modeldir", type=click.Path(exists=True))
 @click.argument("metadir", type=click.Path(exists=True))
-@click.option("--cache_blocksize", type=int, default=100)
-@click.option("--cache_nblocks", type=int, default=10)
+@click.option("--cache_blocksize", type=int, default=1000)
+@click.option("--cache_nblocks", type=int, default=1)
 @click.option("--batchsize", type=int, default=100000)
 def predict(
         featurefile: str,
