@@ -14,6 +14,42 @@ log = logging.getLogger(__name__)
 MissingValueList = List[Union[np.float32, np.int32, None]]
 
 
+class _Categories:
+    """Class that gets the number of categories for features."""
+    def __init__(self, n_features: int, max_categories=5000) -> None:
+        self._values = [set() for _ in range(n_features)]
+        self._maps = [dict() for _ in range(n_features)]
+        self._maxed_out = [False for _ in range(n_features)]
+        self._max_categories = max_categories
+
+    def update(self, array: np.ndarray):
+        new_array = np.copy(array)
+        for i, data in enumerate(array.T):
+            unique_vals = np.unique(data)
+            new_values = set(unique_vals).difference(self._values[i])
+            nstart = len(self._values[i])
+            nstop = nstart + len(new_values) + 1
+            new_indices = range(nstart, nstop)
+            self._maps[i].update(zip(new_values, new_indices))
+            self._values[i].update(new_values)
+            for k, v in self._maps[i].items():
+                new_array[:, :, i][new_array[:, :, i] == k] = v
+        return new_array
+
+    @property
+    def maps(self):
+        map_list = [[i[0] for i in sorted(k.items(), key=lambda x: x[1])]
+                    for k in self._maps]
+        return map_list
+
+    @property
+    def sizes(self):
+        size_list = [(len(k) if not maxed else None)
+                     for maxed, k in zip(self._maxed_out, self._values)]
+        return size_list
+
+
+
 class _Statistics:
     """Class that computes online mean and variance."""
 
@@ -120,13 +156,13 @@ def write_datafile(image_stack: ImageStack, filename: str,
     log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
 
     # Default is to not store statistics
-    cat_array.attrs.mean = None
-    cat_array.attrs.variance = None
     ord_array.attrs.mean = None
     ord_array.attrs.variance = None
 
     log.info("Writing categorical data")
-    _write(cat_array, image_stack.categorical_blocks)
+    cat_maps = _categorical_write(cat_array, image_stack.categorical_blocks)
+    cat_array.attrs.mappings = cat_maps
+    cat_array.attrs.ncategories = [len(k) for k in cat_maps]
 
     log.info("Writing ordinal data")
     if standardise:
@@ -177,6 +213,17 @@ def _standardise_write(array: tables.CArray,
         array[start_idx:end_idx] = bm.data
         start_idx = end_idx
 
+def _categorical_write(array: tables.CArray,
+           blocks: Callable[[], Iterator[np.ndarray]]) -> None:
+    """Write without standardising."""
+    cats = _Categories(array.atom.shape[0])
+    start_idx = 0
+    for b in blocks():
+        new_b = cats.update(b)
+        end_idx = start_idx + b.shape[0]
+        array[start_idx:end_idx] = new_b
+        start_idx = end_idx
+    return cats.maps
 
 def _write(array: tables.CArray,
            blocks: Callable[[], Iterator[np.ndarray]]) -> None:
