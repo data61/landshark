@@ -32,6 +32,7 @@ class _Categories:
             new_indices = range(nstart, nstop)
             self._maps[i].update(zip(new_values, new_indices))
             self._values[i].update(new_values)
+            assert(len(self._values[i]) < self._max_categories)
             for k, v in self._maps[i].items():
                 new_array[:, :, i][new_array[:, :, i] == k] = v
         return new_array
