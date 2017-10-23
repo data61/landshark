@@ -24,14 +24,18 @@ fdict = {
     }
 
 
-def dataset(records, batch_size: int, epochs: int=1, shuffle=False):
+def dataset(records, batch_size: int, testing=False):
     """Train and test."""
-    if shuffle:
-        dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
+    if not testing:
+        dataset = tf.data.TFRecordDataset(records).repeat(count=cf.epochs) \
             .shuffle(buffer_size=1000).batch(batch_size)
     else:
-        dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
-            .batch(batch_size)
+        dataset = tf.data.TFRecordDataset(records).batch(batch_size) \
+            .interleave(
+                lambda x: tf.data.Dataset.from_tensors(x).repeat(cf.psamps),
+                cycle_length=1,
+                block_length=cf.psamps
+                )
     return dataset
 
 
@@ -110,9 +114,8 @@ def predict(model, data):
 def train_test(records_train, records_test, train_metadata, test_metadata,
                name):
 
-    train_dataset = dataset(records_train, cf.batch_size, epochs=cf.epochs,
-                            shuffle=True)
-    test_dataset = dataset(records_test, cf.batch_size, epochs=1)
+    train_dataset = dataset(records_train, cf.batch_size, testing=False)
+    test_dataset = dataset(records_test, cf.batch_size, testing=True)
 
     iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
                                                train_dataset.output_shapes)
@@ -162,20 +165,28 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
                     while not sess.should_stop():
                         _, g = sess.run([train, global_step])
                 except tf.errors.OutOfRangeError:
-                    log.info("Input queues have been exhausted!")
+                    log.info("Training epoch complete.")
 
                 # Test loop
-                Ys, stats = {}, {}
-                for _ in range(cf.psamps):
-                    sess.run(test_init_op)
-                    for j, y, ey in test_gen(Y, phi, sess):
-                        if j not in stats:
-                            stats[j] = (None, None, None)
-                            Ys[j] = y
-                        stats[j] = incremental_stats(ey, *stats[j])
+                sess.run(test_init_op)
+                Ys, EYs, = [], []
+                try:
+                    while not sess.should_stop():
+                        samples = []
+                        for j in range(cf.psamps):
+                            y, ey = sess.run([Y, phi])
+                            samples.append(ey)
+
+                        Ys.append(y)
+                        cat_samples = np.concatenate(samples, axis=0)
+                        EYs.append(cat_samples.mean(axis=0))
+                except tf.errors.OutOfRangeError:
+                    pass
 
                 # Scores
-                r2_score = rsquare(Ys, stats)
+                Ys = np.concatenate(Ys)
+                EYs = np.concatenate(EYs)
+                r2_score = rsquare(Ys, EYs)
                 rsquare_summary(r2_score, sess, g)
                 log.info("Aboleth r2: {:.4f}".format(r2_score))
 
@@ -189,40 +200,10 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
     return checkpoint_dir
 
 
-def test_gen(Y, phi, session):
-    try:
-        for i in count():
-            if session.should_stop():
-                break
-            y, Eysamps = session.run([Y, phi])
-            yield i, y, Eysamps
-    except tf.errors.OutOfRangeError:
-        pass
-
-
-def incremental_stats(samples, mean=None, var=None, count=None):
-    count_s = samples.shape[0]
-    mean_s = samples.mean(axis=0)
-    var_s = samples.var(axis=0)
-
-    if (mean is None) or (var is None) or (count is None):
-        return mean_s, var_s, count_s
-
-    N = count_s + count
-    delta = mean - mean_s
-    ss_s = var_s * count_s
-    ss = var * count
-
-    mean = mean_s + delta * count / N
-    var = (ss_s + ss + delta**2 * count * count_s / N) / N
-
-    return mean, var, N
-
-
-def rsquare(Y: dict, stats: dict) -> float:
-    assert len(Y) == len(stats)
-    Y = np.concatenate([Y[j] for j in range(len(Y))])
-    EY = np.concatenate([stats[j][0] for j in range(len(stats))])
+def rsquare(Y: np.ndarray, EY: np.ndarray) -> float:
+    # assert len(Y) == len(stats)
+    # Y = np.concatenate([Y[j] for j in range(len(Y))])
+    # EY = np.concatenate([stats[j][0] for j in range(len(stats))])
 
     SS_ref = np.sum((Y - EY)**2)
     SS_tot = np.sum((Y - np.mean(Y))**2)
