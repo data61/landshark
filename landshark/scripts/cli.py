@@ -96,6 +96,6 @@ def predict(
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     metadata = model.load_metadata(os.path.join(metadir, "METADATA.bin"))
     d = query_data(features, batchsize, metadata.halfwidth)
-    y_dash = model.predict(modeldir, d)
+    y_dash = model.predict(modeldir, metadata, d)
     model.show(y_dash, features.image_spec)
     return 0

@@ -7,7 +7,6 @@ from itertools import count
 
 import numpy as np
 import tensorflow as tf
-import aboleth as ab
 
 from landshark import config as cf
 
@@ -59,13 +58,14 @@ def decode(iterator, record_shape):
         y.set_shape((None, 1))
 
         # Placeholders for prediction
-        xo_ = tf.placeholder_with_default(x_ord, x_ord.shape, name="Xo")
-        xom_ = tf.placeholder_with_default(x_ord_mask, x_ord.shape, name="Xom")
-        xc_ = tf.placeholder_with_default(x_cat, x_cat.shape, name="Xc")
-        xcm_ = tf.placeholder_with_default(x_cat_mask, x_cat.shape, name="Xcm")
-        y_ = tf.placeholder_with_default(y, y.shape, name="Y")
+        # xo_ = tf.placeholder_with_default(x_ord, x_ord.shape, name="Xo")
+        # xom_ = tf.placeholder_with_default(x_ord_mask, x_ord.shape, name="Xom")
+        # xc_ = tf.placeholder_with_default(x_cat, x_cat.shape, name="Xc")
+        # xcm_ = tf.placeholder_with_default(x_cat_mask, x_cat.shape, name="Xcm")
+        # y_ = tf.placeholder_with_default(y, y.shape, name="Y")
 
-    return xo_, xom_, xc_, xcm_, y_
+    # return xo_, xom_, xc_, xcm_, y_
+    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 
 
 def load_metadata(path):
@@ -74,19 +74,36 @@ def load_metadata(path):
     return obj
 
 
-def predict_dict(data, Xo, Xom, Xc, Xcm):
-    for d in data:
-        N = len(d.x_ord)
-        xord = np.ma.reshape(d.x_ord, [N, -1])
-        xcat = np.ma.reshape(d.x_cat, [N, -1])
-        fdict = {Xo: xord.data, Xom: xord.mask, Xc: xcat.data, Xcm: xcat.mask}
-        yield fdict
+def predict_masker(data):
+    def f():
+        for d in data:
+            N = len(d.x_ord)
+            xord = np.ma.reshape(d.x_ord, [N, -1])
+            xcat = np.ma.reshape(d.x_cat, [N, -1])
+            yield xord.data, xord.mask, xcat.data, xcat.mask, 0.
+    return f
 
 
-def predict(model, data):
+def predict(model, metadata, data):
 
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
+
+    npatch = (2 * metadata.halfwidth + 1) ** 2
+    shapes = (
+        (npatch * metadata.x_ord,),
+        (npatch * metadata.x_ord,),
+        (npatch * metadata.x_cat,),
+        (npatch * metadata.x_cat,),
+        tuple()
+        )
+    types = (tf.float32, tf.bool, tf.int32, tf.bool, tf.float32)
+
+    dataset = tf.data.Dataset().from_generator(
+        predict_masker(data),
+        output_types=types,
+        output_shapes=shapes,
+        ).batch(cf.batch_size)
 
     graph = tf.Graph()
     with graph.as_default():
@@ -96,19 +113,31 @@ def predict(model, data):
             saver.restore(sess, model_file)
 
             # Restore place holders and prediction network
-            Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
-            Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
-            Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
-            Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
+            # Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
+            # Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
+            # Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
+            # Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
             phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
             # TODO plus noise
 
-            for i, d in enumerate(predict_dict(data, Xo, Xom, Xc, Xcm)):
-                log.info("predicting batch {}".format(i))
-                y_samples = ab.predict_samples(phi, d, cf.psamps, sess)
-                Ey = y_samples.mean(axis=0)
-                Sf = y_samples.std(axis=0)
-                yield Ey, Sf
+            # Make dataset iterator
+            it_op = graph.get_operation_by_name("Sources/Iterator")
+            iterator = tf.data.Iterator(it_op.outputs[0], it_op,
+                                        dataset.output_types,
+                                        dataset.output_shapes
+                                        )
+            import IPython; IPython.embed()
+            predict_init_op = iterator.make_initializer(dataset)
+            sess.run(predict_init_op)
+            sess.run(phi)
+
+
+            # for i, d in enumerate(predict_dict(data, Xo, Xom, Xc, Xcm)):
+            #     log.info("predicting batch {}".format(i))
+            #     y_samples = ab.predict_samples(phi, d, cf.psamps, sess)
+            #     Ey = y_samples.mean(axis=0)
+            #     Sf = y_samples.std(axis=0)
+            #     yield Ey, Sf
 
 
 def train_test(records_train, records_test, train_metadata, test_metadata,
@@ -117,10 +146,16 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
     train_dataset = dataset(records_train, cf.batch_size, testing=False)
     test_dataset = dataset(records_test, cf.batch_size, testing=True)
 
-    iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
-                                               train_dataset.output_shapes)
+    with tf.name_scope("Sources"):
+        iterator = tf.data.Iterator.from_structure(
+            train_dataset.output_types,
+            train_dataset.output_shapes,
+            shared_name="Iterator"
+            )
     train_init_op = iterator.make_initializer(train_dataset)
     test_init_op = iterator.make_initializer(test_dataset)
+
+    import IPython; IPython.embed()
 
     Xo, Xom, Xc, Xcm, Y = decode(iterator, train_metadata)
     N = train_metadata.N
@@ -143,7 +178,7 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
-    r2_score = None
+    r2_score = -float("inf")
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
