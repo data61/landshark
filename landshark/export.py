@@ -7,12 +7,18 @@ import pickle
 
 import numpy as np
 import tensorflow as tf
-from typing import Iterator
+from typing import Iterator, List
 
 from landshark.feed import TrainingBatch
 
 
-RecordShape = namedtuple("RecordShape", ["x_ord", "x_cat", "halfwidth", "N"])
+RecordShape = namedtuple("RecordShape", [
+    "x_ord",
+    "x_cat",
+    "halfwidth",
+    "N",
+    "ncategories"
+    ])
 
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
@@ -36,8 +42,8 @@ def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
     return fdict
 
 
-def to_tfrecords(data: Iterator[TrainingBatch],
-                 output_directory: str, name: str) -> None:
+def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
+                 name: str, ncategories: List[int]) -> None:
     """Do stuff."""
     directory = os.path.join(output_directory, "tfrecords_" + name)
     if not os.path.exists(directory):
@@ -61,7 +67,9 @@ def to_tfrecords(data: Iterator[TrainingBatch],
     shape = RecordShape(x_ord=d0.x_ord.shape[3],
                         x_cat=d0.x_cat.shape[3],
                         halfwidth=(d0.x_ord.shape[1] - 1) // 2,
-                        N=N)
+                        N=N,
+                        ncategories=ncategories)
+
     spec_path = os.path.join(directory, "METADATA.bin")
     with open(spec_path, "wb") as f:
         pickle.dump(shape, f)

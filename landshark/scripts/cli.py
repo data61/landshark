@@ -52,8 +52,8 @@ def export(
     t = training_data(features, training_targets, batchsize, halfwidth)
     s = training_data(features, testing_targets, batchsize, halfwidth)
     directory = os.getcwd()
-    to_tfrecords(t, directory, "training")
-    to_tfrecords(s, directory, "testing")
+    to_tfrecords(t, directory, "training", features.ncategories)
+    to_tfrecords(s, directory, "testing", features.ncategories)
     return 0
 
 

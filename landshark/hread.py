@@ -44,6 +44,8 @@ class ImageFeatures:
             cache_blocksize,
             cache_nblocks
             )
+        self.ncategories = \
+            self._hfile.root.categorical_data._v_attrs.ncategories
 
     def pixel_indices(self, batchsize: int) \
             -> Iterable[Tuple[np.ndarray, np.ndarray]]:

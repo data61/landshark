@@ -127,10 +127,9 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
     test_init_op = iterator.make_initializer(test_dataset)
 
     Xo, Xom, Xc, Xcm, Y = decode(iterator, train_metadata)
-    N = train_metadata.N
 
     with tf.name_scope("Deepnet"):
-        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, N)
+        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, train_metadata)
         phi = tf.identity(phi, name="nnet")
         tf.summary.scalar("loss", loss)
 
