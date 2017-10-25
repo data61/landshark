@@ -21,18 +21,16 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
     ls = 10.
     lenscale = tf.Variable(ls)
     noise = tf.Variable(1.0)
-    ncats = _patch_ncategories(metadata)
+    slices = _patch_slices(metadata)
 
     # Categorical features
-    # FIXME we're going to have to rethink this... we've patched indices...
-    # data_input = ab.InputLayer(name="Xc", n_samples=nsamps)  # Data input
-    # mask_input = ab.MaskInputLayer(name="Mc")  # Missing data mask input
+    embed_layers = [ab.EmbedVariational(3, k) for k in metadata.ncategories]
 
-    # cat_net = (
-    #     ab.MeanImpute(data_input, mask_input) >>
-    #     ab.DenseVariational(output_dim=20, std=1., full=False) >>
-    #     ab.Activation(tf.tanh)
-    #     )
+    cat_net = (
+        ab.InputLayer(name="Xc", n_samples=nsamps) >>
+        ab.PerFeature(*embed_layers, slices=slices) >>
+        ab.Activation(tf.tanh)
+        )
 
     # Continuous features
     # kern = ab.RBF(lenscale=ab.pos(lenscale))
@@ -48,23 +46,23 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
 
     # Combined net
     net = (
-        # ab.Concat(con_net, cat_net) >>
-        con_net >>
+        ab.Concat(con_net, cat_net) >>
         ab.DenseVariational(output_dim=1, std=1., full=True)
         )
 
-    phi, kl = net(Xo=Xo, Mo=Xom)  # , Xc=Xc, Mc=Xcm)
+    # import IPython; IPython.embed()
+
+    phi, kl = net(Xo=Xo, Mo=Xom, Xc=Xc)
     lkhood = tf.distributions.StudentT(df=5., loc=phi, scale=ab.pos(noise))
     loss = ab.elbo(lkhood, Y, metadata.N, kl)
 
     return phi, lkhood, loss
 
 
-def _patch_ncategories(metadata):
+def _patch_slices(metadata):
     npatch = (metadata.halfwidth * 2 + 1) ** 2
-    ncats = [n for n in metadata.ncategories for _ in range(npatch)]
-    return ncats
-
-
-def _hash_categories(Xc, ncats):
-    pass
+    dim = npatch * metadata.x_cat
+    begin = range(0, dim, npatch)
+    end = range(npatch, dim + npatch, npatch)
+    slices = [slice(b, e) for b, e in zip(begin, end)]
+    return slices
