@@ -2,6 +2,7 @@
 
 import logging
 import os.path
+from glob import glob
 
 import click
 # mypy type checking
@@ -31,23 +32,26 @@ def cli(verbosity: str) -> int:
     return 0
 
 
-def _tifnames(names: List[str]) -> List[str]:
+def _tifnames(directory: str) -> List[str]:
+    names = glob(os.path.join(directory, "*.tif"))
     result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
     return result
 
 
 @cli.command()
-@click.argument("files", type=click.Path(exists=True), nargs=-1)
+@click.option("--categorical", type=click.Path(exists=True))
+@click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--standardise/--no-standardise", default=True,
               help="Standardise the input features")
-def tifs(files: List[str], name: str, standardise: bool) -> int:
+def tifs(categorical: str, ordinal: str,
+         name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""
     out_filename = os.path.join(os.getcwd(), name + ".hdf5")
-    tif_filenames = _tifnames(files)
-
-    stack = ImageStack(tif_filenames)
+    cat_tif_filenames = _tifnames(categorical)
+    ord_tif_filenames = _tifnames(ordinal)
+    stack = ImageStack(cat_tif_filenames, ord_tif_filenames)
     write_datafile(stack, out_filename, standardise)
     return 0
 
