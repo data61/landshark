@@ -83,19 +83,19 @@ def test_missing():
 def test_bands():
     """Checks that bands are correctly listed from images."""
     Im = namedtuple('Im', ['dtypes'])
-    im1 = Im(dtypes=[np.float32, np.int32, np.uint8])
-    im2 = Im(dtypes=[np.float64, np.uint64])
+    im1 = Im(dtypes=[np.float32, np.float32, np.float32])
+    im2 = Im(dtypes=[np.int32, np.int32])
 
-    true_cat = [tifread.Band(image=im1, index=2),
-                tifread.Band(image=im1, index=3),
-                tifread.Band(image=im2, index=2)]
+    true_band = [
+        tifread.Band(image=im1, index=1),
+        tifread.Band(image=im1, index=2),
+        tifread.Band(image=im1, index=3),
+        tifread.Band(image=im2, index=1),
+        tifread.Band(image=im2, index=2)
+        ]
 
-    true_ord = [tifread.Band(image=im1, index=1),
-                tifread.Band(image=im2, index=1)]
-
-    true_res = tifread.BandCollection(categorical=true_cat, ordinal=true_ord)
     res = tifread._bands([im1, im2])
-    assert res == true_res
+    assert res == true_band
 
 
 def test_blockrows():
@@ -174,8 +174,9 @@ def test_imagestack(mocker, block_rows):
     m_match.side_effect = [width, height, affine]
 
     m_bands = mocker.patch('landshark.importers.tifread._bands')
-    m_bands.return_value = tifread.BandCollection(ordinal=[mocker.Mock()],
-                                                categorical=[mocker.Mock()])
+    # m_bands.return_value = tifread.BandCollection(ordinal=[mocker.Mock()],
+    #                                             categorical=[mocker.Mock()])
+    m_bands.return_value = [mocker.Mock()]
 
     m_names = mocker.patch('landshark.importers.tifread._names')
     m_names.return_value = mocker.Mock()
@@ -188,16 +189,18 @@ def test_imagestack(mocker, block_rows):
     m_windows.return_value = mocker.Mock()
     m_pixels = mocker.patch('landshark.importers.tifread.pixel_coordinates')
     m_pixels.return_value = (np.zeros((10, 2)), np.zeros((10, 2)))
-    paths = ['my/path', 'my/other/path']
-    stack = tifread.ImageStack(paths, block_rows)
-    m_open_calls = [call(paths[0], 'r'), call(paths[1], 'r')]
+    ord_paths = ['my/ord/path', 'my/other/ord/path']
+    cat_paths = ['my/cat/path', 'my/other/cat/path']
+    stack = tifread.ImageStack(ord_paths, cat_paths, block_rows)
+    m_open_calls = [call(ord_paths[0], 'r'), call(ord_paths[1], 'r'),
+                    call(cat_paths[0], 'r'), call(cat_paths[1], 'r')]
     m_open.assert_has_calls(m_open_calls, any_order=False)
 
     assert stack.width == width
     assert stack.height == height
     assert stack.affine == affine
-    assert stack.ordinal_bands == m_bands.return_value.ordinal
-    assert stack.categorical_bands == m_bands.return_value.categorical
+    assert stack.ordinal_bands == m_bands.return_value
+    assert stack.categorical_bands == m_bands.return_value
     assert stack.ordinal_names == m_names.return_value
     assert stack.categorical_names == m_names.return_value
     assert stack.ordinal_dtype == np.float32
@@ -205,10 +208,10 @@ def test_imagestack(mocker, block_rows):
     assert stack.windows == m_windows.return_value
     assert stack.block_rows == (block_rows if block_rows
                                 else m_block_rows.return_value)
-    m_missing_calls = [call(m_bands.return_value.ordinal,
-                            dtype=stack.ordinal_dtype),
-                       call(m_bands.return_value.categorical,
-                            dtype=stack.categorical_dtype)]
+    m_missing_calls = [
+        call(m_bands.return_value, dtype=stack.ordinal_dtype),
+        call(m_bands.return_value, dtype=stack.categorical_dtype)
+        ]
     m_missing.assert_has_calls(m_missing_calls, any_order=True)
 
     m_read = mocker.patch('landshark.importers.tifread._read')
@@ -238,34 +241,36 @@ class FakeImage:
 def test_imagestack_real(mocker):
     affine = rasterio.transform.IDENTITY
     im1 = FakeImage(name='im1', width=10, height=5, affine=affine,
-                    dtypes=[np.dtype('float32'), np.dtype('int32')],
+                    dtypes=[np.dtype('uint8'), np.dtype('int32')],
                     block_rows=2)
     im2 = FakeImage(name='im2', width=10, height=5, affine=affine,
-                    dtypes=[np.dtype('uint8'), np.dtype('float64')],
+                    dtypes=[np.dtype('float32'), np.dtype('float64')],
                     block_rows=3)
 
     m_open = mocker.patch('landshark.importers.tifread.rasterio.open')
-    m_open.side_effect = [im1, im2]
-    paths = ['path1', 'path2']
-    stack = tifread.ImageStack(paths)
+    m_open.side_effect = iter([im1, im2])
+    cat_paths = ['path1']
+    ord_paths = ['path2']
+    stack = tifread.ImageStack(cat_paths, ord_paths)
 
-    cat_bands = [tifread.Band(image=im1, index=2),
-                 tifread.Band(image=im2, index=1)]
-    ord_bands = [tifread.Band(image=im1, index=1),
+    cat_bands = [tifread.Band(image=im1, index=1),
+                 tifread.Band(image=im1, index=2)]
+    ord_bands = [tifread.Band(image=im2, index=1),
                  tifread.Band(image=im2, index=2)]
 
     assert stack.affine == affine
     assert stack.width == 10
     assert stack.height == 5
     assert stack.block_rows == 3
+    # import IPython; IPython.embed()
     assert stack.categorical_bands == cat_bands
     assert stack.ordinal_bands == ord_bands
     assert stack.categorical_dtype == np.int32
     assert stack.ordinal_dtype == np.float32
     assert stack.categorical_missing == [-1, -1]
     assert stack.ordinal_missing == [-1., -1.]
-    assert stack.categorical_names == ['im1_2', 'im2_1']
-    assert stack.ordinal_names == ['im1_1', 'im2_2']
+    assert stack.categorical_names == ['im1_1', 'im1_2']
+    assert stack.ordinal_names == ['im2_1', 'im2_2']
     assert stack.windows == [((0, 3), (0, 10)), ((3, 5), (0, 10))]
     assert np.all(stack.coordinates_x == np.arange(10 + 1, dtype=float))
     assert np.all(stack.coordinates_y == np.arange(5 + 1, dtype=float))
