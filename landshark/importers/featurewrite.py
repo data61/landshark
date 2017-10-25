@@ -170,8 +170,8 @@ def write_datafile(image_stack: ImageStack, filename: str,
     cat_array.attrs.mappings = cat_maps
     cat_array.attrs.ncategories = [len(k) for k in cat_maps]
     # Our encoding maps missing_values to zero
-    cat_array.attrs.missing_values = [np.int32(0) for _ in
-                                      image_stack.categorical_missing]
+    cat_array.attrs.missing_values = [(np.int32(0) if k is not None else None)
+                                      for k in image_stack.categorical_missing]
 
     log.info("Writing ordinal data")
     if standardise:
