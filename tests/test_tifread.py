@@ -262,7 +262,6 @@ def test_imagestack_real(mocker):
     assert stack.width == 10
     assert stack.height == 5
     assert stack.block_rows == 3
-    # import IPython; IPython.embed()
     assert stack.categorical_bands == cat_bands
     assert stack.ordinal_bands == ord_bands
     assert stack.categorical_dtype == np.int32
