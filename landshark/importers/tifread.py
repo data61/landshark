@@ -21,7 +21,6 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 
 # Convenience types
 Band = namedtuple("Band", ["image", "index"])
-BandCollection = namedtuple("BandCollection", ["ordinal", "categorical"])
 
 
 class ImageStack:
@@ -32,27 +31,30 @@ class ImageStack:
 
     Parameters
     ----------
-    path_list : List[str]
-        The paths to image files that will comprise the stack.
+    cat_path_list : List[str]
+        The paths to categorical image files for the stack.
+    ord_path_list : List[str]
+        The paths to ordinal image files for the stack.
     block_rows : Union[None, int]
         Optional integer > 0 that specifies the number of rows read at a time.
         If not provided then a semi-sensible value is computed.
 
     """
-
-    def __init__(self, path_list: List[str],
+    def __init__(self, cat_path_list: List[str],
+                 ord_path_list: List[str],
                  block_rows: Union[None, int] = None) -> None:
         """Construct an instance of ImageStack."""
-        images = [rasterio.open(k, "r") for k in path_list]
-        width = _match(lambda x: x.width, images, "width")
-        height = _match(lambda x: x.height, images, "height")
-        affine = _match(lambda x: x.affine, images, "affine")
+        cat_images = [rasterio.open(k, "r") for k in cat_path_list]
+        ord_images = [rasterio.open(k, "r") for k in ord_path_list]
+        all_images = cat_images + ord_images
+        width = _match(lambda x: x.width, all_images, "width")
+        height = _match(lambda x: x.height, all_images, "height")
+        affine = _match(lambda x: x.affine, all_images, "affine")
         coords_x, coords_y = pixel_coordinates(width, height, affine)
         # crs = _match(lambda x: str(x.crs.data), images, "crs")
         # TODO affine transform
-        bands = _bands(images)
-        ordinal_bands = bands.ordinal
-        categorical_bands = bands.categorical
+        ordinal_bands = _bands(ord_images)
+        categorical_bands = _bands(cat_images)
         ordinal_names = _names(ordinal_bands)
         categorical_names = _names(categorical_bands)
         ordinal_dtype = np.float32
@@ -176,23 +178,14 @@ def _missing(bands: List[Band], dtype: np.dtype) -> List[Any]:
     return r
 
 
-def _bands(images: List[RasterReader]) -> BandCollection:
-    """Get list of ordinaal and categorical bands from list of images."""
-    # Dont use np.int32 etc here for weird comparison breakage
-    categ_types = ["int32", "int64", "uint8", "uint32", "uint64", "uint8"]
-    categ_set = {np.dtype(k) for k in categ_types}
-    ordin = []
-    categ = []
+def _bands(images: List[RasterReader]) -> List[Band]:
+    """Get bands from list of images."""
+    bandlist = []
     for im in images:
-        for i, d in enumerate(im.dtypes):
+        for i, _ in enumerate(im.dtypes):
             band = Band(image=im, index=(i + 1))   # bands start from 1
-            if np.dtype(d) in categ_set:
-                categ.append(band)
-            else:
-                ordin.append(band)
-
-    result = BandCollection(ordinal=ordin, categorical=categ)
-    return result
+            bandlist.append(band)
+    return bandlist
 
 
 def _block_rows(bands: List[Band]) -> int:
