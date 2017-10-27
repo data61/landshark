@@ -1,3 +1,4 @@
+"""Model config file."""
 from typing import Tuple
 import tensorflow as tf
 import aboleth as ab
@@ -30,11 +31,14 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
         ab.InputLayer(name="Xc", n_samples=nsamps) >>
         ab.PerFeature(*embed_layers, slices=slices) >>
         ab.Activation(tf.tanh)
+        # ab.Activation(tf.nn.relu) >>
+        # ab.DenseVariational(output_dim=10, std=1., full=True) >>
+        # ab.Activation(tf.nn.relu)
         )
 
     # Continuous features
-    # kern = ab.RBF(lenscale=ab.pos(lenscale))
-    kern = ab.RBFVariational(lenscale=ab.pos(lenscale), lenscale_posterior=ls)
+    kern = ab.RBF(lenscale=ab.pos(lenscale))
+    # kern = ab.RBFVariational(lenscale=ab.pos(lenscale), lenscale_posterior=ls)
 
     data_input = ab.InputLayer(name="Xo", n_samples=nsamps)  # Data input
     mask_input = ab.MaskInputLayer(name="Mo")  # Missing data mask input
@@ -49,8 +53,6 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
         ab.Concat(con_net, cat_net) >>
         ab.DenseVariational(output_dim=1, std=1., full=True)
         )
-
-    # import IPython; IPython.embed()
 
     phi, kl = net(Xo=Xo, Mo=Xom, Xc=Xc)
     lkhood = tf.distributions.StudentT(df=5., loc=phi, scale=ab.pos(noise))

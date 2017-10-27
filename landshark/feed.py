@@ -96,19 +96,19 @@ def _read(data: Features,
     assert npatches > 0
     assert patchwidth > 0
     init_f = np.zeros if fill else np.empty
-    patch_data = init_f((npatches, patchwidth, patchwidth, data.nfeatures),
+    patch_data = init_f((npatches, data.nfeatures, patchwidth, patchwidth),
                         dtype=data.dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
-        patch_data[r.idx, r.yp, r.xp] = data(r.y, r.x)
+        patch_data[r.idx, :, r.yp, r.xp] = data(r.y, r.x).T
 
     for m in mask_reads:
-        patch_mask[m.idx, m.yp, m.xp] = True
+        patch_mask[m.idx, :, m.yp, m.xp] = True
 
     for i, v in enumerate(data.missing_values):
         if v is not None:
-            patch_mask[..., i] |= (patch_data[..., i] == v)
+            patch_mask[:, i, ...] |= (patch_data[:, i, ...] == v)
 
     marray = np.ma.MaskedArray(data=patch_data, mask=patch_mask)
     return marray
