@@ -32,16 +32,15 @@ def test_read():
                 PatchMaskRowRW(idx=2, xp=slice(0, 3), yp=1)]
 
     result = feed._read(data, patch_ops, mask_ops, npatches, patchwidth, True)
-    assert result.shape == (npatches, patchwidth, patchwidth, nfeatures)
+    assert result.shape == (npatches, nfeatures, patchwidth, patchwidth)
     for p in patch_ops:
-        rd = result[p.idx, p.yp, p.xp].data
-        rm = result[p.idx, p.yp, p.xp].mask
-        assert np.all(rd == data(p.y, p.x))
+        rd = result[p.idx, :, p.yp, p.xp].data
+        rm = result[p.idx, :, p.yp, p.xp].mask
+        assert np.all(rd == data(p.y, p.x).T)
         for i, mv in enumerate(missing_values):
-            assert not np.any(np.logical_and(rm[:, i] == False,
-                                             (rd[:, i] == mv)))
+            assert not np.any(np.logical_and(rm[i] == False, (rd[i] == mv)))
     for m in mask_ops:
-        assert np.all(result[m.idx, m.yp, m.xp].mask)
+        assert np.all(result[m.idx, :, m.yp, m.xp].mask)
 
 
 def test_read_batch(mocker):

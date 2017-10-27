@@ -64,9 +64,9 @@ def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
 
                 writer.write(example.SerializeToString())
 
-    shape = RecordShape(x_ord=d0.x_ord.shape[3],
-                        x_cat=d0.x_cat.shape[3],
-                        halfwidth=(d0.x_ord.shape[1] - 1) // 2,
+    shape = RecordShape(x_ord=d0.x_ord.shape[1],
+                        x_cat=d0.x_cat.shape[1],
+                        halfwidth=(d0.x_ord.shape[2] - 1) // 2,
                         N=N,
                         ncategories=ncategories)
 
