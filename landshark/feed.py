@@ -1,6 +1,5 @@
 """Feeding iterators for training and querying data."""
 
-from itertools import count
 from collections import namedtuple
 
 import numpy as np
@@ -54,36 +53,36 @@ def training_data(target_it, features, halfwidth):
     return training_it
 
 
-def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \
-        -> Iterator[QueryBatch]:
-    """
-    Create an iterator over batches of query data.
+# def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \
+#         -> Iterator[QueryBatch]:
+#     """
+#     Create an iterator over batches of query data.
 
-    Parameters
-    ----------
-    features : ImageFeatures
-        The "X" features (covariates) for training
-    batchsize : int
-        The number of points to extract per call of the iterator
-    halfwidth : int
-        The half-width of image patches in X, ie number of additional
-        pixels from centre
+#     Parameters
+#     ----------
+#     features : ImageFeatures
+#         The "X" features (covariates) for training
+#     batchsize : int
+#         The number of points to extract per call of the iterator
+#     halfwidth : int
+#         The half-width of image patches in X, ie number of additional
+#         pixels from centre
 
-    Returns
-    -------
-    t : Iterator[TrainingBatch]
-        An iterator that produces batches of X values for prediction
+#     Returns
+#     -------
+#     t : Iterator[TrainingBatch]
+#         An iterator that produces batches of X values for prediction
 
-    """
-    assert batchsize > 0
-    assert halfwidth >= 0
+#     """
+#     assert batchsize > 0
+#     assert halfwidth >= 0
 
-    it = features.pixel_indices(batchsize)
-    for x_indices, y_indices in it:
-        ord_marray, cat_marray = _read_batch(x_indices, y_indices,
-                                             features, halfwidth)
-        b = QueryBatch(x_ord=ord_marray, x_cat=cat_marray)
-        yield b
+#     it = features.pixel_indices(batchsize)
+#     for x_indices, y_indices in it:
+#         ord_marray, cat_marray = _read_batch(x_indices, y_indices,
+#                                              features, halfwidth)
+#         b = QueryBatch(x_ord=ord_marray, x_cat=cat_marray)
+#         yield b
 
 
 def _read(data: Features,

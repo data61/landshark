@@ -1,15 +1,16 @@
 """Export data to tensorflow formats."""
 
+import logging
 import os.path
 from itertools import chain
-from collections import namedtuple
-import pickle
 
 import numpy as np
 import tensorflow as tf
-from typing import Iterator, List
+from typing import Iterator
 
 from landshark.feed import TrainingBatch
+
+log = logging.getLogger(__name__)
 
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
@@ -70,3 +71,8 @@ def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
                                             y=d.y[nmask])
                 _write_batch(train_batch, writer)
                 _write_batch(test_batch, test_writer)
+
+    file_size = os.path.getsize(path) // (1024 ** 2)
+    test_file_size = os.path.getsize(test_path) // (1024 ** 2)
+    log.info("Written {}MB training file to disk.".format(file_size))
+    log.info("Written {}MB testing file to disk.".format(test_file_size))
