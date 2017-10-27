@@ -12,6 +12,8 @@ from landshark.importers.tifread import ImageStack
 from landshark.hread import ImageFeatures
 from landshark.importers.featurewrite import write_datafile
 from landshark.importers.shpread import ShapefileTargets
+from landshark.importers.tfwrite import to_tfrecords
+from landshark.importers.metadata import write_metadata
 from landshark.scripts.logger import configure_logging
 from landshark import feed
 
@@ -67,30 +69,24 @@ def tifs(categorical: str, ordinal: str,
 @click.option("--halfwidth", type=int, default=1)
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
+@click.option("--name", type=str, required=True)
 def targets(shapefile: str, test_frac: float, random_seed: int,
             features: str, batchsize: int, halfwidth: int,
             cache_blocksize: int, cache_nblocks: int,
-            targets: List[str]) -> int:
+            targets: List[str],
+            name: str) -> int:
     """Build training and testing data from shapefile."""
-    # file_str = os.path.basename(fname).rsplit(".")[0]
-    # tr_filename = os.path.join(os.getcwd(), file_str + "_train" + ".hdf5")
-    # ts_filename = os.path.join(os.getcwd(), file_str + "_test" + ".hdf5")
-    tr_read = ShapefileTargets(shapefile, targets)
-    for r in tr_read.batches():
-        print(r)
-
-
-    # training_targets, testing_targets = train_test_targets(shapefile,
-    #                                                        targets,
-    #                                                        test_frac,
-    #                                                        random_seed)
+    log.info("Loading shapefile targets")
+    target_obj = ShapefileTargets(shapefile, targets)
+    log.info("Loading image feature stack")
     feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
-    t = feed.training_data(feature_obj, training_targets, halfwidth)
-    s = feed.training_data(feature_obj, testing_targets, halfwidth)
-
-
-    # use lbalpha here
-    directory = os.getcwd()
-    # to_tfrecords(t, directory, "training", features.ncategories)
-    # to_tfrecords(s, directory, "testing", features.ncategories)
+    target_it = target_obj.batches()
+    training_it = feed.training_data(target_it, feature_obj, halfwidth)
+    directory = os.path.join(os.getcwd(), name)
+    log.info("Writing training data to tfrecords")
+    to_tfrecords(training_it, directory, test_frac, random_seed)
+    log.info("Writing metadata")
+    write_metadata(directory, target_obj.n, feature_obj.cat.nfeatures,
+                   feature_obj.ord.nfeatures, halfwidth,
+                   feature_obj.ncategories)
     return 0

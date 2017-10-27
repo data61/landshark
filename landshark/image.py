@@ -218,52 +218,6 @@ def world_to_image(points: np.ndarray,
     return idx
 
 
-def coords_training(
-    coords: np.ndarray,
-    x_pixel_array: np.ndarray,
-    y_pixel_array: np.ndarray,
-    batchsize: int
-        ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
-    """Create a generator of batches of coordinates for target locations.
-
-    Parameters
-    ----------
-    coords : ndarray
-        an array of shape (N, 2) of the target coordinates (e.g. lon, lat).
-    x_pixel_array : ndarray
-        an array of shape (width,) that maps coordinates to pixel indices,
-        where width is the width of the image. This may be the output of
-        ``world_to_image``.
-    y_pixel_array : ndarray
-        an array of shape (height,) that maps coordinates to pixel indices,
-        where height is the height of the image. This may be the output of
-        ``world_to_image``.
-    batchsize : int
-        the number of coorinates to yield at once.
-
-    Yields
-    ------
-    im_coords_x : ndarray
-        the x coordinates (width) of the targets in pixels indices, of shape
-        (batchsize,).
-    im_coords_y : ndarray
-        the y coordinates (height) of the targets in pixels indices, of shape
-        (batchsize,).
-
-    """
-    n = coords.shape[0]
-    c = 0
-    while c < n:
-        start = c
-        stop = min(c + batchsize, n)
-        out = coords[start:stop].transpose()
-        c += batchsize
-        coords_x, coords_y = out
-        im_coords_x = world_to_image(coords_x, x_pixel_array)
-        im_coords_y = world_to_image(coords_y, y_pixel_array)
-        yield im_coords_x, im_coords_y
-
-
 def coords_query(
     image_width: int,
     image_height: int,
