@@ -6,7 +6,7 @@ import aboleth as ab
 from landshark.export import RecordShape
 
 batch_size = 10  # Learning batch size
-psamps = 20  # Number of times to samples the network for prediction
+psamps = 30  # Number of times to samples the network for prediction
 epochs = 20  # epochs between tests
 
 ab.set_hyperseed(666)
@@ -18,7 +18,7 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
           Y: tf.Tensor, metadata: RecordShape) \
         -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
 
-    nsamps = 5  # Number of posterior samples
+    nsamps = 3  # Number of posterior samples
     ls = 10.
     lenscale = tf.Variable(ls)
     noise = tf.Variable(1.0)

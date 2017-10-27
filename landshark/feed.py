@@ -1,10 +1,11 @@
 """Feeding iterators for training and querying data."""
 
 from itertools import count
+from functools import partial
 from collections import namedtuple
 
 import numpy as np
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Tuple, Union
 
 from landshark import patch
 from landshark.patch import PatchRowRW, PatchMaskRowRW
@@ -91,11 +92,11 @@ def _read(data: Features,
           mask_reads: List[PatchMaskRowRW],
           npatches: int,
           patchwidth: int,
-          fill: bool=False) -> np.ma.MaskedArray:
+          fill: Union[int, float, None]=0) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
-    init_f = np.zeros if fill else np.empty
+    init_f = np.empty if fill is None else partial(np.full, fill_value=fill)
     patch_data = init_f((npatches, data.nfeatures, patchwidth, patchwidth),
                         dtype=data.dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
