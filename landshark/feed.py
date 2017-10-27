@@ -8,14 +8,14 @@ from typing import Iterator, List, Tuple
 
 from landshark import patch
 from landshark.patch import PatchRowRW, PatchMaskRowRW
-from landshark.hread import ImageFeatures, Features, Targets
+from landshark.hread import ImageFeatures, Features
 
 TrainingBatch = namedtuple("TrainingBatch", ["x_ord", "x_cat", "y"])
 QueryBatch = namedtuple("QueryBatch", ["x_ord", "x_cat"])
 
 
-def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
-                  halfwidth: int, epochs: int=1) -> Iterator[TrainingBatch]:
+def training_data(features: ImageFeatures, targets, halfwidth: int) \
+        -> Iterator[TrainingBatch]:
     """
     Create an iterator over batches of training data.
 
@@ -30,8 +30,6 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
     halfwidth : int
         The half-width of image patches in X, ie number of additional
         pixels from centre
-    epochs : int
-        Number of times to repeat yielding the training dataset
 
     Yields
     ------
@@ -39,20 +37,18 @@ def training_data(features: ImageFeatures, targets: Targets, batchsize: int,
         An iterator that produces batches of x,y pairs
 
     """
-    assert batchsize > 0
-    assert halfwidth >= 0
+    for b in targets.batches():
+        (coords_x, coords_y), target_list = b
+        import IPython; IPython.embed(); import sys; sys.exit()
+    # assert halfwidth >= 0
 
-    for i in count(start=1):
-        it = targets.training(features.image_spec, batchsize)
-        for x_indices, y_indices, target_batch in it:
-            ord_marray, cat_marray = _read_batch(x_indices, y_indices,
-                                                 features, halfwidth)
-            t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
-                              y=target_batch)
-            yield t
-        if i >= epochs:
-            break
-
+    # # it = targets.training(features.image_spe)
+    # for x_indices, y_indices, target_batch in it:
+    #     ord_marray, cat_marray = _read_batch(x_indices, y_indices,
+    #                                          features, halfwidth)
+    #     t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray,
+    #                       y=target_batch)
+    #     yield t
 
 def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \
         -> Iterator[QueryBatch]:

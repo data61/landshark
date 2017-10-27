@@ -9,10 +9,11 @@ import click
 from typing import List
 
 from landshark.importers.tifread import ImageStack
+from landshark.hread import ImageFeatures
 from landshark.importers.featurewrite import write_datafile
-from landshark.importers.shpread import train_test_targets
-from landshark.importers.targetwrite import write_targetfile
+from landshark.importers.shpread import ShapefileTargets
 from landshark.scripts.logger import configure_logging
+from landshark import feed
 
 log = logging.getLogger(__name__)
 
@@ -57,15 +58,39 @@ def tifs(categorical: str, ordinal: str,
 
 
 @cli.command()
-@click.argument("fname", type=click.Path(exists=True))
+@click.argument("targets", type=str, nargs=-1)
+@click.option("--shapefile", type=click.Path(exists=True), required=True)
+@click.option("--features", type=click.Path(exists=True), required=True)
 @click.option("--test_frac", type=float, default=0.1)
 @click.option("--random_seed", type=int, default=666)
-def shapefile(fname: str, test_frac: float, random_seed: int) -> int:
-    """Build a target file from shapefile."""
-    file_str = os.path.basename(fname).rsplit(".")[0]
-    tr_filename = os.path.join(os.getcwd(), file_str + "_train" + ".hdf5")
-    ts_filename = os.path.join(os.getcwd(), file_str + "_test" + ".hdf5")
-    sf_tr, sf_ts = train_test_targets(fname, test_frac, random_seed)
-    write_targetfile(sf_tr, tr_filename)
-    write_targetfile(sf_ts, ts_filename)
+@click.option("--batchsize", type=int, default=1000)
+@click.option("--halfwidth", type=int, default=1)
+@click.option("--cache_blocksize", type=int, default=100)
+@click.option("--cache_nblocks", type=int, default=10)
+def targets(shapefile: str, test_frac: float, random_seed: int,
+            features: str, batchsize: int, halfwidth: int,
+            cache_blocksize: int, cache_nblocks: int,
+            targets: List[str]) -> int:
+    """Build training and testing data from shapefile."""
+    # file_str = os.path.basename(fname).rsplit(".")[0]
+    # tr_filename = os.path.join(os.getcwd(), file_str + "_train" + ".hdf5")
+    # ts_filename = os.path.join(os.getcwd(), file_str + "_test" + ".hdf5")
+    tr_read = ShapefileTargets(shapefile, targets)
+    for r in tr_read.batches():
+        print(r)
+
+
+    # training_targets, testing_targets = train_test_targets(shapefile,
+    #                                                        targets,
+    #                                                        test_frac,
+    #                                                        random_seed)
+    feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
+    t = feed.training_data(feature_obj, training_targets, halfwidth)
+    s = feed.training_data(feature_obj, testing_targets, halfwidth)
+
+
+    # use lbalpha here
+    directory = os.getcwd()
+    # to_tfrecords(t, directory, "training", features.ncategories)
+    # to_tfrecords(s, directory, "testing", features.ncategories)
     return 0

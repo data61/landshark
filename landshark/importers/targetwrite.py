@@ -27,24 +27,24 @@ def write_targetfile(sf: ShapefileTargets, filename: str) -> None:
     h5file = tables.open_file(filename, mode="w", title=title)
 
     n = sf.n
-    ncols_ord = len(sf.fields)
+    # ncols_ord = len(sf.fields)
     ord_atom = tables.Float32Atom()
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
 
-    log.info("Creating data arrays")
-    target_array = h5file.create_carray(h5file.root, name="targets",
-                                        atom=ord_atom, shape=(n, ncols_ord),
-                                        filters=filters)
-    target_array.attrs.labels = sf.fields
+    # log.info("Creating data arrays")
+    # target_array = h5file.create_carray(h5file.root, name="targets",
+    #                                     atom=ord_atom, shape=(n, ncols_ord),
+    #                                     filters=filters)
+    # target_array.attrs.labels = sf.fields
 
     coord_array = h5file.create_carray(h5file.root, name="coordinates",
                                        atom=ord_atom, shape=(n, 2),
                                        filters=filters)
     coord_array.attrs.labels = ["x", "y"]
 
-    log.info("Writing target data")
-    for i, r in enumerate(sf.ordinal_data()):
-        target_array[i] = r
+    # log.info("Writing target data")
+    # for i, r in enumerate(sf.ordinal_data()):
+    #     target_array[i] = r
 
     log.info("Writing coordinate data")
     for i, c in enumerate(sf.coordinates()):
