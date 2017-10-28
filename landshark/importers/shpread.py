@@ -11,15 +11,17 @@ from typing import List, Tuple, Iterator, Union
 
 log = logging.getLogger(__name__)
 
+
 def _extract_type(python_type, field_length):
     if python_type is float:
-        return "f8"
+        return np.float32
     elif python_type is int:
-        return "i8"
+        return np.int32
     elif python_type is str:
         return "a" + str(field_length)
     elif python_type is datetime.date:
         return "a10"
+
 
 def _get_record_info(shp):
     field_list = shp.fields[1:]

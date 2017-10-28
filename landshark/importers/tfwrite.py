@@ -43,7 +43,7 @@ def _write_batch(batch, writer):
 
 
 def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
-                 test_frac: float, random_seed: int=666) -> None:
+                 test_frac: float, random_seed: int=666) -> int:
     """Do stuff."""
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
@@ -54,6 +54,7 @@ def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
 
     rnd = np.random.RandomState(random_seed)
 
+    n_train = 0
     with tf.python_io.TFRecordWriter(path) as writer:
         with tf.python_io.TFRecordWriter(test_path) as test_writer:
 
@@ -63,6 +64,7 @@ def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
                 mask = rnd.choice([True, False], size=(n,),
                                   p=[test_frac, 1.0 - test_frac])
                 nmask = ~mask
+                n_train += np.sum(nmask)
                 test_batch = TrainingBatch(x_ord=d.x_ord[mask],
                                            x_cat=d.x_cat[mask],
                                            y=d.y[mask])
@@ -76,3 +78,4 @@ def to_tfrecords(data: Iterator[TrainingBatch], output_directory: str,
     test_file_size = os.path.getsize(test_path) // (1024 ** 2)
     log.info("Written {}MB training file to disk.".format(file_size))
     log.info("Written {}MB testing file to disk.".format(test_file_size))
+    return n_train

@@ -84,9 +84,10 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     training_it = feed.training_data(target_it, feature_obj, halfwidth)
     directory = os.path.join(os.getcwd(), name)
     log.info("Writing training data to tfrecords")
-    to_tfrecords(training_it, directory, test_frac, random_seed)
+    n_train = to_tfrecords(training_it, directory, test_frac, random_seed)
     log.info("Writing metadata")
-    write_metadata(directory, target_obj.n, feature_obj.cat.nfeatures,
+    write_metadata(directory, n_train, len(target_obj.labels),
+                   target_obj.dtype, feature_obj.cat.nfeatures,
                    feature_obj.ord.nfeatures, halfwidth,
                    feature_obj.ncategories)
     return 0

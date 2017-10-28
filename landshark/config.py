@@ -2,7 +2,7 @@ from typing import Tuple
 import tensorflow as tf
 import aboleth as ab
 
-from landshark.export import RecordShape
+from landshark.importers.metadata import TrainingMetadata
 
 batch_size = 10  # Learning batch size
 psamps = 20  # Number of times to samples the network for prediction
@@ -14,7 +14,7 @@ predict_config = tf.ConfigProto(device_count={"GPU": 1})
 
 
 def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
-          Y: tf.Tensor, metadata: RecordShape) \
+          Y: tf.Tensor, metadata: TrainingMetadata) \
         -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
 
     nsamps = 5  # Number of posterior samples

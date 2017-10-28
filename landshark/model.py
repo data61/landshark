@@ -39,10 +39,10 @@ def dataset(records, batch_size: int, testing=False):
     return dataset
 
 
-def decode(iterator, record_shape):
+def decode(iterator, metadata):
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=fdict)
-    npatch = (2 * record_shape.halfwidth + 1) ** 2
+    npatch = (2 * metadata.halfwidth + 1) ** 2
     with tf.name_scope("Inputs"):
         x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -52,10 +52,10 @@ def decode(iterator, record_shape):
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
         y = tf.decode_raw(raw_features["y"], tf.float32)
 
-        x_ord.set_shape((None, npatch * record_shape.x_ord))
-        x_ord_mask.set_shape((None, npatch * record_shape.x_ord))
-        x_cat.set_shape((None, npatch * record_shape.x_cat))
-        x_cat_mask.set_shape((None, npatch * record_shape.x_cat))
+        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
+        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
         y.set_shape((None, 1))
 
         # Placeholders for prediction
@@ -111,8 +111,7 @@ def predict(model, metadata, data):
                 yield Ey, Sf
 
 
-def train_test(records_train, records_test, train_metadata, test_metadata,
-               name):
+def train_test(records_train, records_test, metadata, name):
 
     train_dataset = dataset(records_train, cf.batch_size, testing=False)
     test_dataset = dataset(records_test, cf.batch_size, testing=True)
@@ -126,10 +125,10 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
     train_init_op = iterator.make_initializer(train_dataset)
     test_init_op = iterator.make_initializer(test_dataset)
 
-    Xo, Xom, Xc, Xcm, Y = decode(iterator, train_metadata)
+    Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
 
     with tf.name_scope("Deepnet"):
-        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, train_metadata)
+        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
         phi = tf.identity(phi, name="nnet")
         tf.summary.scalar("loss", loss)
 
