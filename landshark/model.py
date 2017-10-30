@@ -8,6 +8,7 @@ from itertools import count
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
+from sklearn.metrics import r2_score
 
 from landshark import config as cf
 
@@ -94,8 +95,10 @@ def predict(model, metadata, data):
         with graph.as_default():
             sess = tf.Session(config=cf.predict_config)
             with sess.as_default():
-                saver = tf.train.import_meta_graph("{}.meta".format(model_file))
-                saver.restore(sess, model_file)
+                # TODO AL reloads/rewrites the graph in memory from protobuf
+                # See glabrezu
+                save = tf.train.import_meta_graph("{}.meta".format(model_file))
+                save.restore(sess, model_file)
 
                 # Restore place holders and prediction network
                 Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
@@ -147,7 +150,7 @@ def train_test(records_train, records_test, metadata, name):
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
-    r2_score = -float("inf")
+    r2 = -float("inf")
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -165,6 +168,7 @@ def train_test(records_train, records_test, metadata, name):
             try:
 
                 # Train loop
+                sess.run(train_init_op)
                 try:
                     while not sess.should_stop():
                         _, g = sess.run([train, global_step])
@@ -185,36 +189,27 @@ def train_test(records_train, records_test, metadata, name):
                         cat_samples = np.concatenate(samples, axis=0)
                         EYs.append(cat_samples.mean(axis=0))
                 except tf.errors.OutOfRangeError:
+                    log.info("Testing epoch complete.")
                     pass
 
                 # Scores
-                Ys = np.concatenate(Ys)
-                EYs = np.concatenate(EYs)
-                r2_score = rsquare(Ys, EYs)
-                rsquare_summary(r2_score, sess, g)
-                log.info("Aboleth r2: {:.4f}".format(r2_score))
+                Ys = np.vstack(Ys)
+                EYs = np.vstack(EYs)
+                r2 = r2_score(Ys, EYs, multioutput='raw_values')
+                rsquare_summary(r2, sess, g)
+                log.info("Aboleth r2: {:.4f}".format(r2))
 
             except KeyboardInterrupt:
-                log.info("Training ended, final R-square = {:.4f}."
-                         .format(r2_score))
+                log.info("Training ended, final R-square = {:.4f}.".format(r2))
                 break
-
-            sess.run(train_init_op)
 
     return checkpoint_dir
 
 
-def rsquare(Y: np.ndarray, EY: np.ndarray) -> float:
-    SS_ref = np.sum((Y - EY)**2)
-    SS_tot = np.sum((Y - np.mean(Y))**2)
-    R2 = float(1 - SS_ref / SS_tot)
-    return R2
-
-
-def rsquare_summary(r2_score, session, step=None):
+def rsquare_summary(r2, session, step=None):
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='r-square', simple_value=r2_score)
+    sum_val = tf.Summary.Value(tag='r-square', simple_value=r2)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 

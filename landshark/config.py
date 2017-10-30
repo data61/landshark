@@ -1,17 +1,18 @@
 """Model config file."""
 from typing import Tuple
+import numpy as np
 import tensorflow as tf
 import aboleth as ab
 
 from landshark.importers.metadata import TrainingMetadata
 
-batch_size = 10  # Learning batch size
+batch_size = 50  # Learning batch size
 psamps = 30  # Number of times to samples the network for prediction
-epochs = 20  # epochs between tests
+epochs = 1  # epochs between tests
 
 ab.set_hyperseed(666)
-train_config = tf.ConfigProto(device_count={"GPU": 0})
-predict_config = tf.ConfigProto(device_count={"GPU": 0})
+train_config = tf.ConfigProto(device_count={"GPU": 1})
+predict_config = tf.ConfigProto(device_count={"GPU": 1})
 
 
 def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
@@ -21,7 +22,7 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
     nsamps = 3  # Number of posterior samples
     ls = 10.
     lenscale = tf.Variable(ls)
-    noise = tf.Variable(1.0)
+    noise = tf.Variable(1.0 * np.ones(metadata.ntargets, dtype=np.float32))
     slices = _patch_slices(metadata)
 
     # Categorical features
