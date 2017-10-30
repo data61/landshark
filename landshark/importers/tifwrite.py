@@ -70,9 +70,6 @@ def write_geotiffs(y_dash, directory, metadata, image_spec):
         for yss_i, swriter in zip(ys_std.T, std_writers):
             swriter.write(yss_i)
 
-        if i >= 3:
-            break
-
     log.info("Closing file objects")
     for w in writers:
         w.close()
