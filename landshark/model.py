@@ -76,13 +76,12 @@ def load_metadata(path):
     return obj
 
 
-def predict_dict(data, Xo, Xom, Xc, Xcm):
-    for d in data:
-        N = len(d.x_ord)
-        xord = np.ma.reshape(d.x_ord, [N, -1])
-        xcat = np.ma.reshape(d.x_cat, [N, -1])
-        fdict = {Xo: xord.data, Xom: xord.mask, Xc: xcat.data, Xcm: xcat.mask}
-        yield fdict
+def predict_dict(d, Xo, Xom, Xc, Xcm):
+    N = len(d.x_ord)
+    xord = np.ma.reshape(d.x_ord, [N, -1])
+    xcat = np.ma.reshape(d.x_cat, [N, -1])
+    fdict = {Xo: xord.data, Xom: xord.mask, Xc: xcat.data, Xcm: xcat.mask}
+    return fdict
 
 
 def predict(model, metadata, data):
@@ -90,24 +89,25 @@ def predict(model, metadata, data):
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
 
-    graph = tf.Graph()
-    with graph.as_default():
-        sess = tf.Session(config=cf.predict_config)
-        with sess.as_default():
-            saver = tf.train.import_meta_graph("{}.meta".format(model_file))
-            saver.restore(sess, model_file)
+    for i, d in enumerate(data):
+        graph = tf.Graph()
+        with graph.as_default():
+            sess = tf.Session(config=cf.predict_config)
+            with sess.as_default():
+                saver = tf.train.import_meta_graph("{}.meta".format(model_file))
+                saver.restore(sess, model_file)
 
-            # Restore place holders and prediction network
-            Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
-            Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
-            Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
-            Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
-            phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
-            # TODO plus noise
+                # Restore place holders and prediction network
+                Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
+                Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
+                Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
+                Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
+                phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
+                # TODO plus noise
 
-            for i, d in enumerate(predict_dict(data, Xo, Xom, Xc, Xcm)):
+                d_dict = predict_dict(d, Xo, Xom, Xc, Xcm)
                 log.info("predicting batch {}".format(i))
-                y_samples = ab.predict_samples(phi, d, cf.psamps, sess)
+                y_samples = ab.predict_samples(phi, d_dict, cf.psamps, sess)
                 Ey = y_samples.mean(axis=0)
                 Sf = y_samples.std(axis=0)
                 yield Ey, Sf
