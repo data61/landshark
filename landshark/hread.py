@@ -30,9 +30,11 @@ class ImageFeatures:
         y_coordinates = self._hfile.root.y_coordinates.read()
         height = self._hfile.root._v_attrs.height
         width = self._hfile.root._v_attrs.width
+        affine = self._hfile.root._v_attrs.affine
+        crs = self._hfile.root._v_attrs.crs
         assert len(x_coordinates) == width + 1
         assert len(y_coordinates) == height + 1
-        spec = image.ImageSpec(x_coordinates, y_coordinates)
+        spec = image.ImageSpec(x_coordinates, y_coordinates, affine, crs)
         self.image_spec = spec
         self.ord = Features(
             self._hfile.root.ordinal_data,

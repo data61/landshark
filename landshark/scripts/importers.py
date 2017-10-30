@@ -89,5 +89,6 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     write_metadata(directory, n_train, len(target_obj.labels),
                    target_obj.dtype, feature_obj.cat.nfeatures,
                    feature_obj.ord.nfeatures, halfwidth,
-                   feature_obj.ncategories)
+                   feature_obj.ncategories,
+                   target_obj.labels)
     return 0

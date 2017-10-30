@@ -5,10 +5,10 @@ import logging
 from collections import namedtuple
 
 import rasterio
+from rasterio.io import DatasetReader
 import numpy as np
 from typing import Callable, Any, List, Tuple, Iterator, Union
 from mypy_extensions import NoReturn
-from rasterio._io import RasterReader
 
 from landshark.image import pixel_coordinates
 
@@ -49,10 +49,9 @@ class ImageStack:
         all_images = cat_images + ord_images
         width = _match(lambda x: x.width, all_images, "width")
         height = _match(lambda x: x.height, all_images, "height")
-        affine = _match(lambda x: x.affine, all_images, "affine")
+        affine = _match(lambda x: x.transform, all_images, "transform")
         coords_x, coords_y = pixel_coordinates(width, height, affine)
-        # crs = _match(lambda x: str(x.crs.data), images, "crs")
-        # TODO affine transform
+        crs = _match(lambda x: str(x.crs.data), all_images, "crs", anyof=True)
         ordinal_bands = _bands(ord_images)
         categorical_bands = _bands(cat_images)
         ordinal_names = _names(ordinal_bands)
@@ -79,6 +78,7 @@ class ImageStack:
         self.width = width
         self.height = height
         self.affine = affine
+        self.crs = crs
         self.coordinates_x = coords_x
         self.coordinates_y = coords_y
         self.block_rows = block_rows
@@ -126,19 +126,25 @@ class ImageStack:
 
 
 def _match(f: Callable[[Any], Any],
-           images: List[RasterReader],
-           name: str) -> Any:
+           images: List[DatasetReader],
+           name: str,
+           anyof=False) -> Any:
     """Return specified property of images if they match."""
-    property_list = [f(k) for k in images]
+    property_list = []
+    for k in images:
+        try:
+            property_list.append(f(k))
+        except:
+            continue
     property_set = set(property_list)
-    if len(property_set) != 1:
+    if len(property_set) != 1 and not anyof:
         _fatal_mismatch(property_list, images, name)
     result = property_set.pop()
     return result
 
 
 def _fatal_mismatch(property_list: List[Any],
-                    images: List[RasterReader],
+                    images: List[DatasetReader],
                     name: str) -> NoReturn:
     """Print a fatal log with helpful table of property mismatch."""
     assert len(property_list) == len(images)
@@ -178,7 +184,7 @@ def _missing(bands: List[Band], dtype: np.dtype) -> List[Any]:
     return r
 
 
-def _bands(images: List[RasterReader]) -> List[Band]:
+def _bands(images: List[DatasetReader]) -> List[Band]:
     """Get bands from list of images."""
     bandlist = []
     for im in images:

@@ -7,6 +7,9 @@ import os
 import click
 
 from landshark import model
+from landshark.hread import ImageFeatures
+from landshark.feed import query_data
+from landshark.importers.tifwrite import write_geotiffs
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +60,7 @@ def predict(
     features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
     metadata = model.load_metadata(os.path.join(metadir, "METADATA.bin"))
     d = query_data(features, batchsize, metadata.halfwidth)
-    y_dash = model.predict(modeldir, metadata, d)
-    model.show(y_dash, features.image_spec)
+    y_dash_it = model.predict(modeldir, metadata, d)
+    write_geotiffs(y_dash_it, modeldir, metadata, features.image_spec)
+    # model.show(y_dash_it, features.image_spec)
     return 0

@@ -10,8 +10,8 @@ psamps = 30  # Number of times to samples the network for prediction
 epochs = 20  # epochs between tests
 
 ab.set_hyperseed(666)
-train_config = tf.ConfigProto(device_count={"GPU": 1})
-predict_config = tf.ConfigProto(device_count={"GPU": 1})
+train_config = tf.ConfigProto(device_count={"GPU": 0})
+predict_config = tf.ConfigProto(device_count={"GPU": 0})
 
 
 def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
@@ -51,7 +51,7 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
     # Combined net
     net = (
         ab.Concat(con_net, cat_net) >>
-        ab.DenseVariational(output_dim=1, std=1., full=True)
+        ab.DenseVariational(output_dim=metadata.ntargets, std=1., full=True)
         )
 
     phi, kl = net(Xo=Xo, Mo=Xom, Xc=Xc)
@@ -63,7 +63,7 @@ def model(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
 
 def _patch_slices(metadata):
     npatch = (metadata.halfwidth * 2 + 1) ** 2
-    dim = npatch * metadata.x_cat
+    dim = npatch * metadata.nfeatures_cat
     begin = range(0, dim, npatch)
     end = range(npatch, dim + npatch, npatch)
     slices = [slice(b, e) for b, e in zip(begin, end)]

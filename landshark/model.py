@@ -43,6 +43,8 @@ def decode(iterator, metadata):
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=fdict)
     npatch = (2 * metadata.halfwidth + 1) ** 2
+    y_type = tf.float32 if metadata.target_dtype == np.float32 \
+        else tf.int32
     with tf.name_scope("Inputs"):
         x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -50,13 +52,13 @@ def decode(iterator, metadata):
         x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
         x_ord_mask = tf.cast(x_ord_mask, tf.bool)
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], tf.float32)
+        y = tf.decode_raw(raw_features["y"], y_type)
 
         x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
         x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
         x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
         x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
-        y.set_shape((None, 1))
+        y.set_shape((None, metadata.ntargets))
 
         # Placeholders for prediction
         xo_ = tf.placeholder_with_default(x_ord, x_ord.shape, name="Xo")

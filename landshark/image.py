@@ -81,7 +81,8 @@ class ImageSpec:
     """
 
     def __init__(self, x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray) -> None:
+                 y_coordinates: np.ndarray,
+                 affine, crs) -> None:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
@@ -92,6 +93,8 @@ class ImageSpec:
         self.x_coordinates = x_coordinates
         self.y_coordinates = y_coordinates
         self.bbox = BoundingBox(x_coordinates, y_coordinates)
+        self.affine = affine
+        self.crs = crs
 
 
 def pixel_coordinates(width: int,
