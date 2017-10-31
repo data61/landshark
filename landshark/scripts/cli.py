@@ -11,6 +11,7 @@ from landshark import model
 from landshark.hread import ImageFeatures
 from landshark.feed import query_data
 from landshark.importers.tifwrite import write_geotiffs
+from landshark.scripts.logger import configure_logging
 
 log = logging.getLogger(__name__)
 
@@ -21,15 +22,12 @@ log = logging.getLogger(__name__)
               default="INFO", help="Level of logging")
 def cli(verbosity: str) -> int:
     """Parse the command line arguments."""
-    logging.basicConfig()
-    lg = logging.getLogger("")
-    lg.setLevel(verbosity)
+    configure_logging(verbosity)
     return 0
 
 
 @cli.command()
 @click.argument("directory", type=click.Path(exists=True))
-@click.argument("name", type=str)
 @click.argument("config", type=click.Path(exists=True))
 @click.option("--epochs", type=click.IntRange(min=1), default=1,
               help="Epochs between testing the model.")
@@ -38,9 +36,10 @@ def cli(verbosity: str) -> int:
 @click.option("--predict_samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for validating on the"
               " test set.")
-def train(directory: str, name: str, config: str, epochs: int, batchsize: int,
+def train(directory: str, config: str, epochs: int, batchsize: int,
           predict_samples: int) -> int:
     """Train a model specified by an input configuration."""
+    name = os.path.basename(config).rsplit(".")[0]
 
     # Get the data
     test_dir = os.path.join(directory, "testing")
