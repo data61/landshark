@@ -198,7 +198,7 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
                 Ys = np.vstack(Ys)
                 EYs = np.vstack(EYs)
                 r2 = r2_score(Ys, EYs, multioutput='raw_values')
-                rsquare_summary(r2, sess, g)
+                rsquare_summary(r2, sess, metadata.target_labels, g)
                 log.info("Aboleth r2: {}".format(r2))
 
             except KeyboardInterrupt:
@@ -208,14 +208,11 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
     return checkpoint_dir
 
 
-def rsquare_summary(r2, session, step=None):
+def rsquare_summary(r2, session, labels, step=None):
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
-    if np.isscalar(r2):
-        sum_val = [tf.Summary.Value(tag='r-square', simple_value=r2)]
-    else:
-        sum_val = [tf.Summary.Value(tag='r-square-{}'.format(i),
-                                    simple_value=r) for i, r in enumerate(r2)]
+    sum_val = [tf.Summary.Value(tag='r-square-{}'.format(l), simple_value=r)
+               for l, r in zip(labels, r2)]
     score_sum = tf.Summary(value=sum_val)
     summary_writer.add_summary(score_sum, step)
 
