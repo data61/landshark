@@ -52,11 +52,11 @@ def _make_writer(directory, label, metadata, image_spec):
     return writer
 
 
-def write_geotiffs(y_dash, directory, metadata, image_spec):
+def write_geotiffs(y_dash, directory, metadata, image_spec, tag=""):
 
     log.info("Initialising Geotiff writer")
-    labels = metadata.target_labels
-    std_labels = [l + "_std" for l in metadata.target_labels]
+    labels = [l + "_" + tag for l in metadata.target_labels]
+    std_labels = [l + "_std" for l in labels]
 
     writers = [_make_writer(directory, l, metadata, image_spec)
                for l in labels]
