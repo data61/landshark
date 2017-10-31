@@ -10,6 +10,7 @@ import click
 from landshark import model
 from landshark.hread import ImageFeatures
 from landshark.feed import query_data
+from landshark import rf
 from landshark.importers.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
 
@@ -59,6 +60,36 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
     model.train_test(training_records, testing_records, metadata, name,
                      batchsize, epochs, predict_samples, cf)
     return 0
+
+
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.argument("featurefile", type=click.Path(exists=True))
+@click.option("--npoints", type=int, default=1000)
+@click.option("--trees", type=int, default=100)
+@click.option("--cache_blocksize", type=int, default=1000)
+@click.option("--cache_nblocks", type=int, default=1)
+def baseline(directory: str, featurefile: str, npoints: int, trees: int,
+       cache_blocksize: int, cache_nblocks: int) -> int:
+    """Run a random forest model as a baseline for comparison."""
+
+    # Get the data
+    test_dir = os.path.join(directory, "testing")
+    training_records = glob(os.path.join(directory, "*.tfrecord"))
+    testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
+    features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
+
+    # Get metadata for feeding to the model
+    metadata_path = os.path.join(directory, "METADATA.bin")
+    metadata = model.load_metadata(metadata_path)
+
+    # Train
+    y_it = rf.train_test_predict(training_records, testing_records, metadata,
+                                 features, npoints, trees)
+    write_geotiffs(y_it, directory, metadata, features.image_spec,
+                   tag="baseline")
+    return 0
+
 
 
 @cli.command()
