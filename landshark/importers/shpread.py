@@ -1,6 +1,8 @@
 """Input/output routines for geo data types."""
 
+import itertools
 import logging
+import datetime
 
 import numpy as np
 import shapefile
@@ -9,33 +11,68 @@ from typing import List, Tuple, Iterator, Union
 
 log = logging.getLogger(__name__)
 
-# Typechecking aliases
-ShpFieldsType = List[Tuple[str, str, int, int]]
+
+def _extract_type(python_type, field_length):
+    if python_type is float:
+        return np.float32
+    elif python_type is int:
+        return np.int32
+    elif python_type is str:
+        return "a" + str(field_length)
+    elif python_type is datetime.date:
+        return "a10"
 
 
-def _shapefile_float_fields(fields: ShpFieldsType) \
-        -> Iterator[Tuple[int, str]]:
-    """Pull out the float fields from the shapefile field specification.
+def _get_record_info(shp):
+    field_list = shp.fields[1:]
+    labels, type_strings, nbytes, decimals = zip(*field_list)
+    record0 = shp.record(0)
+    record0[3] = str(record0[3])
+    types_from_data = [type(k) for k in record0]
+    type_list = [_extract_type(t, l) for t, l in zip(types_from_data, nbytes)]
+    return labels, type_list
 
-    Parameters
-    ----------
-    fields : ShpFieldsType
-        The weird list-of-lists that shapefile uses to describe field types
 
-    Returns
-    -------
-    result : Iterator[Tuple[int, str]]
-        An iterator over (<index_number>, <name>) pairs of the float columns.
+def _get_dtype(labels, all_labels, all_dtypes):
+    dtype_dict = dict(zip(all_labels, all_dtypes))
+    dtype_set = {dtype_dict[l] for l in labels}
+    if len(dtype_set) > 1:
+        raise ValueError("Requested target labels have different types")
+    dtype = dtype_set.pop()
+    return dtype
 
-    """
-    shapefields = [f[0] for f in fields[1:]]  # Skip DeletionFlag
-    dtype_flags = [(f[1], f[2]) for f in fields[1:]]  # Skip DeletionFlag
-    # http://www.dbase.com/Knowledgebase/INT/db7_file_fmt.htm
-    # We're only going to support float types for now
-    field_indices = [i for i, k in enumerate(dtype_flags) if k[0] == "N"]
-    field_names = [shapefields[i] for i in field_indices]
-    result = zip(field_indices, field_names)
+
+def _to_array(record, indices, dtype):
+    x_i = np.array([record[i] for i in indices], dtype=dtype)
+    return x_i
+
+
+def _get_indices(labels, all_labels):
+    label_dict = dict(zip(all_labels, range(len(all_labels))))
+    label_indices = [label_dict[k] for k in labels]
+    return label_indices
+
+
+def _batch_it(it, batchsize):
+    while True:
+        batch = list(itertools.islice(it, batchsize))
+        if not batch:
+            return
+        yield batch
+
+
+def _to_coords(shape):
+    result = shape.__geo_interface__["coordinates"]
     return result
+
+
+def _convert_batch(b):
+    coords, arrays = zip(*b)
+    coords_x, coords_y = zip(*coords)
+    coords_x = np.array(coords_x, dtype=np.float64)
+    coords_y = np.array(coords_y, dtype=np.float64)
+    data = np.vstack(arrays)
+    return coords_x, coords_y, data
 
 
 class ShapefileTargets:
@@ -49,108 +86,61 @@ class ShapefileTargets:
     ----------
     filename : str
         The shapefile (.shp)
-    indices : ndarray, None
-        array of indices of shape coordinates to read, if None read the whole
-        shape file.
-
     """
-
-    def __init__(self, filename: str, indices: np.array=None) -> None:
+    def __init__(self, filename: str, labels: List[str],
+                 batchsize: int=100) -> None:
         """Construct an instance of ShapefileTargets."""
         self._sf = shapefile.Reader(filename)
-        self.dtype = np.float32
-        float_fields = _shapefile_float_fields(self._sf.fields)
-        self._field_indices, self.fields = zip(*float_fields)
-        self._field_indices = list(self._field_indices)
-        self.fields = list(self.fields)
-        self.indices = indices
-        self.n = self._sf.numRecords if indices is None else len(indices)
+        self.all_fields, self.all_dtypes = _get_record_info(self._sf)
+        self.labels = labels
+        self._label_indices = _get_indices(self.labels, self.all_fields)
+        self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes)
+        self._ntotal = self._sf.numRecords
+        self.n = self._ntotal
+        self.batchsize = batchsize
 
-    def coordinates(self) -> Iterator[np.ndarray]:
-        """Create an iterator for the coordinate data.
+    def _data(self) -> Iterator[np.ndarray]:
+        """Create an iterator for the shapefile data.
 
-        This will return a single coordinate from a point, in order
+        This will return a batch of coordinates,  in order
         from the shapefile.
 
         Yields
         ------
-        res : Iterator[np.ndarray]
-            An iterator over shape (2,) arrays of x,y coordinates.
 
         """
-        if self.indices is None:
-            shapes = self._sf.iterShapes()
-        else:
-            shapes = (self._sf.shape(i) for i in self.indices)
+        for sr in self._sf.iterShapeRecords():
+            coords = _to_coords(sr.shape)
+            array = _to_array(sr.record, self._label_indices, self.dtype)
+            yield coords, array
 
-        for shape in shapes:
-            res = np.array(shape.__geo_interface__["coordinates"],
-                           dtype=np.float64)
-            yield res
+    def batches(self):
+        list_batch_it = _batch_it(self._data(), self.batchsize)
+        batch_it = map(_convert_batch, list_batch_it)
+        return batch_it
 
-    def ordinal_data(self) -> Iterator[np.ndarray]:
-        """Create an iterator for the ordinal (target) data.
+# def _random_it(p, random_state):
+#     rnd = np.random.RandomState(random_state)
+#     c = np.array([True, False])
+#     p = np.array([p, 1.0 - p])
+#     while True:
+#         r = rnd.choice(c, p=p)
+#         yield r
 
-        This will return data at a single point per iteration,
-        in order from the shapefile.
+# def _create_batch_it(pair_it, batchsize):
+#     it = map(lambda x: x[0], pair_it)
+#     list_batch_it = _batch_it(it, batchsize)
+#     batch_it = map(_convert_batch, list_batch_it)
+#     return batch_it
 
-        Yields
-        ------
-        res : Iterator[np.ndarray]
-            An iterator over shape (k,) of k records for each point.
+# def train_test_batches(data_it, batchsize, test_proportion, random_state):
+#     rnd_it = _random_it(test_proportion, random_state)
+#     it = zip(data_it, rnd_it)
+#     it1, it2 = itertools.tee(it)
+#     train_it_pair = filter(lambda x: x[1], it1)
+#     test_it_pair = itertools.filterfalse(lambda x: x[1], it2)
 
-        """
-        if self.indices is None:
-            records = self._sf.iterRecords()
-        else:
-            records = (self._sf.record(i) for i in self.indices)
-
-        for rec in records:
-            res = np.array([rec[f] for f in self._field_indices],
-                           dtype=self.dtype)
-            yield res
-
-
-def train_test_targets(
-        filename: str,
-        test_proportion: float,
-        random_state: Union[int, None]=None
-        ) -> Tuple[ShapefileTargets, ShapefileTargets]:
-    """Create training and testing data shapefile readers.
-
-    Parameters
-    ----------
-    filename : str
-        The shapefile (.shp)
-    test_proportion : float
-        Fraction of data to make testing
-    random_state : int, None
-        Random state to use for splitting the data, None for no seed.
-
-    Returns
-    -------
-    tr_read : ShapefileTargets
-        the training data shape file reader
-    ts_read : ShapefileTargets
-        the testing data shape file reader
-
-    """
-    assert test_proportion > 0. and test_proportion < 1.0
-
-    # Get length of data
-    n = shapefile.Reader(filename).numRecords
-
-    # Randomly choose training data
-    rnd = np.random.RandomState(random_state)
-    ts_ind = np.sort(rnd.choice(n, round(test_proportion * n), replace=False))
-
-    # Create training indices
-    tr_mask = np.ones(n, dtype=bool)
-    tr_mask[ts_ind] = False
-    tr_ind = np.where(tr_mask)[0]
-
-    # Make readers
-    tr_read = ShapefileTargets(filename, tr_ind)
-    ts_read = ShapefileTargets(filename, ts_ind)
-
-    return tr_read, ts_read
+#     train_it = _create_batch_it(train_it_pair, batchsize)
+#     test_it = _create_batch_it(test_it_pair, batchsize)
+#     train_test_it = zip(train_it, test_it)
+#     return train_test_it

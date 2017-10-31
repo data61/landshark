@@ -24,10 +24,10 @@ setup(
     },
     install_requires=[
         'numpy==1.13.3',
-        'scipy==0.19.1',
+        'scipy==1.0.0',
         'click==6.7',
         'GDAL==2.1.0',
-        'rasterio==0.36.0',
+        'rasterio==1.0a10',
         'tables==3.4.2',
         'pyshp==1.2.12',
         'mypy==0.521',

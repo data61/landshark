@@ -8,8 +8,7 @@ from itertools import count
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
-
-from landshark import config as cf
+from sklearn.metrics import r2_score
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -24,25 +23,30 @@ fdict = {
     }
 
 
-def dataset(records, batch_size: int, testing=False):
-    """Train and test."""
-    if not testing:
-        dataset = tf.data.TFRecordDataset(records).repeat(count=cf.epochs) \
-            .shuffle(buffer_size=1000).batch(batch_size)
-    else:
-        dataset = tf.data.TFRecordDataset(records).batch(batch_size) \
-            .interleave(
-                lambda x: tf.data.Dataset.from_tensors(x).repeat(cf.psamps),
-                cycle_length=1,
-                block_length=cf.psamps
-                )
+def train_data(records: list, batch_size: int, epochs: int=1) \
+        -> tf.data.TFRecordDataset:
+    dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
+        .shuffle(buffer_size=1000).batch(batch_size)
     return dataset
 
 
-def decode(iterator, record_shape):
+def test_data(records: list, batch_size: int, pred_samps: int=1) \
+        -> tf.data.TFRecordDataset:
+    """Train and test."""
+    dataset = tf.data.TFRecordDataset(records).batch(batch_size).interleave(
+        lambda x: tf.data.Dataset.from_tensors(x).repeat(pred_samps),
+        cycle_length=1,
+        block_length=pred_samps
+        )
+    return dataset
+
+
+def decode(iterator, metadata):
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=fdict)
-    npatch = (2 * record_shape.halfwidth + 1) ** 2
+    npatch = (2 * metadata.halfwidth + 1) ** 2
+    y_type = tf.float32 if metadata.target_dtype == np.float32 \
+        else tf.int32
     with tf.name_scope("Inputs"):
         x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -50,13 +54,13 @@ def decode(iterator, record_shape):
         x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
         x_ord_mask = tf.cast(x_ord_mask, tf.bool)
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], tf.float32)
+        y = tf.decode_raw(raw_features["y"], y_type)
 
-        x_ord.set_shape((None, npatch * record_shape.x_ord))
-        x_ord_mask.set_shape((None, npatch * record_shape.x_ord))
-        x_cat.set_shape((None, npatch * record_shape.x_cat))
-        x_cat_mask.set_shape((None, npatch * record_shape.x_cat))
-        y.set_shape((None, 1))
+        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
+        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
+        y.set_shape((None, metadata.ntargets))
 
         # Placeholders for prediction
         xo_ = tf.placeholder_with_default(x_ord, x_ord.shape, name="Xo")
@@ -74,48 +78,50 @@ def load_metadata(path):
     return obj
 
 
-def predict_dict(data, Xo, Xom, Xc, Xcm):
-    for d in data:
-        N = len(d.x_ord)
-        xord = np.ma.reshape(d.x_ord, [N, -1])
-        xcat = np.ma.reshape(d.x_cat, [N, -1])
-        fdict = {Xo: xord.data, Xom: xord.mask, Xc: xcat.data, Xcm: xcat.mask}
-        yield fdict
+def predict_dict(d, Xo, Xom, Xc, Xcm):
+    N = len(d.x_ord)
+    xord = np.ma.reshape(d.x_ord, [N, -1])
+    xcat = np.ma.reshape(d.x_cat, [N, -1])
+    fdict = {Xo: xord.data, Xom: xord.mask, Xc: xcat.data, Xcm: xcat.mask}
+    return fdict
 
 
-def predict(model, metadata, data):
+def predict(model, metadata, data, n_samples):
 
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
 
-    graph = tf.Graph()
-    with graph.as_default():
-        sess = tf.Session(config=cf.predict_config)
-        with sess.as_default():
-            saver = tf.train.import_meta_graph("{}.meta".format(model_file))
-            saver.restore(sess, model_file)
+    for i, d in enumerate(data):
+        graph = tf.Graph()
+        with graph.as_default():
+            sess = tf.Session()
+            with sess.as_default():
+                # TODO AL reloads/rewrites the graph in memory from protobuf
+                # See glabrezu
+                save = tf.train.import_meta_graph("{}.meta".format(model_file))
+                save.restore(sess, model_file)
 
-            # Restore place holders and prediction network
-            Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
-            Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
-            Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
-            Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
-            phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
-            # TODO plus noise
+                # Restore place holders and prediction network
+                Xo = graph.get_operation_by_name("Inputs/Xo").outputs[0]
+                Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
+                Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
+                Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
+                phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
+                # TODO plus noise
 
-            for i, d in enumerate(predict_dict(data, Xo, Xom, Xc, Xcm)):
+                d_dict = predict_dict(d, Xo, Xom, Xc, Xcm)
                 log.info("predicting batch {}".format(i))
-                y_samples = ab.predict_samples(phi, d, cf.psamps, sess)
+                y_samples = ab.predict_samples(phi, d_dict, n_samples, sess)
                 Ey = y_samples.mean(axis=0)
                 Sf = y_samples.std(axis=0)
                 yield Ey, Sf
 
 
-def train_test(records_train, records_test, train_metadata, test_metadata,
-               name):
+def train_test(records_train, records_test, metadata, name, batch_size, epochs,
+               n_samples, cf):
 
-    train_dataset = dataset(records_train, cf.batch_size, testing=False)
-    test_dataset = dataset(records_test, cf.batch_size, testing=True)
+    train_dataset = train_data(records_train, batch_size, epochs)
+    test_dataset = test_data(records_test, batch_size, n_samples)
 
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
@@ -126,10 +132,10 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
     train_init_op = iterator.make_initializer(train_dataset)
     test_init_op = iterator.make_initializer(test_dataset)
 
-    Xo, Xom, Xc, Xcm, Y = decode(iterator, train_metadata)
+    Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
 
     with tf.name_scope("Deepnet"):
-        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, train_metadata)
+        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
         phi = tf.identity(phi, name="nnet")
         tf.summary.scalar("loss", loss)
 
@@ -146,11 +152,11 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
-    r2_score = -float("inf")
+    r2 = -float("inf")
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
-            config=cf.train_config,
+            config=cf.sess_config,
             checkpoint_dir=checkpoint_dir,
             scaffold=tf.train.Scaffold(local_init_op=train_init_op),
             save_summaries_steps=None,
@@ -160,10 +166,11 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
             ) as sess:
 
         for i in count():
-            log.info("Training round {} with {} epochs.".format(i, cf.epochs))
+            log.info("Training round {} with {} epochs.".format(i, epochs))
             try:
 
                 # Train loop
+                sess.run(train_init_op)
                 try:
                     while not sess.should_stop():
                         _, g = sess.run([train, global_step])
@@ -172,11 +179,11 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
 
                 # Test loop
                 sess.run(test_init_op)
-                Ys, EYs, = [], []
+                Ys, EYs = [], []
                 try:
                     while not sess.should_stop():
                         samples = []
-                        for j in range(cf.psamps):
+                        for j in range(n_samples):
                             y, ey = sess.run([Y, phi])
                             samples.append(ey)
 
@@ -184,47 +191,39 @@ def train_test(records_train, records_test, train_metadata, test_metadata,
                         cat_samples = np.concatenate(samples, axis=0)
                         EYs.append(cat_samples.mean(axis=0))
                 except tf.errors.OutOfRangeError:
+                    log.info("Testing epoch complete.")
                     pass
 
                 # Scores
-                Ys = np.concatenate(Ys)
-                EYs = np.concatenate(EYs)
-                r2_score = rsquare(Ys, EYs)
-                rsquare_summary(r2_score, sess, g)
-                log.info("Aboleth r2: {:.4f}".format(r2_score))
+                Ys = np.vstack(Ys)
+                EYs = np.vstack(EYs)
+                r2 = r2_score(Ys, EYs, multioutput='raw_values')
+                rsquare_summary(r2, sess, g)
+                log.info("Aboleth r2: {}".format(r2))
 
             except KeyboardInterrupt:
-                log.info("Training ended, final R-square = {:.4f}."
-                         .format(r2_score))
+                log.info("Training ended, final R-square = {}.".format(r2))
                 break
-
-            sess.run(train_init_op)
 
     return checkpoint_dir
 
 
-def rsquare(Y: np.ndarray, EY: np.ndarray) -> float:
-    SS_ref = np.sum((Y - EY)**2)
-    SS_tot = np.sum((Y - np.mean(Y))**2)
-    R2 = float(1 - SS_ref / SS_tot)
-    return R2
-
-
-def rsquare_summary(r2_score, session, step=None):
+def rsquare_summary(r2, session, step=None):
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='r-square', simple_value=r2_score)
-    score_sum = tf.Summary(value=[sum_val])
+    if np.isscalar(r2):
+        sum_val = [tf.Summary.Value(tag='r-square', simple_value=r2)]
+    else:
+        sum_val = [tf.Summary.Value(tag='r-square-{}'.format(i),
+                                    simple_value=r) for i, r in enumerate(r2)]
+    score_sum = tf.Summary(value=sum_val)
     summary_writer.add_summary(score_sum, step)
 
 
-def show(pred, image_spec):
-    image_height = image_spec.height
-    image_width = image_spec.width
-    Y, _ = zip(*pred)
-    Y = np.concatenate(Y).squeeze()
-    im = Y.reshape((image_height, image_width))
-    import matplotlib.pyplot as pl
-    from matplotlib import cm
-    pl.imshow(im, cmap=cm.inferno)
-    pl.show()
+def patch_slices(metadata):
+    npatch = (metadata.halfwidth * 2 + 1) ** 2
+    dim = npatch * metadata.nfeatures_cat
+    begin = range(0, dim, npatch)
+    end = range(npatch, dim + npatch, npatch)
+    slices = [slice(b, e) for b, e in zip(begin, end)]
+    return slices

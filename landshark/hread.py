@@ -30,9 +30,11 @@ class ImageFeatures:
         y_coordinates = self._hfile.root.y_coordinates.read()
         height = self._hfile.root._v_attrs.height
         width = self._hfile.root._v_attrs.width
+        affine = self._hfile.root._v_attrs.affine
+        crs = self._hfile.root._v_attrs.crs
         assert len(x_coordinates) == width + 1
         assert len(y_coordinates) == height + 1
-        spec = image.ImageSpec(x_coordinates, y_coordinates)
+        spec = image.ImageSpec(x_coordinates, y_coordinates, affine, crs)
         self.image_spec = spec
         self.ord = Features(
             self._hfile.root.ordinal_data,
@@ -133,61 +135,3 @@ class Features:
 
         """
         return self._cache(y, x_slice)
-
-
-class Targets:
-    """Reader for getting targets and coordinates from an HDF5 file.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the HDF5 file contains the target information.
-    label : str
-        The name of the target to read.
-
-    """
-
-    def __init__(self, filename: str, label: str) -> None:
-        """Initialise a Targets object."""
-        self._hfile = tables.open_file(filename)
-        labels = self._hfile.root.targets.attrs.labels
-        label_index = labels.index(label)
-        # TODO don't read the whole file into memory
-        self._data = self._hfile.root.targets[:, label_index]
-        self.coordinates = self._hfile.root.coordinates
-
-    def training(self, image_spec: image.ImageSpec, batchsize: int) \
-            -> Iterable[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-        """Generate batches of target coordinated and values.
-
-        Parameters
-        ----------
-        image_spec : ImageSpec
-            the image specifactions of the features file.
-        batchsize : int
-            the number of targets to generate per batch
-
-        Yields
-        ------
-        px : np.ndarray
-            array of image/feature "x" indices corresponding to the targets.
-        py : np.ndarray
-            array of image/feature "y" indices corresponding to the targets.
-        target : np.ndarray
-            the target values for each index.
-
-        """
-        pixel_it = image.coords_training(self.coordinates,
-                                         image_spec.x_coordinates,
-                                         image_spec.y_coordinates, batchsize)
-        start = 0
-        for px, py in pixel_it:
-            n = px.shape[0]
-            stop = start + n
-            s = slice(start, stop)
-            target = self._data[s]
-            # Make sure regression targets are 2D
-            if target.ndim == 1:
-                target = target[:, np.newaxis]
-            start = stop
-            yield px, py, target
