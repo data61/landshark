@@ -46,7 +46,6 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
     test_dir = os.path.join(directory, "testing")
     training_records = glob(os.path.join(directory, "*.tfrecord"))
     testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
-    features = ImageFeatures(featurefile, cache_blocksize, cache_nblocks)
 
     # Get metadata for feeding to the model
     metadata_path = os.path.join(directory, "METADATA.bin")
@@ -70,9 +69,9 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
 @click.option("--trees", type=int, default=100)
 @click.option("--cache_blocksize", type=int, default=1000)
 @click.option("--cache_nblocks", type=int, default=1)
-def randomforest(directory: str, featurefile: str, npoints: int, trees: int,
+def baseline(directory: str, featurefile: str, npoints: int, trees: int,
        cache_blocksize: int, cache_nblocks: int) -> int:
-    """Run a random forest model for comparison."""
+    """Run a random forest model as a baseline for comparison."""
 
     # Get the data
     test_dir = os.path.join(directory, "testing")

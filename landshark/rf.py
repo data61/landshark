@@ -109,7 +109,7 @@ def train_test_predict(records_train, records_test, metadata,
     scores = r2_score(y_array_test, y_star, multioutput='raw_values')
     log.info("Random forest R2: {}".format(scores))
 
-    # predictions now??
+    # predict over image
     qdata = query_data(features, batch_size, metadata.halfwidth)
     for d in qdata:
         x_ord = d.x_ord.reshape((d.x_ord.shape[0], -1))
