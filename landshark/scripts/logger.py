@@ -1,11 +1,15 @@
 """Custom logging for landshark CLIs."""
 
+from os import environ
 import logging
 
+environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
 
 def configure_logging(verbosity: str) -> None:
     """Configure the logger for STDOUT."""
     log = logging.getLogger("")
+    tflog = logging.getLogger("tensorflow")
+    tflog.handlers = []
     log.setLevel(verbosity)
     ch = logging.StreamHandler()
     formatter = ElapsedFormatter()

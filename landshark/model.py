@@ -148,7 +148,7 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
         {"step": global_step, "loss": loss},
-        every_n_iter=100
+        every_n_secs=60
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
@@ -162,6 +162,7 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
             save_summaries_steps=None,
             save_checkpoint_secs=20,
             save_summaries_secs=20,
+            log_step_count_steps=6000,
             hooks=[logger]
             ) as sess:
 
