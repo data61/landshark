@@ -10,8 +10,6 @@ import tensorflow as tf
 import aboleth as ab
 from sklearn.metrics import r2_score
 
-from landshark import config as cf
-
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
@@ -25,18 +23,21 @@ fdict = {
     }
 
 
-def dataset(records, batch_size: int, testing=False):
+def train_data(records: list, batch_size: int, epochs: int=1) \
+        -> tf.data.TFRecordDataset:
+    dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
+        .shuffle(buffer_size=1000).batch(batch_size)
+    return dataset
+
+
+def test_data(records: list, batch_size: int, pred_samps: int=1) \
+        -> tf.data.TFRecordDataset:
     """Train and test."""
-    if not testing:
-        dataset = tf.data.TFRecordDataset(records).repeat(count=cf.epochs) \
-            .shuffle(buffer_size=1000).batch(batch_size)
-    else:
-        dataset = tf.data.TFRecordDataset(records).batch(batch_size) \
-            .interleave(
-                lambda x: tf.data.Dataset.from_tensors(x).repeat(cf.psamps),
-                cycle_length=1,
-                block_length=cf.psamps
-                )
+    dataset = tf.data.TFRecordDataset(records).batch(batch_size).interleave(
+        lambda x: tf.data.Dataset.from_tensors(x).repeat(pred_samps),
+        cycle_length=1,
+        block_length=pred_samps
+        )
     return dataset
 
 
@@ -85,7 +86,7 @@ def predict_dict(d, Xo, Xom, Xc, Xcm):
     return fdict
 
 
-def predict(model, metadata, data):
+def predict(model, metadata, data, n_samples):
 
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
@@ -93,7 +94,7 @@ def predict(model, metadata, data):
     for i, d in enumerate(data):
         graph = tf.Graph()
         with graph.as_default():
-            sess = tf.Session(config=cf.predict_config)
+            sess = tf.Session()
             with sess.as_default():
                 # TODO AL reloads/rewrites the graph in memory from protobuf
                 # See glabrezu
@@ -110,16 +111,17 @@ def predict(model, metadata, data):
 
                 d_dict = predict_dict(d, Xo, Xom, Xc, Xcm)
                 log.info("predicting batch {}".format(i))
-                y_samples = ab.predict_samples(phi, d_dict, cf.psamps, sess)
+                y_samples = ab.predict_samples(phi, d_dict, n_samples, sess)
                 Ey = y_samples.mean(axis=0)
                 Sf = y_samples.std(axis=0)
                 yield Ey, Sf
 
 
-def train_test(records_train, records_test, metadata, name):
+def train_test(records_train, records_test, metadata, name, batch_size, epochs,
+               n_samples, cf):
 
-    train_dataset = dataset(records_train, cf.batch_size, testing=False)
-    test_dataset = dataset(records_test, cf.batch_size, testing=True)
+    train_dataset = train_data(records_train, batch_size, epochs)
+    test_dataset = test_data(records_test, batch_size, n_samples)
 
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
@@ -154,7 +156,7 @@ def train_test(records_train, records_test, metadata, name):
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
-            config=cf.train_config,
+            config=cf.sess_config,
             checkpoint_dir=checkpoint_dir,
             scaffold=tf.train.Scaffold(local_init_op=train_init_op),
             save_summaries_steps=None,
@@ -164,7 +166,7 @@ def train_test(records_train, records_test, metadata, name):
             ) as sess:
 
         for i in count():
-            log.info("Training round {} with {} epochs.".format(i, cf.epochs))
+            log.info("Training round {} with {} epochs.".format(i, epochs))
             try:
 
                 # Train loop
@@ -177,11 +179,11 @@ def train_test(records_train, records_test, metadata, name):
 
                 # Test loop
                 sess.run(test_init_op)
-                Ys, EYs, = [], []
+                Ys, EYs = [], []
                 try:
                     while not sess.should_stop():
                         samples = []
-                        for j in range(cf.psamps):
+                        for j in range(n_samples):
                             y, ey = sess.run([Y, phi])
                             samples.append(ey)
 
@@ -218,13 +220,10 @@ def rsquare_summary(r2, session, step=None):
     summary_writer.add_summary(score_sum, step)
 
 
-def show(pred, image_spec):
-    image_height = image_spec.height
-    image_width = image_spec.width
-    Y, _ = zip(*pred)
-    Y = np.concatenate(Y).squeeze()
-    im = Y.reshape((image_height, image_width))
-    import matplotlib.pyplot as pl
-    from matplotlib import cm
-    pl.imshow(im, cmap=cm.inferno)
-    pl.show()
+def patch_slices(metadata):
+    npatch = (metadata.halfwidth * 2 + 1) ** 2
+    dim = npatch * metadata.nfeatures_cat
+    begin = range(0, dim, npatch)
+    end = range(npatch, dim + npatch, npatch)
+    slices = [slice(b, e) for b, e in zip(begin, end)]
+    return slices
