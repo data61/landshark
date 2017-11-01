@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
 
-fdict = {
+FDICT = {
     "x_cat": tf.FixedLenFeature([], tf.string),
     "x_cat_mask": tf.FixedLenFeature([], tf.string),
     "x_ord": tf.FixedLenFeature([], tf.string),
@@ -22,9 +22,15 @@ fdict = {
     "y": tf.FixedLenFeature([], tf.string)
     }
 
+BORING_QUANTILES = (
+    tf.distributions.Bernoulli,
+    tf.distributions.Categorical
+    )
+
 
 def train_data(records: list, batch_size: int, epochs: int=1) \
         -> tf.data.TFRecordDataset:
+    """Train dataset feeder."""
     dataset = tf.data.TFRecordDataset(records).repeat(count=epochs) \
         .shuffle(buffer_size=1000).batch(batch_size)
     return dataset
@@ -32,7 +38,7 @@ def train_data(records: list, batch_size: int, epochs: int=1) \
 
 def test_data(records: list, batch_size: int, pred_samps: int=1) \
         -> tf.data.TFRecordDataset:
-    """Train and test."""
+    """Test dataset feeder."""
     dataset = tf.data.TFRecordDataset(records).batch(batch_size).interleave(
         lambda x: tf.data.Dataset.from_tensors(x).repeat(pred_samps),
         cycle_length=1,
@@ -43,7 +49,7 @@ def test_data(records: list, batch_size: int, pred_samps: int=1) \
 
 def decode(iterator, metadata):
     str_features = iterator.get_next()
-    raw_features = tf.parse_example(str_features, features=fdict)
+    raw_features = tf.parse_example(str_features, features=FDICT)
     npatch = (2 * metadata.halfwidth + 1) ** 2
     y_type = tf.float32 if metadata.target_dtype == np.float32 \
         else tf.int32
@@ -86,7 +92,7 @@ def predict_dict(d, Xo, Xom, Xc, Xcm):
     return fdict
 
 
-def predict(model, metadata, data, n_samples):
+def predict(model, metadata, data, n_samples, lower, upper):
 
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
@@ -106,20 +112,19 @@ def predict(model, metadata, data, n_samples):
                 Xom = graph.get_operation_by_name("Inputs/Xom").outputs[0]
                 Xc = graph.get_operation_by_name("Inputs/Xc").outputs[0]
                 Xcm = graph.get_operation_by_name("Inputs/Xcm").outputs[0]
-                phi = graph.get_operation_by_name("Deepnet/nnet").outputs[0]
-                # TODO plus noise
+                Y = graph.get_operation_by_name("Test/Y_sample").outputs[0]
 
                 d_dict = predict_dict(d, Xo, Xom, Xc, Xcm)
                 log.info("predicting batch {}".format(i))
-                y_samples = ab.predict_samples(phi, d_dict, n_samples, sess)
+                y_samples = ab.predict_samples(Y, d_dict, n_samples, sess)
                 Ey = y_samples.mean(axis=0)
-                Sf = y_samples.std(axis=0)
-                yield Ey, Sf
+                Ly, Uy = np.percentile(y_samples, q=[lower, upper], axis=0) \
+                    .astype(Ey.dtype)
+                yield Ey, Ly, Uy
 
 
 def train_test(records_train, records_test, metadata, name, batch_size, epochs,
                n_samples, cf):
-
     train_dataset = train_data(records_train, batch_size, epochs)
     test_dataset = test_data(records_test, batch_size, n_samples)
 
@@ -134,16 +139,28 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
 
     Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
 
+    # Get the model
     with tf.name_scope("Deepnet"):
-        phi, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
-        phi = tf.identity(phi, name="nnet")
+        F, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
         tf.summary.scalar("loss", loss)
 
-    # Set up the trainig graph
+    # Set up the training graph
     with tf.name_scope("Train"):
         optimizer = tf.train.AdamOptimizer()
         global_step = tf.train.create_global_step()
         train = optimizer.minimize(loss, global_step=global_step)
+
+    # Name some testing tensors for evaluation and prediction
+    with tf.name_scope("Test"):
+        F = tf.identity(F, name="F_sample")
+        tf.identity(lkhood.log_prob(Y), name="log_prob")
+
+        # Quantiles some distributions are trivial, so use the latent function
+        if isinstance(lkhood, BORING_QUANTILES):
+            tf.identity(F, name="Y_sample")
+        else:
+            tf.identity(lkhood.sample(seed=next(ab.random.seedgen)),
+                        name="Y_sample")
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
@@ -172,34 +189,15 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
 
                 # Train loop
                 sess.run(train_init_op)
-                try:
-                    while not sess.should_stop():
-                        _, g = sess.run([train, global_step])
-                except tf.errors.OutOfRangeError:
-                    log.info("Training epoch complete.")
+                step = train_loop(train, global_step, sess)
 
                 # Test loop
                 sess.run(test_init_op)
-                Ys, EYs = [], []
-                try:
-                    while not sess.should_stop():
-                        samples = []
-                        for j in range(n_samples):
-                            y, ey = sess.run([Y, phi])
-                            samples.append(ey)
+                Ys, EYs = test_loop(Y, F, n_samples, sess)
 
-                        Ys.append(y)
-                        cat_samples = np.concatenate(samples, axis=0)
-                        EYs.append(cat_samples.mean(axis=0))
-                except tf.errors.OutOfRangeError:
-                    log.info("Testing epoch complete.")
-                    pass
-
-                # Scores
-                Ys = np.vstack(Ys)
-                EYs = np.vstack(EYs)
+                # Score
                 r2 = r2_score(Ys, EYs, multioutput='raw_values')
-                rsquare_summary(r2, sess, metadata.target_labels, g)
+                rsquare_summary(r2, sess, metadata.target_labels, step)
                 log.info("Aboleth r2: {}".format(r2))
 
             except KeyboardInterrupt:
@@ -207,6 +205,37 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
                 break
 
     return checkpoint_dir
+
+
+def train_loop(train, global_step, sess):
+    try:
+        while not sess.should_stop():
+            _, step = sess.run([train, global_step])
+    except tf.errors.OutOfRangeError:
+        log.info("Training epoch complete.")
+
+    return step
+
+
+def test_loop(Y, F, n_samples, sess):
+    Ys, EYs = [], []
+    try:
+        while not sess.should_stop():
+            samples = []
+            for j in range(n_samples):
+                y, ey = sess.run([Y, F])
+                samples.append(ey)
+
+            Ys.append(y)
+            cat_samples = np.concatenate(samples, axis=0)
+            EYs.append(cat_samples.mean(axis=0))
+    except tf.errors.OutOfRangeError:
+        log.info("Testing epoch complete.")
+        pass
+
+    Ys = np.vstack(Ys)
+    EYs = np.vstack(EYs)
+    return Ys, EYs
 
 
 def rsquare_summary(r2, session, labels, step=None):
