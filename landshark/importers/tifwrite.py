@@ -68,7 +68,6 @@ def write_geotiffs(y_dash, directory, metadata, image_spec, lower, upper,
                  for l in upper_labels]
 
     writers = [m_writers, l_writers, u_writers]
-
     for i, ybatch in enumerate(y_dash):
         log.info("Writing batch {} to disk".format(i))
         for yq, qwriter in zip(ybatch, writers):
