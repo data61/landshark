@@ -52,26 +52,30 @@ def _make_writer(directory, label, metadata, image_spec):
     return writer
 
 
-def write_geotiffs(y_dash, directory, metadata, image_spec, tag=""):
+def write_geotiffs(y_dash, directory, metadata, image_spec, lower, upper,
+                   tag=""):
 
     log.info("Initialising Geotiff writer")
     labels = [l + "_" + tag for l in metadata.target_labels]
-    std_labels = [l + "_std" for l in labels]
+    lower_labels = [l + "l{}".format(lower) for l in labels]
+    upper_labels = [l + "u{}".format(upper) for l in labels]
 
-    writers = [_make_writer(directory, l, metadata, image_spec)
-               for l in labels]
-    std_writers = [_make_writer(directory, l, metadata, image_spec)
-                   for l in std_labels]
+    m_writers = [_make_writer(directory, l, metadata, image_spec)
+                 for l in labels]
+    l_writers = [_make_writer(directory, l, metadata, image_spec)
+                 for l in lower_labels]
+    u_writers = [_make_writer(directory, l, metadata, image_spec)
+                 for l in upper_labels]
 
-    for i, (ys, ys_std) in enumerate(y_dash):
+    writers = [m_writers, l_writers, u_writers]
+
+    for i, ybatch in enumerate(y_dash):
         log.info("Writing batch {} to disk".format(i))
-        for ys_i, writer in zip(ys.T, writers):
-            writer.write(ys_i)
-        for yss_i, swriter in zip(ys_std.T, std_writers):
-            swriter.write(yss_i)
+        for yq, qwriter in zip(ybatch, writers):
+            for y_i, writer_i in zip(yq.T, qwriter):
+                writer_i.write(y_i)
 
     log.info("Closing file objects")
     for w in writers:
-        w.close()
-    for w in std_writers:
-        w.close()
+        for w_i in w:
+            w_i.close()
