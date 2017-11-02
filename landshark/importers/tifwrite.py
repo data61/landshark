@@ -38,8 +38,9 @@ class BatchWriter:
     def close(self):
         self.f.close()
 
-def _make_writer(directory, label, metadata, image_spec):
+def _make_writer(directory, label, metadata):
     dtype = rs.float32 if metadata.target_dtype == np.float32 else rs.int32
+    image_spec = metadata.image_spec
     log.info("Image width: {} height: {}".format(image_spec.width,
                                                  image_spec.height))
     params = dict(driver="GTiff", width=image_spec.width,
@@ -52,15 +53,14 @@ def _make_writer(directory, label, metadata, image_spec):
     return writer
 
 
-def write_geotiffs(y_dash, directory, metadata, image_spec, tag=""):
-
+def write_geotiffs(y_dash, directory, metadata, tag=""):
     log.info("Initialising Geotiff writer")
     labels = [l + "_" + tag for l in metadata.target_labels]
     std_labels = [l + "_std" for l in labels]
 
-    writers = [_make_writer(directory, l, metadata, image_spec)
+    writers = [_make_writer(directory, l, metadata)
                for l in labels]
-    std_writers = [_make_writer(directory, l, metadata, image_spec)
+    std_writers = [_make_writer(directory, l, metadata)
                    for l in std_labels]
 
     for i, (ys, ys_std) in enumerate(y_dash):

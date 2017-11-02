@@ -45,7 +45,7 @@ def _extract(Xo, Xom, Xc, Xcm, Y, sess, data_frac=None, random_seed=666):
 
 def _get_data(records_train, records_test, metadata, npoints,
               batch_size, random_seed):
-    data_frac = npoints / metadata.N
+    data_frac = min(npoints / metadata.N, 1.0)
 
     train_dataset = model.train_data(records_train, batch_size, epochs=1)
     test_dataset = model.test_data(records_test, batch_size, 1)
@@ -73,8 +73,8 @@ def _get_data(records_train, records_test, metadata, npoints,
             ord_array_test, cat_array_test, y_array_test)
 
 
-def train_test_predict(records_train, records_test, metadata,
-                       features, npoints, trees, batch_size=10000,
+def train_test_predict(records_train, records_test, records_query,
+                       metadata, npoints, trees, batch_size=10000,
                        random_seed=666):
 
     imp = Imputer(missing_values="NaN", strategy="mean", axis=0,

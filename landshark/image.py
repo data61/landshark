@@ -2,10 +2,13 @@
 import logging
 from itertools import product, islice
 
+from rasterio.transform import from_bounds
 import numpy as np
 from affine import Affine
 # mypy type checking
 from typing import Tuple, Iterable
+
+from landshark import iteration
 
 log = logging.getLogger(__name__)
 
@@ -81,8 +84,7 @@ class ImageSpec:
     """
 
     def __init__(self, x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray,
-                 affine, crs) -> None:
+                 y_coordinates: np.ndarray, crs) -> None:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
@@ -93,8 +95,12 @@ class ImageSpec:
         self.x_coordinates = x_coordinates
         self.y_coordinates = y_coordinates
         self.bbox = BoundingBox(x_coordinates, y_coordinates)
-        self.affine = affine
         self.crs = crs
+
+        # affine transformation
+        self.affine = from_bounds(west=self.bbox.xmin, east=self.bbox.xmax,
+                                  north=self.bbox.ymax, south=self.bbox.ymin,
+                                  width=self.width, height=self.height)
 
 
 def pixel_coordinates(width: int,
@@ -221,10 +227,41 @@ def world_to_image(points: np.ndarray,
     return idx
 
 
-def coords_query(
+def strip_image_spec(strip, nstrips, image_spec):
+    # strips are indexed from one
+    strip_slice = _strip_slices(image_spec.height, nstrips)[strip - 1]
+    # coordinates are of all pixel edges so need to go one past the end
+    x_coords = image_spec.x_coordinates
+    y_coords = image_spec.y_coordinates[strip_slice.start:strip_slice.stop + 1]
+    crs = image_spec.crs
+    new_spec = ImageSpec(x_coords, y_coords, crs)
+    return new_spec
+
+def _strip_slices(size, nstrips):
+    strip_size_small, nbig = divmod(size, nstrips)
+    strip_size_big = strip_size_small + 1
+    strip_sizes = [strip_size_big] * nbig + \
+        [strip_size_small] * (nstrips - nbig)
+    indices = np.cumsum([0] + strip_sizes)
+    slices = [slice(i, j) for i, j in zip(indices[0:-1], indices[1:])]
+    return slices
+
+
+def indices_strip(image_spec, strip, nstrips, batchsize):
+    """Do stuff. WRITE DOCO"""
+    assert strip >= 1 and strip <= nstrips
+    slices = _strip_slices(image_spec.height, nstrips)
+    s = slices[strip - 1]   # indexed from one
+    it = _indices_query(image_spec.width, image_spec.height, batchsize,
+                      row_slice=s)
+    return it
+
+def _indices_query(
     image_width: int,
     image_height: int,
-    batchsize: int
+    batchsize: int,
+    column_slice: slice=None,
+    row_slice: slice=None
         ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
     """Create a generator of batches of coordinates from an image.
 
@@ -234,30 +271,32 @@ def coords_query(
     Parameters
     ----------
     image_width : int
-        the number of pixels wide the image is.
+        The width of the image in pixels
     image_height : int
-        the number of pixels high the image is.
+        The height of the image in pixels
+    column_slice : slice
+        The index to slice columns. slice(3,5) will get columns 3 and 4.
+    row_slice : slice
+        The index to slice rows. slice(0,2) will get rows 0 and 1.
     batchsize : int
         the number of coorinates to yield at once.
 
     Yields
     ------
-    im_coords_x : ndarray
+    col_indices : ndarray
         the x coordinates (width) of the image in pixels indices, of shape
         (batchsize,).
-    im_coords_y : ndarray
+    row_indices : ndarray
         the y coordinates (height) of the image in pixels indices, of shape
         (batchsize,).
 
     """
-    coords_it = product(range(image_height), range(image_width))
-    while True:
-        out = list(islice(coords_it, batchsize))
-        if len(out) == 0:
-            return
-        else:
-            #  reversed on purpose so we get row-major indexing
-            coords_y, coords_x = zip(*out)
-            cx = np.array(coords_x)
-            cy = np.array(coords_y)
-            yield cx, cy
+    column_slice = column_slice if column_slice else slice(0, None)
+    row_slice = row_slice if row_slice else slice(0, None)
+
+    coords_it = product(range(image_height)[row_slice],
+                        range(image_width)[column_slice])
+
+    batch_it = iteration.batch(coords_it, batchsize)
+    array_it = map(lambda x: tuple(np.array(x).T[::-1]), batch_it)
+    return array_it

@@ -43,7 +43,6 @@ def write_datafile(image_stack: ImageStack, filename: str,
     attributes = h5file.root._v_attrs
     attributes.height = image_stack.height
     attributes.width = image_stack.width
-    attributes.affine = image_stack.affine
     attributes.crs = image_stack.crs
     coords_x = image_stack.coordinates_x
     coords_y = image_stack.coordinates_y

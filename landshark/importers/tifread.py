@@ -77,7 +77,6 @@ class ImageStack:
         self.ordinal_dtype = ordinal_dtype
         self.width = width
         self.height = height
-        self.affine = affine
         self.crs = crs
         self.coordinates_x = coords_x
         self.coordinates_y = coords_y

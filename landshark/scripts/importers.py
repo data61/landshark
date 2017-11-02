@@ -12,10 +12,11 @@ from landshark.importers.tifread import ImageStack
 from landshark.hread import ImageFeatures
 from landshark.importers.featurewrite import write_datafile
 from landshark.importers.shpread import ShapefileTargets
-from landshark.importers.tfwrite import to_tfrecords
-from landshark.importers.metadata import write_metadata
+from landshark.importers import tfwrite
+from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
 from landshark import feed
+from landshark.image import indices_strip
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def _tifnames(directory: str) -> List[str]:
 def tifs(categorical: str, ordinal: str,
          name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""
-    out_filename = os.path.join(os.getcwd(), name + ".hdf5")
+    out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     cat_tif_filenames = _tifnames(categorical)
     ord_tif_filenames = _tifnames(ordinal)
     stack = ImageStack(cat_tif_filenames, ord_tif_filenames)
@@ -82,13 +83,42 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
     target_it = target_obj.batches()
     training_it = feed.training_data(target_it, feature_obj, halfwidth)
-    directory = os.path.join(os.getcwd(), name)
+    directory = os.path.join(os.getcwd(), name + "_trainingdata")
     log.info("Writing training data to tfrecords")
-    n_train = to_tfrecords(training_it, directory, test_frac, random_seed)
+    n_train = tfwrite.training(training_it, directory, test_frac, random_seed)
     log.info("Writing metadata")
-    write_metadata(directory, n_train, len(target_obj.labels),
-                   target_obj.dtype, feature_obj.cat.nfeatures,
-                   feature_obj.ord.nfeatures, halfwidth,
-                   feature_obj.ncategories,
-                   target_obj.labels)
+    metadata = mt.from_data(feature_obj, target_obj, halfwidth, n_train)
+    mt.write_metadata(directory, metadata)
+    return 0
+
+@cli.command()
+@click.option("--features", type=click.Path(exists=True), required=True)
+@click.option("--random_seed", type=int, default=666)
+@click.option("--batchsize", type=int, default=1000)
+@click.option("--halfwidth", type=int, default=1)
+@click.option("--cache_blocksize", type=int, default=100)
+@click.option("--cache_nblocks", type=int, default=10)
+@click.argument("strip", type=int)
+@click.argument("totalstrips", type=int)
+def queries(random_seed: int,
+            features: str, batchsize: int, halfwidth: int,
+            cache_blocksize: int, cache_nblocks: int,
+            strip: int, totalstrips: int) -> int:
+    """grab a chunk for prediction"""
+    log.info("Loading image feature stack")
+
+    dirname = os.path.basename(features).rsplit(".")[0] + \
+        "_query{}of{}".format(strip, totalstrips)
+    directory = os.path.join(os.getcwd(), dirname)
+    try:
+        os.makedirs(directory)
+    except FileExistsError:
+        pass
+
+    feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
+    indices_it = indices_strip(feature_obj.image_spec,strip, totalstrips,
+                               batchsize)
+    data_it = feed.query_data(indices_it, feature_obj, halfwidth)
+    tag = "query.{}of{}".format(strip, totalstrips)
+    tfwrite.query(data_it, directory, tag=tag)
     return 0

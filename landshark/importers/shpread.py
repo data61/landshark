@@ -9,6 +9,8 @@ import shapefile
 # for mypy type checking
 from typing import List, Tuple, Iterator, Union
 
+from landshark import iteration
+
 log = logging.getLogger(__name__)
 
 
@@ -51,14 +53,6 @@ def _get_indices(labels, all_labels):
     label_dict = dict(zip(all_labels, range(len(all_labels))))
     label_indices = [label_dict[k] for k in labels]
     return label_indices
-
-
-def _batch_it(it, batchsize):
-    while True:
-        batch = list(itertools.islice(it, batchsize))
-        if not batch:
-            return
-        yield batch
 
 
 def _to_coords(shape):
@@ -115,32 +109,6 @@ class ShapefileTargets:
             yield coords, array
 
     def batches(self):
-        list_batch_it = _batch_it(self._data(), self.batchsize)
+        list_batch_it = iteration.batch(self._data(), self.batchsize)
         batch_it = map(_convert_batch, list_batch_it)
         return batch_it
-
-# def _random_it(p, random_state):
-#     rnd = np.random.RandomState(random_state)
-#     c = np.array([True, False])
-#     p = np.array([p, 1.0 - p])
-#     while True:
-#         r = rnd.choice(c, p=p)
-#         yield r
-
-# def _create_batch_it(pair_it, batchsize):
-#     it = map(lambda x: x[0], pair_it)
-#     list_batch_it = _batch_it(it, batchsize)
-#     batch_it = map(_convert_batch, list_batch_it)
-#     return batch_it
-
-# def train_test_batches(data_it, batchsize, test_proportion, random_state):
-#     rnd_it = _random_it(test_proportion, random_state)
-#     it = zip(data_it, rnd_it)
-#     it1, it2 = itertools.tee(it)
-#     train_it_pair = filter(lambda x: x[1], it1)
-#     test_it_pair = itertools.filterfalse(lambda x: x[1], it2)
-
-#     train_it = _create_batch_it(train_it_pair, batchsize)
-#     test_it = _create_batch_it(test_it_pair, batchsize)
-#     train_test_it = zip(train_it, test_it)
-#     return train_test_it

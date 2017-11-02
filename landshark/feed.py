@@ -4,7 +4,7 @@ from collections import namedtuple
 from functools import partial
 
 import numpy as np
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Tuple, Union, Any
 
 from landshark import image
 from landshark import patch
@@ -54,8 +54,8 @@ def training_data(target_it, features, halfwidth):
     return training_it
 
 
-def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \
-        -> Iterator[QueryBatch]:
+def query_data(indices: Iterator[Any], features: ImageFeatures,
+               halfwidth: int) -> Iterator[QueryBatch]:
     """
     Create an iterator over batches of query data.
 
@@ -75,15 +75,14 @@ def query_data(features: ImageFeatures, batchsize: int, halfwidth: int) \
         An iterator that produces batches of X values for prediction
 
     """
-    assert batchsize > 0
     assert halfwidth >= 0
 
-    it = features.pixel_indices(batchsize)
-    for x_indices, y_indices in it:
-        ord_marray, cat_marray = _read_batch(x_indices, y_indices,
-                                             features, halfwidth)
-        b = QueryBatch(x_ord=ord_marray, x_cat=cat_marray)
-        yield b
+    def f(x):
+        x_ord, x_cat = _read_batch(x[0], x[1], features, halfwidth)
+        return QueryBatch(x_ord, x_cat)
+
+    query_it = map(f, indices)
+    return query_it
 
 
 def _read(data: Features,
