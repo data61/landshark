@@ -87,7 +87,7 @@ def baseline(directory: str, featurefile: str, npoints: int, trees: int,
     y_it = rf.train_test_predict(training_records, testing_records, metadata,
                                  features, npoints, trees)
     write_geotiffs(y_it, directory, metadata, features.image_spec,
-                   tag="baseline")
+                   tag="baseline", lower=0, upper=0)
     return 0
 
 
