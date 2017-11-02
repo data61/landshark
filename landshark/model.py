@@ -153,7 +153,7 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
     # Name some testing tensors for evaluation and prediction
     with tf.name_scope("Test"):
         F = tf.identity(F, name="F_sample")
-        tf.identity(lkhood.log_prob(Y), name="log_prob")
+        logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
 
         # Quantiles some distributions are trivial, so use the latent function
         if isinstance(lkhood, BORING_QUANTILES):
@@ -169,7 +169,7 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
         )
 
     checkpoint_dir = os.path.join(os.getcwd(), name)
-    r2 = -float("inf")
+    r2, lp = -float("inf"), float("inf")
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -193,15 +193,18 @@ def train_test(records_train, records_test, metadata, name, batch_size, epochs,
 
                 # Test loop
                 sess.run(test_init_op)
-                Ys, EYs = test_loop(Y, F, n_samples, sess)
+                Ys, EYs, lp = test_loop(Y, F, logprob, n_samples, sess)
 
                 # Score
                 r2 = r2_score(Ys, EYs, multioutput='raw_values')
                 rsquare_summary(r2, sess, metadata.target_labels, step)
-                log.info("Aboleth r2: {}".format(r2))
+                logprob_summary(lp, sess, step)
+                log.info("Aboleth r2: {}, mean log probability: {:.5f}"
+                         .format(r2, lp))
 
             except KeyboardInterrupt:
-                log.info("Training ended, final R-square = {}.".format(r2))
+                log.info("Training ended, final R-square = {}, mean log "
+                         "probability = {:.5f}.".format(r2, lp))
                 break
 
     return checkpoint_dir
@@ -217,25 +220,27 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def test_loop(Y, F, n_samples, sess):
-    Ys, EYs = [], []
+def test_loop(Y, F, logprob, n_samples, sess):
+    Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
-            samples = []
+            yaccum, lpaccum = 0., 0.
             for j in range(n_samples):
-                y, ey = sess.run([Y, F])
-                samples.append(ey)
+                y, ey, lp = sess.run([Y, F, logprob])
+                yaccum += ey
+                lpaccum += lp
 
             Ys.append(y)
-            cat_samples = np.concatenate(samples, axis=0)
-            EYs.append(cat_samples.mean(axis=0))
+            EYs.append(yaccum.mean(axis=0) / n_samples)
+            LP.append(lpaccum.mean() / n_samples)
     except tf.errors.OutOfRangeError:
         log.info("Testing epoch complete.")
         pass
 
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
-    return Ys, EYs
+    LP = np.mean(LP)
+    return Ys, EYs, LP
 
 
 def rsquare_summary(r2, session, labels, step=None):
@@ -244,6 +249,13 @@ def rsquare_summary(r2, session, labels, step=None):
     sum_val = [tf.Summary.Value(tag='r-square-{}'.format(l), simple_value=r)
                for l, r in zip(labels, r2)]
     score_sum = tf.Summary(value=sum_val)
+    summary_writer.add_summary(score_sum, step)
+
+
+def logprob_summary(logprob, session, step=None):
+    summary_writer = session._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag='mean log prob', simple_value=logprob)
+    score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 
 
