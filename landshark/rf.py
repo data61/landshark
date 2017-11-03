@@ -79,9 +79,10 @@ def train_test_predict(records_train, records_test, records_query,
 
     imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
                   verbose=0, copy=True)
-    enc = OneHotEncoder(n_values=np.array(metadata.ncategories),
-                        categorical_features="all", dtype=np.float32,
-                        sparse=False)
+    psize = (2 * metadata.halfwidth + 1)**2
+    n_values = [k for k in metadata.ncategories for _ in range(psize)]
+    enc = OneHotEncoder(n_values=n_values, categorical_features="all",
+                        dtype=np.float32, sparse=False)
     est = RandomForestClassifier(n_estimators=trees) if \
         metadata.target_dtype == np.int32 else \
         RandomForestRegressor(n_estimators=trees)
@@ -103,6 +104,8 @@ def train_test_predict(records_train, records_test, records_query,
         x_imputed = imp.transform(xo)
         x = np.concatenate([x_onehot, x_imputed], axis=1)
         y_star = est.predict(x)
+        if np.ndim(y_star) is 1:
+            y_star = y_star[:, np.newaxis]
         return y_star.astype(np.float32)
 
     y_star = predict(ord_array_test, cat_array_test)
@@ -116,5 +119,6 @@ def train_test_predict(records_train, records_test, records_query,
         x_cat = d.x_cat.reshape((d.x_cat.shape[0], -1))
         x_ord.data[x_ord.mask] = np.nan
         ys = predict(x_ord.data, x_cat.data)
-        std = np.zeros_like(ys, dtype=np.float32)
-        yield ys, std
+        ysl = np.zeros_like(ys, dtype=np.float32)
+        ysu = np.zeros_like(ys, dtype=np.float32)
+        yield ys, ysl, ysu

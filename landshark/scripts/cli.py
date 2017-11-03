@@ -40,8 +40,9 @@ def cli(verbosity: str) -> int:
 @click.option("--predict_samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for validating on the"
               " test set.")
+@click.option("--gpu/--no-gpu", default=False)
 def train(directory: str, config: str, epochs: int, batchsize: int,
-          predict_samples: int) -> int:
+          predict_samples: int, gpu: bool) -> int:
     """Train a model specified by an input configuration."""
     name = os.path.basename(config).rsplit(".")[0] + "_model"
 
@@ -69,7 +70,7 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
 
     # Train
     model.train_test(training_records, testing_records, metadata, model_dir,
-                     batchsize, epochs, predict_samples, cf)
+                     batchsize, epochs, predict_samples, cf, gpu)
     return 0
 
 
@@ -80,6 +81,7 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
 @click.option("--trees", type=int, default=100)
 def baseline(traindir: str, querydir: str, npoints: int, trees: int) -> int:
     """Run a random forest model as a baseline for comparison."""
+
     # Get the data
     testdir = os.path.join(traindir, "testing")
     training_records = glob(os.path.join(traindir, "*.tfrecord"))
@@ -88,6 +90,7 @@ def baseline(traindir: str, querydir: str, npoints: int, trees: int) -> int:
     # Get metadata for feeding to the model
     metadata_path = os.path.join(traindir, "METADATA.bin")
     metadata = model.load_metadata(metadata_path)
+
     # Train
     y_it = rf.train_test_predict(training_records, testing_records,
                                  query_records, metadata, npoints, trees)
@@ -113,22 +116,28 @@ def _get_strips(records):
 @click.argument("querydir", type=click.Path(exists=True))
 @click.option("--batchsize", type=int, default=100000)
 @click.option("--gpu/--no-gpu", default=False)
-@click.option("--predict_samples", type=click.IntRange(min=1), default=10,
+@click.option("--predict_samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for prediction")
+@click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
+              help="Lower percentile of the predictive density to output")
+@click.option("--upper", type=click.IntRange(min=0, max=100), default=90,
+              help="Upper percentile of the predictive density to output")
 def predict(
         modeldir: str,
         querydir: str,
         batchsize: int,
         predict_samples: int,
+        lower: int,
+        upper: int,
         gpu: bool) -> int:
     """Predict using a learned model."""
     metadata = model.load_metadata(os.path.join(modeldir, "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     y_dash_it = model.predict(modeldir, metadata, query_records, batchsize,
-                              predict_samples, gpu)
+                              predict_samples, lower, upper, gpu)
     strip, nstrips = _get_strips(query_records)
     imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
     metadata.image_spec = imspec
-    write_geotiffs(y_dash_it, modeldir, metadata,
+    write_geotiffs(y_dash_it, modeldir, metadata, lower, upper,
                    tag="{}of{}".format(strip, nstrips))
     return 0
