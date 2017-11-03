@@ -105,5 +105,6 @@ ENV/
 
 # test stuff
 test_output/
-# model files
-*.lsmodel
+
+# configs
+configs/
