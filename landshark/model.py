@@ -1,4 +1,5 @@
 """Train/test with tfrecords."""
+from collections import namedtuple
 import signal
 import logging
 import os.path
@@ -27,25 +28,28 @@ BORING_QUANTILES = (
     tf.distributions.Categorical
     )
 
+TrainingConfig = namedtuple("TrainingConfig", ["epochs", "batchsize", "samples",
+                                               "test_batchsize", "test_samples",
+                                               "use_gpu"])
+
+QueryConfig = namedtuple("QueryConfig", ["batchsize", "samples",
+                                         "percentiles", "use_gpu"])
+
 
 def train_data(records: list, batch_size: int, epochs: int=1) \
         -> tf.data.TFRecordDataset:
     """Train dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records,
-                                      compression_type="ZLIB").repeat(count=epochs) \
-        .shuffle(buffer_size=1000).batch(batch_size)
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .repeat(count=epochs) \
+        .shuffle(buffer_size=1000) \
+        .batch(batch_size)
     return dataset
 
 
-def test_data(records: list, batch_size: int, pred_samps: int=1) \
-        -> tf.data.TFRecordDataset:
-    """Train and test."""
-    dataset = tf.data.TFRecordDataset(records,
-                                      compression_type="ZLIB").batch(batch_size).interleave(
-        lambda x: tf.data.Dataset.from_tensors(x).repeat(pred_samps),
-        cycle_length=1,
-        block_length=pred_samps
-        )
+def test_data(records: list, batch_size: int) -> tf.data.TFRecordDataset:
+    """Test and query dataset feeder"""
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .batch(batch_size)
     return dataset
 
 
@@ -73,64 +77,24 @@ def decode(iterator, metadata):
     return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 
 
-def load_metadata(path):
-    with open(path, "rb") as f:
-        obj = pickle.load(f)
-    return obj
+def train_test(records_train, records_test, metadata, directory, cf, params):
 
-def predict(model, metadata, records, batch_size, pred_samples, lower, upper, use_gpu=False):
-
-    sess_config = tf.ConfigProto(device_count={"GPU": int(use_gpu)},
+    sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={'allow_growth': True})
-    model_file = tf.train.latest_checkpoint(model)
-    print("Loading model: {}".format(model_file))
 
-    graph = tf.Graph()
-    with graph.as_default():
-        sess = tf.Session(config=sess_config)
-        with sess.as_default():
-            # TODO AL reloads/rewrites the graph in memory from protobuf
-            # See glabrezu
-            save = tf.train.import_meta_graph("{}.meta".format(model_file))
-            save.restore(sess, model_file)
+    # Placeholders
+    _query_records = tf.placeholder_with_default(
+        records_test, (None,), name="QueryRecords")
+    _query_batchsize = tf.placeholder_with_default(
+        tf.constant(params.test_batchsize, dtype=tf.int64),
+        shape=tuple(), name="BatchSize")
+    _query_samples = tf.placeholder_with_default(
+        tf.constant(params.test_samples, dtype=tf.int64),
+        shape=tuple(), name="NSamples")
 
-            # Restore place holders and prediction network
-            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
-            it_op = graph.get_operation_by_name("QueryInit")
-            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
-            _predsamps = graph.get_operation_by_name("PredSamples").outputs[0]
-            F = graph.get_operation_by_name("Test/Y_sample").outputs[0]
-            feed_dict = {_records:records, _batchsize: batch_size,
-                         _predsamps: pred_samples}
-            sess.run(it_op, feed_dict=feed_dict)
-            while True:
-                try:
-                    samples = []
-                    for i in range(pred_samples):
-                        samples.append(sess.run(F, feed_dict=feed_dict))
-                    all_samples = np.concatenate(samples, axis=0)
-                    Ey = all_samples.mean(axis=0)
-                    Ly, Uy = np.percentile(all_samples, q=[lower, upper], axis=0) \
-                    .astype(Ey.dtype)
-                    yield Ey, Ly, Uy
-                except tf.errors.OutOfRangeError:
-                    return
-
-
-def train_test(records_train, records_test, metadata, directory, batch_size, epochs,
-               pred_samples, cf, use_gpu=False):
-
-    sess_config = tf.ConfigProto(device_count={"GPU": int(use_gpu)},
-                                 gpu_options={'allow_growth': True})
-    train_dataset = train_data(records_train, batch_size, epochs)
-    query_records = tf.placeholder_with_default(records_test, (None,),
-                                                name="QueryRecords")
-    _batchsize = tf.placeholder_with_default(tf.constant(batch_size, dtype=tf.int64), shape=tuple(),
-                                             name="BatchSize")
-    _predsamps = tf.placeholder_with_default(tf.constant(pred_samples, dtype=tf.int64), shape=tuple(),
-                                             name="PredSamples")
-    test_dataset = test_data(query_records, _batchsize, _predsamps)
-
+    # Datasets
+    train_dataset = train_data(records_train, params.batchsize, params.epochs)
+    test_dataset =  test_data(records_test, _query_batchsize)
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
             train_dataset.output_types,
@@ -139,36 +103,30 @@ def train_test(records_train, records_test, metadata, directory, batch_size, epo
             )
     train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-
     Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
 
+    # Model
     with tf.name_scope("Deepnet"):
         F, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
         tf.summary.scalar("loss", loss)
 
-    # Set up the training graph
+    # Training
     with tf.name_scope("Train"):
         optimizer = tf.train.AdamOptimizer()
         global_step = tf.train.create_global_step()
         train = optimizer.minimize(loss, global_step=global_step)
 
-    # Name some testing tensors for evaluation and prediction
+    # Testing / Querying
     with tf.name_scope("Test"):
-        F = tf.identity(F, name="F_sample")
+        Y_samps = tf.identity(lkhood.sample(seed=next(ab.random.seedgen)),
+                              name="Y_sample")
         logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
-
-        # Quantiles some distributions are trivial, so use the latent function
-        if isinstance(lkhood, BORING_QUANTILES):
-            tf.identity(F, name="Y_sample")
-        else:
-            tf.identity(lkhood.sample(seed=next(ab.random.seedgen)),
-                        name="Y_sample")
+        Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
         {"step": global_step, "loss": loss},
-        every_n_secs=60
-        )
+        every_n_secs=60)
 
     r2, lp = -float("inf"), float("inf")
 
@@ -185,7 +143,8 @@ def train_test(records_train, records_test, metadata, directory, batch_size, epo
             ) as sess:
 
         for i in count():
-            log.info("Training round {} with {} epochs.".format(i, epochs))
+            log.info("Training round {} with {} epochs." \
+                     .format(i, params.epochs))
             try:
 
                 # Train loop
@@ -194,7 +153,7 @@ def train_test(records_train, records_test, metadata, directory, batch_size, epo
 
                 # Test loop
                 sess.run(test_init_op)
-                Ys, EYs, lp = test_loop(Y, F, logprob, pred_samples, sess)
+                Ys, EYs, lp = test_loop(Y, Ey, logprob, sess)
 
                 # Score
                 r2 = r2_score(Ys, EYs, multioutput='raw_values')
@@ -209,6 +168,43 @@ def train_test(records_train, records_test, metadata, directory, batch_size, epo
                 break
 
 
+def predict(model, metadata, records, params):
+
+    sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
+                                 gpu_options={'allow_growth': True})
+    model_file = tf.train.latest_checkpoint(model)
+    print("Loading model: {}".format(model_file))
+
+    graph = tf.Graph()
+    with graph.as_default():
+        sess = tf.Session(config=sess_config)
+        with sess.as_default():
+            save = tf.train.import_meta_graph("{}.meta".format(model_file))
+            save.restore(sess, model_file)
+
+            # Restore place holders and prediction network
+            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
+            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
+            _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
+            feed_dict = {_records:records, _batchsize: params.batchsize,
+                         _nsamples: params.samples}
+
+            # Restore prediction network
+            it_op = graph.get_operation_by_name("QueryInit")
+            Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
+            Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
+            Per = ab.sample_percentiles(Y_samps, params.percentiles)
+
+            # Initialise the dataset iterator
+            sess.run(it_op, feed_dict=feed_dict)
+            while True:
+                try:
+                    ey, py = sess.run([Ey, Per], feed_dict=feed_dict)
+                    yield ey, py
+                except tf.errors.OutOfRangeError:
+                    return
+
+
 def train_loop(train, global_step, sess):
     try:
         while not sess.should_stop():
@@ -219,26 +215,20 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def test_loop(Y, F, logprob, n_samples, sess):
+def test_loop(Y, Ey, logprob, sess):
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
-            yaccum, lpaccum = 0., 0.
-            for j in range(n_samples):
-                y, ey, lp = sess.run([Y, F, logprob])
-                yaccum += ey
-                lpaccum += lp
-
+            y, ey, lp = sess.run([Y, Ey, logprob])
             Ys.append(y)
-            EYs.append(yaccum.mean(axis=0) / n_samples)
-            LP.append(lpaccum.mean() / n_samples)
+            EYs.append(ey)
+            LP.append(lp)
     except tf.errors.OutOfRangeError:
         log.info("Testing epoch complete.")
         pass
-
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
-    LP = np.mean(LP)
+    LP = np.concatenate(LP, axis=1).mean()
     return Ys, EYs, LP
 
 
