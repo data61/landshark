@@ -88,13 +88,13 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
     _query_batchsize = tf.placeholder_with_default(
         tf.constant(params.test_batchsize, dtype=tf.int64),
         shape=tuple(), name="BatchSize")
-    _query_samples = tf.placeholder_with_default(
-        tf.constant(params.test_samples, dtype=tf.int64),
+    _samples = tf.placeholder_with_default(
+        tf.constant(params.samples, dtype=tf.int32),
         shape=tuple(), name="NSamples")
 
     # Datasets
     train_dataset = train_data(records_train, params.batchsize, params.epochs)
-    test_dataset =  test_data(records_test, _query_batchsize)
+    test_dataset =  test_data(_query_records, _query_batchsize)
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
             train_dataset.output_types,
@@ -107,7 +107,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
     # Model
     with tf.name_scope("Deepnet"):
-        F, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, metadata)
+        F, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)
         tf.summary.scalar("loss", loss)
 
     # Training
@@ -122,6 +122,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                               name="Y_sample")
         logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
         Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
+        test_fdict = {_samples: params.test_samples}
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
@@ -152,8 +153,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                 step = train_loop(train, global_step, sess)
 
                 # Test loop
-                sess.run(test_init_op)
-                Ys, EYs, lp = test_loop(Y, Ey, logprob, sess)
+                sess.run(test_init_op, feed_dict=test_fdict)
+                Ys, EYs, lp = test_loop(Y, Ey, logprob, sess, test_fdict)
 
                 # Score
                 r2 = r2_score(Ys, EYs, multioutput='raw_values')
@@ -215,11 +216,11 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def test_loop(Y, Ey, logprob, sess):
+def test_loop(Y, Ey, logprob, sess, fdict):
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
-            y, ey, lp = sess.run([Y, Ey, logprob])
+            y, ey, lp = sess.run([Y, Ey, logprob], feed_dict=fdict)
             Ys.append(y)
             EYs.append(ey)
             LP.append(lp)
