@@ -22,7 +22,7 @@ class BatchWriter:
         self.rows_written = 0
 
     def write(self, data):
-        all_data = np.concatenate((self.res, data), axis=0)
+        all_data = np.hstack((self.res, data))
         nrows = len(all_data) // self.width
         if nrows > 0:
             # w = (slice(self.rows_written, self.rows_written + nrows),
@@ -53,27 +53,30 @@ def _make_writer(directory, label, metadata):
     return writer
 
 
-def write_geotiffs(y_dash, directory, metadata, lower, upper, tag=""):
+def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
     log.info("Initialising Geotiff writer")
     labels = [l + "_" + tag for l in metadata.target_labels]
-    lower_labels = [l + "l{}".format(lower) for l in labels]
-    upper_labels = [l + "u{}".format(upper) for l in labels]
+    perc_labels = [[l + "_p{}".format(p) for l in labels] for p in percentiles]
 
     m_writers = [_make_writer(directory, l, metadata)
                  for l in labels]
-    l_writers = [_make_writer(directory, l, metadata)
-                 for l in lower_labels]
-    u_writers = [_make_writer(directory, l, metadata)
-                 for l in upper_labels]
+    p_writers = [[_make_writer(directory, lbl, metadata) for lbl in lbl_list]
+                 for lbl_list in perc_labels]
 
-    writers = [m_writers, l_writers, u_writers]
-    for i, ybatch in enumerate(y_dash):
+    for i, (mbatch, pbatch) in enumerate(y_dash):
         log.info("Writing batch {} to disk".format(i))
-        for yq, qwriter in zip(ybatch, writers):
-            for y_i, writer_i in zip(yq.T, qwriter):
-                writer_i.write(y_i)
+
+        # write mean data
+        for ym, mwriter in zip(mbatch.T, m_writers):
+            mwriter.write(ym)
+        # write perc data
+        for perc, pwriterlist in zip(pbatch, p_writers):
+            for bandperc, pwriter in zip(perc.T, pwriterlist):
+                pwriter.write(bandperc)
 
     log.info("Closing file objects")
-    for w in writers:
-        for w_i in w:
-            w_i.close()
+    for i in m_writers:
+        i.close()
+    for i in p_writers:
+        for j in i:
+            j.close()

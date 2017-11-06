@@ -34,3 +34,10 @@ def write_metadata(directory, m):
     spec_path = os.path.join(directory, "METADATA.bin")
     with open(spec_path, "wb") as f:
         pickle.dump(m, f)
+
+
+def load_metadata(path):
+    with open(path, "rb") as f:
+        obj = pickle.load(f)
+    return obj
+
