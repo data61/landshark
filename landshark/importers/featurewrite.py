@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 MissingValueList = List[Union[np.float32, np.int32, None]]
 
 
-def write_datafile(image_stack: ImageStack, filename: str,
-                   standardise: bool) -> None:
+def write_datafile(ord_stack: ImageStack, cat_stack: ImageStack,
+                   filename: str, standardise: bool) -> None:
     """
     Write an ImageStack object to an HDF5 representation on disk.
 
@@ -38,64 +38,94 @@ def write_datafile(image_stack: ImageStack, filename: str,
     log.info("Creating HDF5 output file")
     h5file = tables.open_file(filename, mode="w", title=title)
 
-    # write the attributes to root
+    # Check inputs are consistent
+    if ord_stack is not None and cat_stack is not None:
+        if not ord_stack.can_stack(cat_stack):
+            raise ValueError("Image specifications for ordinal and categorical"
+                             " images don't match")
+
+    # Write global attributes
     log.info("Writing global attributes")
+    if ord_stack is None:
+        if cat_stack is None:
+            raise ValueError("Must have at least one of ordinal "
+                             "and categorical data")
+        else:
+            global_stack = cat_stack
+    else:
+        global_stack = ord_stack
+    _write_globals(h5file, global_stack)
+
+    if ord_stack is not None:
+        _write_ord(h5file, ord_stack, standardise)
+    if cat_stack is not None:
+        _write_cat(h5file, cat_stack)
+
+    log.info("Closing file")
+    h5file.close()
+    file_size = os.path.getsize(filename) // (1024 ** 2)
+    log.info("Written {}MB file to disk.".format(file_size))
+
+
+
+def _write_globals(h5file, global_stack):
+    # write the attributes to root
     attributes = h5file.root._v_attrs
-    attributes.height = image_stack.height
-    attributes.width = image_stack.width
-    attributes.crs = image_stack.crs
-    coords_x = image_stack.coordinates_x
-    coords_y = image_stack.coordinates_y
+    attributes.height = global_stack.height
+    attributes.width = global_stack.width
+    attributes.crs = global_stack.crs
+    coords_x = global_stack.coordinates_x
+    coords_y = global_stack.coordinates_y
     h5file.create_array(h5file.root, name="x_coordinates", obj=coords_x)
     h5file.create_array(h5file.root, name="y_coordinates", obj=coords_y)
 
-    nbands_cat = len(image_stack.categorical_bands)
-    nbands_ord = len(image_stack.ordinal_bands)
-    cat_atom = tables.Int32Atom(shape=(nbands_cat,))
+
+def _write_ord(h5file, image_stack, standardise):
+    nbands_ord = len(image_stack.bands)
+    im_shape = (image_stack.height, image_stack.width)
     ord_atom = tables.Float32Atom(shape=(nbands_ord,))
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
-
-    log.info("Creating data arrays")
-    im_shape = (image_stack.height, image_stack.width)
-    cat_array = h5file.create_carray(h5file.root, name="categorical_data",
-                                     atom=cat_atom, shape=im_shape,
-                                     filters=filters)
-    cat_array.attrs.labels = image_stack.categorical_names
     ord_array = h5file.create_carray(h5file.root, name="ordinal_data",
                                      atom=ord_atom, shape=im_shape,
                                      filters=filters)
-    ord_array.attrs.labels = image_stack.ordinal_names
-    ord_array.attrs.missing_values = image_stack.ordinal_missing
-    log.info("Categorical HDF5 block shape: {}".format(cat_array.chunkshape))
-    log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
-
-    log.info("Transforming and writing categorical data")
-    categories = _Categories(image_stack.categorical_missing)
-    _categorical_write(cat_array, image_stack.categorical_blocks, categories)
-    cat_array.attrs.mappings = categories.maps
-    cat_array.attrs.ncategories = [len(k) for k in categories.maps]
-    cat_array.attrs.missing_values = categories.missing_values
-
+    ord_array.attrs.labels = image_stack.names
+    ord_array.attrs.missing_values = image_stack.missing
     if standardise:
         stats = _Statistics(nbands_ord)
         log.info("Computing ordinal statistics for standardisation")
-        _update_stats(stats, ord_array, image_stack.ordinal_blocks,
-                      image_stack.ordinal_missing)
+        _update_stats(stats, ord_array, image_stack.blocks,
+                      image_stack.missing)
         log.info("Writing ordinal data")
-        _standardise_write(ord_array, image_stack.ordinal_blocks,
-                           image_stack.ordinal_missing, stats)
+        _standardise_write(ord_array, image_stack.blocks,
+                           image_stack.missing, stats)
         ord_array.attrs.mean = stats.mean
         ord_array.attrs.variance = stats.variance
     else:
         log.info("Writing ordinal data")
         ord_array.attrs.mean = None
         ord_array.attrs.variance = None
-        _write(ord_array, image_stack.ordinal_blocks)
+        _write(ord_array, image_stack.blocks)
 
-    log.info("Closing file")
-    h5file.close()
-    file_size = os.path.getsize(filename) // (1024 ** 2)
-    log.info("Written {}MB file to disk.".format(file_size))
+
+def _write_cat(h5file, image_stack):
+    nbands_cat = len(image_stack.bands)
+    cat_atom = tables.Int32Atom(shape=(nbands_cat,))
+    filters = tables.Filters(complevel=1, complib="blosc:lz4")
+
+    im_shape = (image_stack.height, image_stack.width)
+    cat_array = h5file.create_carray(h5file.root, name="categorical_data",
+                                     atom=cat_atom, shape=im_shape,
+                                     filters=filters)
+    cat_array.attrs.labels = image_stack.names
+    log.info("Categorical HDF5 block shape: {}".format(cat_array.chunkshape))
+    log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
+
+    log.info("Transforming and writing categorical data")
+    categories = _Categories(image_stack.missing)
+    _categorical_write(cat_array, image_stack.blocks, categories)
+    cat_array.attrs.mappings = categories.maps
+    cat_array.attrs.ncategories = [len(k) for k in categories.maps]
+    cat_array.attrs.missing_values = categories.missing_values
 
 
 def _to_masked(array: np.ndarray, missing_values: MissingValueList) \

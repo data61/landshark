@@ -37,8 +37,11 @@ def cli(verbosity: str) -> int:
 
 
 def _tifnames(directory: str) -> List[str]:
-    names = glob(os.path.join(directory, "*.tif"))
-    result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+    if directory is not None:
+        names = glob(os.path.join(directory, "*.tif"))
+        result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+    else:
+        result = None
     return result
 
 
@@ -53,10 +56,17 @@ def tifs(categorical: str, ordinal: str,
          name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
-    cat_tif_filenames = _tifnames(categorical)
-    ord_tif_filenames = _tifnames(ordinal)
-    stack = ImageStack(cat_tif_filenames, ord_tif_filenames)
-    write_datafile(stack, out_filename, standardise)
+
+    ord_stack, cat_stack = None, None
+
+    if ordinal:
+        ord_tif_filenames = _tifnames(ordinal)
+        ord_stack = ImageStack(ord_tif_filenames, 'ordinal')
+    if categorical:
+        cat_tif_filenames = _tifnames(categorical)
+        cat_stack = ImageStack(cat_tif_filenames, 'categorical')
+
+    write_datafile(ord_stack, cat_stack, out_filename, standardise)
     return 0
 
 
