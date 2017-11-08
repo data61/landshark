@@ -9,7 +9,7 @@ from itertools import count
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
-from sklearn.metrics import r2_score
+from sklearn.metrics import accuracy_score, log_loss, r2_score
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -82,6 +82,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={'allow_growth': True})
 
+    classification = metadata.target_dtype != np.float32
+
     # Placeholders
     _query_records = tf.placeholder_with_default(
         records_test, (None,), name="QueryRecords")
@@ -120,16 +122,22 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
     with tf.name_scope("Test"):
         Y_samps = tf.identity(lkhood.sample(seed=next(ab.random.seedgen)),
                               name="Y_sample")
-        logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
-        Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
         test_fdict = {_samples: params.test_samples}
+
+        if classification:
+            prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
+            acc, lp = 0.0 , -float("inf")
+        else:
+            logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
+            Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
+            r2, lp = -float("inf"), float("inf")
+
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
         {"step": global_step, "loss": loss},
         every_n_secs=60)
 
-    r2, lp = -float("inf"), float("inf")
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -154,18 +162,20 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
-                Ys, EYs, lp = test_loop(Y, Ey, logprob, sess, test_fdict)
-
-                # Score
-                r2 = r2_score(Ys, EYs, multioutput='raw_values')
-                rsquare_summary(r2, sess, metadata.target_labels, step)
-                logprob_summary(lp, sess, step)
-                log.info("Aboleth r2: {}, mlp: {:.5f}"
-                         .format(r2, lp))
+                if classification:
+                    acc, bacc, ll = classify_test_loop(Y, prob, sess, test_fdict,
+                                                       metadata, step)
+                else:
+                    r2, lp = regress_test_loop(Y, Ey, logprob, sess,
+                                               test_fdict)
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
-                log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
+                if classification:
+                    log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
+                             "Final ll: {:.5f}.".format(acc, bacc, ll))
+                else:
+                    log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
 
 
@@ -216,7 +226,37 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def test_loop(Y, Ey, logprob, sess, fdict):
+def classify_test_loop(Y, prob, sess, fdict, metadata, step):
+    Ys = []
+    Ps = []
+    try:
+        while not sess.should_stop():
+            y, p = sess.run([Y, prob], feed_dict=fdict)
+            Ys.append(y)
+            Ps.append(p)
+    except tf.errors.OutOfRangeError:
+        log.info("Testing epoch complete.")
+    Ys = np.vstack(Ys)[:, 0]
+    Ps = np.vstack(Ps)
+    Ey = np.argmax(Ps, axis=1)
+    nlabels = len(metadata.target_map[0])
+    labels = np.arange(nlabels)
+    counts = np.bincount(Ys, minlength=nlabels)
+    weights = np.zeros_like(counts, dtype=float)
+    weights[counts != 0] = 1. / counts[counts!= 0].astype(float)
+    sample_weights = weights[Ys]
+    acc = accuracy_score(Ys, Ey)
+    bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
+    ll = log_loss(Ys, Ps, labels=labels)
+    acc_summary(acc, sess, step)
+    bacc_summary(bacc, sess, step)
+    logloss_summary(ll, sess, step)
+    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, ll: {:.5f}" .format(acc,
+                                                                     bacc, ll))
+    return acc, bacc, ll
+
+
+def regress_test_loop(Y, Ey, logprob, sess, fdict):
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
@@ -229,8 +269,13 @@ def test_loop(Y, Ey, logprob, sess, fdict):
         pass
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
-    LP = np.concatenate(LP, axis=1).mean()
-    return Ys, EYs, LP
+    lp = np.concatenate(LP, axis=1).mean()
+    r2 = r2_score(Ys, EYs, multioutput='raw_values')
+    rsquare_summary(r2, sess, metadata.target_labels, step)
+    logprob_summary(lp, sess, step)
+    log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
+    return r2, lp
+
 
 
 def rsquare_summary(r2, session, labels, step=None):
@@ -245,6 +290,24 @@ def rsquare_summary(r2, session, labels, step=None):
 def logprob_summary(logprob, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
     sum_val = tf.Summary.Value(tag='mean log prob', simple_value=logprob)
+    score_sum = tf.Summary(value=[sum_val])
+    summary_writer.add_summary(score_sum, step)
+
+def logloss_summary(logloss, session, step=None):
+    summary_writer = session._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag='log loss', simple_value=logloss)
+    score_sum = tf.Summary(value=[sum_val])
+    summary_writer.add_summary(score_sum, step)
+
+def acc_summary(acc, session, step=None):
+    summary_writer = session._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag='accuracy', simple_value=acc)
+    score_sum = tf.Summary(value=[sum_val])
+    summary_writer.add_summary(score_sum, step)
+
+def bacc_summary(bacc, session, step=None):
+    summary_writer = session._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag='balanced accuracy', simple_value=bacc)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 

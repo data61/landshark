@@ -81,14 +81,16 @@ def tifs(categorical: str, ordinal: str,
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
 @click.option("--name", type=str, required=True)
+@click.option("--every", type=int, default=1)
 def targets(shapefile: str, test_frac: float, random_seed: int,
             features: str, batchsize: int, halfwidth: int,
             cache_blocksize: int, cache_nblocks: int,
             targets: List[str],
-            name: str) -> int:
+            name: str,
+            every: int) -> int:
     """Build training and testing data from shapefile."""
     log.info("Loading shapefile targets")
-    target_obj = ShapefileTargets(shapefile, targets)
+    target_obj = ShapefileTargets(shapefile, targets, batchsize, every)
     log.info("Loading image feature stack")
     feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
     target_it = target_obj.batches()

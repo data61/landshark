@@ -44,8 +44,7 @@ def _training_fn(target_data, features: ImageFeatures, halfwidth: int) \
                                      features.image_spec.y_coordinates)
     ord_marray, cat_marray = _read_batch(indices_x, indices_y,
                                          features, halfwidth)
-    t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray, y=targets)
-    return t
+    return ord_marray, cat_marray, targets
 
 
 def training_data(target_it, features, halfwidth):

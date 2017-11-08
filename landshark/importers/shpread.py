@@ -87,13 +87,14 @@ class ShapefileTargets:
         The shapefile (.shp)
     """
     def __init__(self, filename: str, labels: List[str],
-                 batchsize: int=100) -> None:
+                 batchsize: int=100, subsample_factor: int=1) -> None:
         """Construct an instance of ShapefileTargets."""
         self._sf = shapefile.Reader(filename)
         self.all_fields, self.all_dtypes = _get_record_info(self._sf)
         self.labels = labels
         self._label_indices = _get_indices(self.labels, self.all_fields)
         self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes)
+        self.subsample_factor = subsample_factor
 
         # if dtype is not float assume it's a classification task
         if self.dtype != np.float32 or self.dtype != np.float64:
@@ -103,9 +104,12 @@ class ShapefileTargets:
             self.classification = False
 
         self._ntotal = self._sf.numRecords
-        self.n = self._ntotal
+        self.n = self._ntotal // self.subsample_factor
+        log.info("Shapefile contains {} records "
+                 "of {} requested targets.".format(self.n, len(self.labels)))
         self.batchsize = batchsize
         self._seen_all_data = False
+
 
     def _data(self) -> Iterator[np.ndarray]:
         """Create an iterator for the shapefile data.
@@ -117,7 +121,9 @@ class ShapefileTargets:
         ------
 
         """
-        for sr in self._sf.iterShapeRecords():
+        it = itertools.islice(self._sf.iterShapeRecords(), 0, None,
+                              self.subsample_factor)
+        for sr in it:
             coords = _to_coords(sr.shape)
             array = _to_array(sr.record, self._label_indices, self.dtype)
             yield coords, array
@@ -137,6 +143,6 @@ class ShapefileTargets:
     @property
     def categorical_map(self):
         if not self._seen_all_data:
-            raise RuntimeError("You must complete the data iterator before
-                               having the category mappings")
-        return self._categories.maps()
+            raise RuntimeError("You must complete the data iterator before"
+                               " having the category mappings")
+        return self._categories.maps
