@@ -18,7 +18,7 @@ FILESIZE = 100
 def query(data, output_directory, tag):
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
-        writer.add(d)
+        writer.add((d[0], d[1], None))
     writer.close()
 
 

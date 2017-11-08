@@ -78,7 +78,7 @@ def query_data(indices: Iterator[Any], features: ImageFeatures,
 
     def f(x):
         x_ord, x_cat = _read_batch(x[0], x[1], features, halfwidth)
-        return QueryBatch(x_ord, x_cat)
+        return x_ord, x_cat
 
     query_it = map(f, indices)
     return query_it

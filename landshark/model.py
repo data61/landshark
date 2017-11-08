@@ -126,7 +126,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
         if classification:
             prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
-            acc, lp = 0.0 , -float("inf")
+            Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+            acc, bacc, lp = 0.0, 0.0, -float("inf")
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
             Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
@@ -163,8 +164,9 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    acc, bacc, ll = classify_test_loop(Y, prob, sess, test_fdict,
-                                                       metadata, step)
+                    acc, bacc, ll = classify_test_loop(Y, Ey, prob, sess,
+                                                       test_fdict, metadata,
+                                                       step)
                 else:
                     r2, lp = regress_test_loop(Y, Ey, logprob, sess,
                                                test_fdict)
@@ -180,6 +182,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
 
 def predict(model, metadata, records, params):
+
+    classification = metadata.target_dtype != np.float32
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={'allow_growth': True})
@@ -202,19 +206,25 @@ def predict(model, metadata, records, params):
 
             # Restore prediction network
             it_op = graph.get_operation_by_name("QueryInit")
-            Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
-            Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
-            Per = ab.sample_percentiles(Y_samps, params.percentiles)
+
+            if classification:
+                Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
+                prob = graph.get_operation_by_name("Test/prob").outputs[0]
+                eval_list = [Ey, prob]
+            else:
+                Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
+                Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
+                Per = ab.sample_percentiles(Y_samps, params.percentiles)
+                eval_list = [Ey, Per]
 
             # Initialise the dataset iterator
             sess.run(it_op, feed_dict=feed_dict)
             while True:
                 try:
-                    ey, py = sess.run([Ey, Per], feed_dict=feed_dict)
-                    yield ey, py
+                    res = sess.run(eval_list, feed_dict=feed_dict)
+                    yield res
                 except tf.errors.OutOfRangeError:
                     return
-
 
 def train_loop(train, global_step, sess):
     try:
@@ -226,19 +236,21 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def classify_test_loop(Y, prob, sess, fdict, metadata, step):
+def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
+    Eys = []
     Ys = []
     Ps = []
     try:
         while not sess.should_stop():
-            y, p = sess.run([Y, prob], feed_dict=fdict)
+            y, p, ey = sess.run([Y, prob, Ey], feed_dict=fdict)
             Ys.append(y)
             Ps.append(p)
+            Eys.append(ey)
     except tf.errors.OutOfRangeError:
         log.info("Testing epoch complete.")
     Ys = np.vstack(Ys)[:, 0]
     Ps = np.vstack(Ps)
-    Ey = np.argmax(Ps, axis=1)
+    Ey = np.hstack(Eys)
     nlabels = len(metadata.target_map[0])
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)
