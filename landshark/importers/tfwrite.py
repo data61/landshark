@@ -64,7 +64,6 @@ def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
 
 
 def _write(batch, writer):
-    if hasattr(batch, 'y'):
         it = zip(batch.x_ord, batch.x_cat, batch.y)
     else:
         it = zip(batch.x_ord, batch.x_cat, repeat(np.zeros(3)))

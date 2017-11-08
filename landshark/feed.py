@@ -124,8 +124,11 @@ def _read_batch(indices_x: np.ndarray, indices_y: np.ndarray,
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
 
-    ord_marray = _read(features.ord, patch_reads,
-                       mask_reads, npatches, patchwidth)
-    cat_marray = _read(features.cat, patch_reads, mask_reads,
-                       npatches, patchwidth)
+    ord_marray, cat_marray = None, None
+    if features.ord is not None:
+        ord_marray = _read(features.ord, patch_reads,
+                           mask_reads, npatches, patchwidth)
+    if features.cat is not None:
+        cat_marray = _read(features.cat, patch_reads, mask_reads,
+                           npatches, patchwidth)
     return ord_marray, cat_marray

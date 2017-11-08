@@ -96,6 +96,7 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     directory = os.path.join(os.getcwd(), name + "_trainingdata")
     log.info("Writing training data to tfrecords")
     n_train = tfwrite.training(training_it, directory, test_frac, random_seed)
+
     log.info("Writing metadata")
     metadata = mt.from_data(feature_obj, target_obj, halfwidth, n_train)
     mt.write_metadata(directory, metadata)
