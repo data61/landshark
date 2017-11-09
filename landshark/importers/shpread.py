@@ -36,15 +36,6 @@ def _get_record_info(shp):
     return labels, type_list
 
 
-def _get_dtype(labels, all_labels, all_dtypes):
-    dtype_dict = dict(zip(all_labels, all_dtypes))
-    dtype_set = {dtype_dict[l] for l in labels}
-    if len(dtype_set) > 1:
-        raise ValueError("Requested target labels have different types")
-    dtype = dtype_set.pop()
-    return dtype
-
-
 def _to_array(record, indices, dtype):
     x_i = np.array([record[i] for i in indices], dtype=dtype)
     return x_i
@@ -87,21 +78,19 @@ class ShapefileTargets:
         The shapefile (.shp)
     """
     def __init__(self, filename: str, labels: List[str],
-                 batchsize: int=100, subsample_factor: int=1) -> None:
+                 batchsize: int=100, subsample_factor: int=1,
+                 is_categorical: bool=False) -> None:
         """Construct an instance of ShapefileTargets."""
         self._sf = shapefile.Reader(filename)
         self.all_fields, self.all_dtypes = _get_record_info(self._sf)
         self.labels = labels
         self._label_indices = _get_indices(self.labels, self.all_fields)
-        self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes)
+        self.dtype = np.int32 if is_categorical else np.float32
         self.subsample_factor = subsample_factor
+        self.is_categorical = is_categorical
 
-        # if dtype is not float assume it's a classification task
-        if self.dtype != np.float32 or self.dtype != np.float64:
-            self.classification = True
+        if is_categorical:
             self._categories = _Categories([None] * len(self.labels))
-        else:
-            self.classification = False
 
         self._ntotal = self._sf.numRecords
         self.n = self._ntotal // self.subsample_factor
@@ -132,7 +121,7 @@ class ShapefileTargets:
     def batches(self):
         list_batch_it = iteration.batch(self._data(), self.batchsize)
         batch_it = map(_convert_batch, list_batch_it)
-        if self.classification:
+        if self.is_categorical:
             f = partial(_categorical_batch, categories=self._categories)
             res_batch_it = map(f, batch_it)
         else:
@@ -142,7 +131,10 @@ class ShapefileTargets:
 
     @property
     def categorical_map(self):
-        if not self._seen_all_data:
-            raise RuntimeError("You must complete the data iterator before"
-                               " having the category mappings")
-        return self._categories.maps
+        if self.is_categorical:
+            if not self._seen_all_data:
+                raise RuntimeError("You must complete the data iterator before"
+                                   " having the category mappings")
+            return self._categories.maps
+        else:
+            return None

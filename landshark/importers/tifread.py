@@ -95,16 +95,18 @@ class ImageStack:
 
 
     def can_stack(self, image_stack):
-        height_ok = ord_stack.height == cat_stack.height
-        width_ok  = ord_stack.width == cat_stack.width
-        crs_ok = ord_stack.crs == cat_stack.crs
-        coords_x_ok = np.all(ord_stack.coordinates_x
-                             == cat_stack.coordinates_x)
-        coords_y_ok = np.all(ord_stack.coordinates_y
-                             == cat_stack.coordinates_y)
-        all_okay = height_ok and width_ok and crs_ok \
+        height_ok = self.height == image_stack.height
+        width_ok  = self.width == image_stack.width
+        # TODO fix sirsam so this doesnt break
+        #crs_ok = self.crs == image_stack.crs
+        crs_ok = True
+        coords_x_ok = np.all(self.coordinates_x
+                             == image_stack.coordinates_x)
+        coords_y_ok = np.all(self.coordinates_y
+                             == image_stack.coordinates_y)
+        all_ok = height_ok and width_ok and crs_ok \
             and coords_x_ok and coords_y_ok
-        return all_okay
+        return all_ok
 
 
 

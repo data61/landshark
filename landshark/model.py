@@ -164,18 +164,18 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    acc, bacc, ll = classify_test_loop(Y, Ey, prob, sess,
+                    acc, bacc, lp = classify_test_loop(Y, Ey, prob, sess,
                                                        test_fdict, metadata,
                                                        step)
                 else:
                     r2, lp = regress_test_loop(Y, Ey, logprob, sess,
-                                               test_fdict)
+                                               test_fdict, metadata, step)
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
                 if classification:
                     log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
-                             "Final ll: {:.5f}.".format(acc, bacc, ll))
+                             "Final lp: {:.5f}.".format(acc, bacc, lp))
                 else:
                     log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
@@ -259,16 +259,16 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     sample_weights = weights[Ys]
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
-    ll = log_loss(Ys, Ps, labels=labels)
+    lp = -1 * log_loss(Ys, Ps, labels=labels)
     acc_summary(acc, sess, step)
     bacc_summary(bacc, sess, step)
     logloss_summary(ll, sess, step)
-    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, ll: {:.5f}" .format(acc,
-                                                                     bacc, ll))
-    return acc, bacc, ll
+    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}" .format(acc,
+                                                                      bacc, lp))
+    return acc, bacc,lp
 
 
-def regress_test_loop(Y, Ey, logprob, sess, fdict):
+def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():

@@ -35,11 +35,6 @@ def from_data(feature_obj, target_obj, halfwidth, n_train):
         nfeatures_cat = feature_obj.cat.nfeatures
         ncategories = feature_obj.cat.ncategories
 
-    if target_obj.classification:
-        target_map = target_obj.categorical_map
-    else:
-        target_map = None
-
     m = TrainingMetadata(ntargets=len(target_obj.labels),
                          target_dtype = target_obj.dtype,
                          nfeatures_ord = nfeatures_ord,
@@ -49,7 +44,7 @@ def from_data(feature_obj, target_obj, halfwidth, n_train):
                          ncategories=ncategories,
                          target_labels=target_obj.labels,
                          image_spec=feature_obj.image_spec,
-                         target_map=target_map)
+                         target_map=target_obj.categorical_map)
     return m
 
 def write_metadata(directory, m):

@@ -90,6 +90,7 @@ def _write_ord(h5file, image_stack, standardise):
                                      filters=filters)
     ord_array.attrs.labels = image_stack.names
     ord_array.attrs.missing_values = image_stack.missing
+    log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
     if standardise:
         stats = _Statistics(nbands_ord)
         log.info("Computing ordinal statistics for standardisation")
@@ -118,7 +119,6 @@ def _write_cat(h5file, image_stack):
                                      filters=filters)
     cat_array.attrs.labels = image_stack.names
     log.info("Categorical HDF5 block shape: {}".format(cat_array.chunkshape))
-    log.info("Ordinal HDF5 block shape: {}".format(ord_array.chunkshape))
 
     log.info("Transforming and writing categorical data")
     categories = _Categories(image_stack.missing)
