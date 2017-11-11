@@ -52,6 +52,14 @@ def _to_coords(shape):
     return result
 
 
+def _get_dtype(labels, all_labels, all_dtypes):
+    dtype_dict = dict(zip(all_labels, all_dtypes))
+    dtype_set = {dtype_dict[l] for l in labels}
+    if len(dtype_set) > 1:
+        raise ValueError("Requested target labels have different types")
+    dtype = dtype_set.pop()
+    return dtype
+
 def _convert_batch(b):
     coords, arrays = zip(*b)
     coords_x, coords_y = zip(*coords)
@@ -85,7 +93,8 @@ class ShapefileTargets:
         self.all_fields, self.all_dtypes = _get_record_info(self._sf)
         self.labels = labels
         self._label_indices = _get_indices(self.labels, self.all_fields)
-        self.dtype = np.int32 if is_categorical else np.float32
+        self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes) \
+            if is_categorical else np.float32
         self.subsample_factor = subsample_factor
         self.is_categorical = is_categorical
 
@@ -110,16 +119,20 @@ class ShapefileTargets:
         ------
 
         """
-        it = itertools.islice(self._sf.iterShapeRecords(), 0, None,
-                              self.subsample_factor)
-        for sr in it:
+        # TODO: don't use so much memory
+        rnd = np.random.RandomState(666)
+        perm = rnd.permutation(self._ntotal)[0:self.n]
+        # it = itertools.islice(self._sf.iterShapeRecords(), 0, None,
+        #                       self.subsample_factor)
+        for i in perm:
+            sr = self._sf.shapeRecord(i)
             coords = _to_coords(sr.shape)
             array = _to_array(sr.record, self._label_indices, self.dtype)
             yield coords, array
         self._seen_all_data = True
 
     def batches(self):
-        list_batch_it = iteration.batch(self._data(), self.batchsize)
+        list_batch_it = iteration.batch(self._data(), self.batchsize, self.n)
         batch_it = map(_convert_batch, list_batch_it)
         if self.is_categorical:
             f = partial(_categorical_batch, categories=self._categories)
@@ -128,6 +141,16 @@ class ShapefileTargets:
             res_batch_it = batch_it
 
         return res_batch_it
+
+    @property
+    def categorical_counts(self):
+        if self.is_categorical:
+            if not self._seen_all_data:
+                raise RuntimeError("You must complete the data iterator before"
+                                   " having the category counts")
+            return self._categories.counts
+        else:
+            return None
 
     @property
     def categorical_map(self):

@@ -11,9 +11,13 @@ def _update_maps(map_dict, value_set, data, max_categories=5000):
     value_set.update(new_values)
     assert(len(value_set) < max_categories)
 
-def _transform_cats(map_dict, old_array, new_array):
+def _transform_cats(map_dict, old_array, new_array, counts):
     for k, v in map_dict.items():
-        new_array[old_array == k] = v
+        indices = old_array == k
+        new_array[indices] = v
+        if v not in counts:
+            counts[v] = 0
+        counts[v] += np.sum(indices)
 
 def _transform_missing(missing_values):
     result = [(np.int32(0) if k is not None else None) for k in missing_values]
@@ -31,6 +35,7 @@ class _Categories:
         n_features = len(missing_values)
         self._values = [set() for _ in range(n_features)]
         self._maps = [dict() for _ in range(n_features)]
+        self._counts = [dict() for _ in range(n_features)]
         for i, k in enumerate(missing_values):
             if k is not None:
                 self._values[i].add(k)
@@ -40,12 +45,17 @@ class _Categories:
         new_array = np.zeros_like(array, dtype=np.int32)
         for i, data in enumerate(array.T):
             _update_maps(self._maps[i], self._values[i], data)
-            _transform_cats(self._maps[i], array[..., i], new_array[..., i])
+            _transform_cats(self._maps[i], array[..., i], new_array[..., i],
+                            self._counts[i])
         return new_array
 
     @property
     def missing_values(self):
         return self._missing_values
+
+    @property
+    def counts(self):
+        return self._counts
 
     @property
     def maps(self):

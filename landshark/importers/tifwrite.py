@@ -39,8 +39,6 @@ class BatchWriter:
         self.f.close()
 
 def _make_writer(directory, label, dtype, image_spec):
-    log.info("Image width: {} height: {}".format(image_spec.width,
-                                                 image_spec.height))
     params = dict(driver="GTiff", width=image_spec.width,
                   height=image_spec.height, count=1, dtype=dtype,
                   crs=image_spec.crs, affine=image_spec.affine)
@@ -60,7 +58,9 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
 
     classification = metadata.target_dtype != np.float32
 
-    log.info("Initialising Geotiff writer")
+    log.info("Initialising Geotiff writers")
+    log.info("Image width: {} height: {}".format(metadata.image_spec.width,
+                                                 metadata.image_spec.height))
     labels = [l + "_" + tag for l in metadata.target_labels]
 
     if classification:
@@ -72,7 +72,6 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
         p_writers = [_make_writer(directory, l, np.float32,
                                   metadata.image_spec) for l in p_labels]
         for b, (ey_batch, prob_batch) in enumerate(y_dash):
-            log.info("Writing batch {} to disk".format(b))
             ey_writer.write(ey_batch)
             for d, w in zip(prob_batch.T, p_writers):
                 w.write(d)
@@ -91,7 +90,6 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
                      for lbl_list in perc_labels]
 
         for i, (mbatch, pbatch) in enumerate(y_dash):
-            log.info("Writing batch {} to disk".format(i))
 
             # write mean data
             for ym, mwriter in zip(mbatch.T, m_writers):

@@ -6,6 +6,8 @@ import os.path
 import pickle
 from itertools import count
 
+
+from tqdm import tqdm
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
@@ -183,6 +185,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
 def predict(model, metadata, records, params):
 
+    total_size = metadata.image_spec.height * metadata.image_spec.width
     classification = metadata.target_dtype != np.float32
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
@@ -219,12 +222,14 @@ def predict(model, metadata, records, params):
 
             # Initialise the dataset iterator
             sess.run(it_op, feed_dict=feed_dict)
-            while True:
-                try:
-                    res = sess.run(eval_list, feed_dict=feed_dict)
-                    yield res
-                except tf.errors.OutOfRangeError:
-                    return
+            with tqdm(total=total_size) as pbar:
+                while True:
+                    try:
+                        res = sess.run(eval_list, feed_dict=feed_dict)
+                        pbar.update(res[0].shape[0])
+                        yield res
+                    except tf.errors.OutOfRangeError:
+                        return
 
 def train_loop(train, global_step, sess):
     try:
@@ -262,7 +267,7 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     lp = -1 * log_loss(Ys, Ps, labels=labels)
     acc_summary(acc, sess, step)
     bacc_summary(bacc, sess, step)
-    logloss_summary(ll, sess, step)
+    logloss_summary(lp, sess, step)
     log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}" .format(acc,
                                                                       bacc, lp))
     return acc, bacc,lp
