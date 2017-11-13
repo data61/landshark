@@ -30,6 +30,42 @@ def cli(verbosity: str) -> int:
     configure_logging(verbosity)
     return 0
 
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.option("--batchsize", type=click.IntRange(min=1), default=1000,
+              help="Training batch size")
+@click.option("--maxpoints", type=int, default=2000)
+@click.option("--trees", type=int, default=100)
+@click.option("--random_seed", type=int, default=666)
+def baseline(directory: str, batchsize: int, maxpoints: int,
+             trees: int, random_seed: int) -> int:
+    """Train a model specified by an input configuration."""
+    name = os.path.basename(directory) + "_baseline"
+
+    # Get the data
+    test_dir = os.path.join(directory, "testing")
+    training_records = glob(os.path.join(directory, "*.tfrecord"))
+    testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
+
+    # Get metadata for feeding to the model
+    metadata_path = os.path.join(directory, "METADATA.bin")
+    metadata = load_metadata(metadata_path)
+
+    # Write the metadata
+    model_dir = os.path.join(os.getcwd(), name)
+    try:
+        os.makedirs(model_dir)
+    except FileExistsError:
+        pass
+    write_metadata(model_dir, metadata)
+
+    # Train
+    print('calling train')
+    rf.train_test(training_records, testing_records, metadata, model_dir,
+                  maxpoints, trees, batchsize, random_seed)
+    print('called train')
+    return 0
+
 
 @cli.command()
 @click.argument("directory", type=click.Path(exists=True))
@@ -79,30 +115,6 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
                                      test_batchsize, test_samples, gpu)
     model.train_test(training_records, testing_records, metadata, model_dir,
                      cf, training_params)
-    return 0
-
-
-@cli.command()
-@click.argument("traindir", type=click.Path(exists=True))
-@click.argument("querydir", type=click.Path(exists=True))
-@click.option("--npoints", type=int, default=1000)
-@click.option("--trees", type=int, default=100)
-def baseline(traindir: str, querydir: str, npoints: int, trees: int) -> int:
-    """Run a random forest model as a baseline for comparison."""
-
-    # Get the data
-    testdir = os.path.join(traindir, "testing")
-    training_records = glob(os.path.join(traindir, "*.tfrecord"))
-    testing_records = glob(os.path.join(testdir, "*.tfrecord"))
-    query_records = glob(os.path.join(querydir, "*.tfrecord"))
-    # Get metadata for feeding to the model
-    metadata_path = os.path.join(traindir, "METADATA.bin")
-    metadata = load_metadata(metadata_path)
-
-    # Train
-    y_it = rf.train_test_predict(training_records, testing_records,
-                                 query_records, metadata, npoints, trees)
-    write_geotiffs(y_it, traindir, metadata, tag="baseline")
     return 0
 
 
