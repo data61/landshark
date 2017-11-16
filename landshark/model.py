@@ -2,8 +2,6 @@
 from collections import namedtuple
 import signal
 import logging
-import os.path
-import pickle
 from itertools import count
 
 
@@ -24,11 +22,6 @@ FDICT = {
     "x_ord_mask": tf.FixedLenFeature([], tf.string),
     "y": tf.FixedLenFeature([], tf.string)
     }
-
-BORING_QUANTILES = (
-    tf.distributions.Bernoulli,
-    tf.distributions.Categorical
-    )
 
 TrainingConfig = namedtuple("TrainingConfig", ["epochs", "batchsize", "samples",
                                                "test_batchsize", "test_samples",
@@ -98,7 +91,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
     # Datasets
     train_dataset = train_data(records_train, params.batchsize, params.epochs)
-    test_dataset =  test_data(_query_records, _query_batchsize)
+    test_dataset = test_data(_query_records, _query_batchsize)
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
             train_dataset.output_types,
