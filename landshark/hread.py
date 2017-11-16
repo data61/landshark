@@ -35,18 +35,21 @@ class ImageFeatures:
         assert len(y_coordinates) == height + 1
         spec = image.ImageSpec(x_coordinates, y_coordinates, crs)
         self.image_spec = spec
-        self.ord = Features(
-            self._hfile.root.ordinal_data,
-            cache_blocksize,
-            cache_nblocks
-            )
-        self.cat = Features(
-            self._hfile.root.categorical_data,
-            cache_blocksize,
-            cache_nblocks
-            )
-        self.ncategories = \
-            self._hfile.root.categorical_data._v_attrs.ncategories
+        self.ord, self.cat = None, None
+        if hasattr(self._hfile.root, 'ordinal_data'):
+            self.ord = Features(
+                self._hfile.root.ordinal_data,
+                cache_blocksize,
+                cache_nblocks
+                )
+        if hasattr(self._hfile.root, 'categorical_data'):
+            self.cat = Features(
+                self._hfile.root.categorical_data,
+                cache_blocksize,
+                cache_nblocks
+                )
+            self.cat.ncategories = \
+                self._hfile.root.categorical_data._v_attrs.ncategories
 
     def pixel_indices(self, batchsize: int) \
             -> Iterable[Tuple[np.ndarray, np.ndarray]]:

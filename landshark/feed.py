@@ -44,8 +44,7 @@ def _training_fn(target_data, features: ImageFeatures, halfwidth: int) \
                                      features.image_spec.y_coordinates)
     ord_marray, cat_marray = _read_batch(indices_x, indices_y,
                                          features, halfwidth)
-    t = TrainingBatch(x_ord=ord_marray, x_cat=cat_marray, y=targets)
-    return t
+    return ord_marray, cat_marray, targets
 
 
 def training_data(target_it, features, halfwidth):
@@ -79,7 +78,7 @@ def query_data(indices: Iterator[Any], features: ImageFeatures,
 
     def f(x):
         x_ord, x_cat = _read_batch(x[0], x[1], features, halfwidth)
-        return QueryBatch(x_ord, x_cat)
+        return x_ord, x_cat
 
     query_it = map(f, indices)
     return query_it
@@ -124,8 +123,11 @@ def _read_batch(indices_x: np.ndarray, indices_y: np.ndarray,
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
 
-    ord_marray = _read(features.ord, patch_reads,
-                       mask_reads, npatches, patchwidth)
-    cat_marray = _read(features.cat, patch_reads, mask_reads,
-                       npatches, patchwidth)
+    ord_marray, cat_marray = None, None
+    if features.ord is not None:
+        ord_marray = _read(features.ord, patch_reads,
+                           mask_reads, npatches, patchwidth)
+    if features.cat is not None:
+        cat_marray = _read(features.cat, patch_reads, mask_reads,
+                           npatches, patchwidth)
     return ord_marray, cat_marray

@@ -18,11 +18,11 @@ FILESIZE = 100
 def query(data, output_directory, tag):
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
-        writer.add(d)
+        writer.add((d[0], d[1], None))
     writer.close()
 
 
-def training(data: Iterator[TrainingBatch], output_directory: str,
+def training(data, output_directory: str,
              test_frac: float, random_seed: int=666) -> int:
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
@@ -34,7 +34,7 @@ def training(data: Iterator[TrainingBatch], output_directory: str,
     n_train = 0
     for d in data:
         train_batch, test_batch = _split_on_mask(d, rnd, test_frac)
-        n_train += train_batch.y.shape[0]
+        n_train += train_batch[2].shape[0]
         writer.add(train_batch)
         test_writer.add(test_batch)
     writer.close()
@@ -64,12 +64,19 @@ def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
 
 
 def _write(batch, writer):
-    if hasattr(batch, 'y'):
-        it = zip(batch.x_ord, batch.x_cat, batch.y)
-    else:
-        it = zip(batch.x_ord, batch.x_cat, repeat(np.zeros(3)))
-    for x_ord, x_cat, y in it:
-        fdict = _make_features(x_ord, x_cat, y)
+
+    x_ord, x_cat, y = batch
+
+    if x_ord is None:
+        x_ord = repeat(np.ma.MaskedArray(data=[], mask=[]))
+    if x_cat is None:
+        x_cat = repeat(np.ma.MaskedArray(data=[], mask=[]))
+    if y is None:
+        # TODO dont know the dtype so this is a bit dodgy
+        y = repeat(np.array([], dtype=np.float32))
+
+    for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):
+        fdict = _make_features(xo_i, xc_i, y_i)
         example = tf.train.Example(
             features=tf.train.Features(feature=fdict))
         writer.write(example.SerializeToString())
@@ -109,14 +116,19 @@ class _MultiFileWriter:
 
 
 def _split_on_mask(d, rnd, test_frac):
-    n = d.y.shape[0]
+    n = d[2].shape[0]
     mask = rnd.choice([True, False], size=(n,),
                       p=[test_frac, 1.0 - test_frac])
     nmask = ~mask
-    test_batch = TrainingBatch(x_ord=d.x_ord[mask],
-                               x_cat=d.x_cat[mask],
-                               y=d.y[mask])
-    train_batch = TrainingBatch(x_ord=d.x_ord[nmask],
-                                x_cat=d.x_cat[nmask],
-                                y=d.y[nmask])
+
+    train_batch = [None] * 3
+    test_batch  = [None] * 3
+
+    for i, d_i in enumerate(d):
+        if d_i is not None:
+            train_batch[i] = d_i[nmask]
+            test_batch[i] = d_i[mask]
+    train_batch = tuple(train_batch)
+    test_batch = tuple(test_batch)
+
     return train_batch, test_batch

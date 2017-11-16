@@ -38,11 +38,7 @@ class BatchWriter:
     def close(self):
         self.f.close()
 
-def _make_writer(directory, label, metadata):
-    dtype = rs.float32 if metadata.target_dtype == np.float32 else rs.int32
-    image_spec = metadata.image_spec
-    log.info("Image width: {} height: {}".format(image_spec.width,
-                                                 image_spec.height))
+def _make_writer(directory, label, dtype, image_spec):
     params = dict(driver="GTiff", width=image_spec.width,
                   height=image_spec.height, count=1, dtype=dtype,
                   crs=image_spec.crs, affine=image_spec.affine)
@@ -52,31 +48,60 @@ def _make_writer(directory, label, metadata):
                          dtype=dtype)
     return writer
 
+def _make_classify_labels(label, target_map):
+    target_list = target_map[0]
+    labels = [label + "_{}_{}".format(i, s.decode())
+              for i, s in enumerate(target_list)]
+    return labels
 
 def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
-    log.info("Initialising Geotiff writer")
+
+    classification = metadata.target_dtype != np.float32
+
+    log.info("Initialising Geotiff writers")
+    log.info("Image width: {} height: {}".format(metadata.image_spec.width,
+                                                 metadata.image_spec.height))
     labels = [l + "_" + tag for l in metadata.target_labels]
-    perc_labels = [[l + "_p{}".format(p) for l in labels] for p in percentiles]
 
-    m_writers = [_make_writer(directory, l, metadata)
-                 for l in labels]
-    p_writers = [[_make_writer(directory, lbl, metadata) for lbl in lbl_list]
-                 for lbl_list in perc_labels]
+    if classification:
+        assert len(labels) == 1
+        label = labels[0]
+        ey_writer = _make_writer(directory, label, np.int32,
+                                  metadata.image_spec)
+        p_labels = _make_classify_labels(label, metadata.target_map)
+        p_writers = [_make_writer(directory, l, np.float32,
+                                  metadata.image_spec) for l in p_labels]
+        for b, (ey_batch, prob_batch) in enumerate(y_dash):
+            ey_writer.write(ey_batch)
+            for d, w in zip(prob_batch.T, p_writers):
+                w.write(d)
+        ey_writer.close()
+        for w in p_writers:
+            w.close()
 
-    for i, (mbatch, pbatch) in enumerate(y_dash):
-        log.info("Writing batch {} to disk".format(i))
+    else:
+        perc_labels = [[l + "_p{}".format(p) for l in labels]
+                       for p in percentiles]
 
-        # write mean data
-        for ym, mwriter in zip(mbatch.T, m_writers):
-            mwriter.write(ym)
-        # write perc data
-        for perc, pwriterlist in zip(pbatch, p_writers):
-            for bandperc, pwriter in zip(perc.T, pwriterlist):
-                pwriter.write(bandperc)
+        m_writers = [_make_writer(directory, l, np.float32, metadata.image_spec)
+                     for l in labels]
+        p_writers = [[_make_writer(directory, lbl, np.float32,
+                                   metadata.image_spec) for lbl in lbl_list]
+                     for lbl_list in perc_labels]
 
-    log.info("Closing file objects")
-    for i in m_writers:
-        i.close()
-    for i in p_writers:
-        for j in i:
-            j.close()
+        for i, (mbatch, pbatch) in enumerate(y_dash):
+
+            # write mean data
+            for ym, mwriter in zip(mbatch.T, m_writers):
+                mwriter.write(ym)
+            # write perc data
+            for perc, pwriterlist in zip(pbatch, p_writers):
+                for bandperc, pwriter in zip(perc.T, pwriterlist):
+                    pwriter.write(bandperc)
+
+        log.info("Closing file objects")
+        for i in m_writers:
+            i.close()
+        for i in p_writers:
+            for j in i:
+                j.close()

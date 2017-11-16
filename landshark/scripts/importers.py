@@ -37,8 +37,11 @@ def cli(verbosity: str) -> int:
 
 
 def _tifnames(directory: str) -> List[str]:
-    names = glob(os.path.join(directory, "*.tif"))
-    result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+    if directory is not None:
+        names = glob(os.path.join(directory, "*.tif"))
+        result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+    else:
+        result = None
     return result
 
 
@@ -53,10 +56,17 @@ def tifs(categorical: str, ordinal: str,
          name: str, standardise: bool) -> int:
     """Build a tif stack from a set of input files."""
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
-    cat_tif_filenames = _tifnames(categorical)
-    ord_tif_filenames = _tifnames(ordinal)
-    stack = ImageStack(cat_tif_filenames, ord_tif_filenames)
-    write_datafile(stack, out_filename, standardise)
+
+    ord_stack, cat_stack = None, None
+
+    if ordinal:
+        ord_tif_filenames = _tifnames(ordinal)
+        ord_stack = ImageStack(ord_tif_filenames, 'ordinal')
+    if categorical:
+        cat_tif_filenames = _tifnames(categorical)
+        cat_stack = ImageStack(cat_tif_filenames, 'categorical')
+
+    write_datafile(ord_stack, cat_stack, out_filename, standardise)
     return 0
 
 
@@ -71,14 +81,19 @@ def tifs(categorical: str, ordinal: str,
 @click.option("--cache_blocksize", type=int, default=100)
 @click.option("--cache_nblocks", type=int, default=10)
 @click.option("--name", type=str, required=True)
+@click.option("--every", type=int, default=1)
+@click.option("--categorical", is_flag=True)
 def targets(shapefile: str, test_frac: float, random_seed: int,
             features: str, batchsize: int, halfwidth: int,
             cache_blocksize: int, cache_nblocks: int,
             targets: List[str],
-            name: str) -> int:
+            name: str,
+            every: int,
+            categorical: bool) -> int:
     """Build training and testing data from shapefile."""
     log.info("Loading shapefile targets")
-    target_obj = ShapefileTargets(shapefile, targets)
+    target_obj = ShapefileTargets(shapefile, targets, batchsize, every,
+                                  categorical)
     log.info("Loading image feature stack")
     feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
     target_it = target_obj.batches()
@@ -86,6 +101,7 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     directory = os.path.join(os.getcwd(), name + "_trainingdata")
     log.info("Writing training data to tfrecords")
     n_train = tfwrite.training(training_it, directory, test_frac, random_seed)
+
     log.info("Writing metadata")
     metadata = mt.from_data(feature_obj, target_obj, halfwidth, n_train)
     mt.write_metadata(directory, metadata)

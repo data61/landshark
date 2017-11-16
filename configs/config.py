@@ -5,15 +5,12 @@ import aboleth as ab
 
 from landshark.model import patch_slices
 
-sess_config = tf.ConfigProto(device_count={"GPU": 1})
-
 ab.set_hyperseed(666)
-nsamps = 1  # Number of posterior samples
 noise0 = 1.
 embed_dim = 3
 
 
-def model(Xo, Xom, Xc, Xcm, Y, metadata):
+def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
     noise = tf.Variable(noise0 * np.ones(metadata.ntargets, dtype=np.float32))
     slices = patch_slices(metadata)
 
@@ -22,12 +19,12 @@ def model(Xo, Xom, Xc, Xcm, Y, metadata):
                     for k in metadata.ncategories]
 
     cat_net = (
-        ab.InputLayer(name="Xc", n_samples=nsamps) >>
+        ab.InputLayer(name="Xc", n_samples=samples) >>
         ab.PerFeature(*embed_layers, slices=slices)
         )
 
     # Continuous features
-    data_input = ab.InputLayer(name="Xo", n_samples=nsamps)  # Data input
+    data_input = ab.InputLayer(name="Xo", n_samples=samples)  # Data input
     mask_input = ab.MaskInputLayer(name="Mo")  # Missing data mask input
 
     con_net = (

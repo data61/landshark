@@ -32,7 +32,10 @@ setup(
         'pyshp==1.2.12',
         'mypy==0.521',
         'mypy_extensions==0.3.0',
-        'lru-dict==1.1.6'
+        'lru-dict==1.1.6',
+        'tqdm',
+        'scikit-learn',
+        'aboleth'
     ],
 
     extras_require={

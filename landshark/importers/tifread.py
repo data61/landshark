@@ -31,50 +31,41 @@ class ImageStack:
 
     Parameters
     ----------
-    cat_path_list : List[str]
-        The paths to categorical image files for the stack.
-    ord_path_list : List[str]
-        The paths to ordinal image files for the stack.
+    path_list : List[str]
+        The list of images to stack.
     block_rows : Union[None, int]
         Optional integer > 0 that specifies the number of rows read at a time.
         If not provided then a semi-sensible value is computed.
 
     """
-    def __init__(self, cat_path_list: List[str],
-                 ord_path_list: List[str],
+    def __init__(self, path_list: List[str], feature_type: str,
                  block_rows: Union[None, int] = None) -> None:
         """Construct an instance of ImageStack."""
-        cat_images = [rasterio.open(k, "r") for k in cat_path_list]
-        ord_images = [rasterio.open(k, "r") for k in ord_path_list]
-        all_images = cat_images + ord_images
+        all_images = [rasterio.open(k, "r") for k in path_list]
         width = _match(lambda x: x.width, all_images, "width")
         height = _match(lambda x: x.height, all_images, "height")
-        affine = _match(lambda x: x.transform, all_images, "transform")
+        affine = _match_transforms([x.transform for x in all_images],
+                                    all_images)
         coords_x, coords_y = pixel_coordinates(width, height, affine)
         crs = _match(lambda x: str(x.crs.data), all_images, "crs", anyof=True)
-        ordinal_bands = _bands(ord_images)
-        categorical_bands = _bands(cat_images)
-        ordinal_names = _names(ordinal_bands)
-        categorical_names = _names(categorical_bands)
-        ordinal_dtype = np.float32
-        categorical_dtype = np.int32
-        ordinal_missing = _missing(ordinal_bands, dtype=ordinal_dtype)
-        categorical_missing = _missing(categorical_bands,
-                                       dtype=categorical_dtype)
+        bands = _bands(all_images)
+        names = _names(bands)
+
+        dtype = np.int32 if feature_type == "categorical" else np.float32
+        missing = _missing(bands, dtype=dtype)
+
+
         if not block_rows:
-            block_rows = max(_block_rows(ordinal_bands),
-                             _block_rows(categorical_bands))
+            block_rows = _block_rows(bands)
             log.info("Using tif block size of {} rows".format(block_rows))
         else:
             log.info("User set tif block size of {} rows".format(block_rows))
         windows = _windows(width, height, block_rows)
-        log.info("Found {} ordinal bands".format(len(ordinal_bands)))
-        log.info("Found {} categorical bands".format(len(categorical_bands)))
+        log.info("Found {} {} bands".format(len(bands), dtype))
         log.info("Image resolution is {} x {}".format(width, height))
 
         self.max_block_size = block_rows * width
-        self.categorical_dtype = categorical_dtype
-        self.ordinal_dtype = ordinal_dtype
+        self.dtype = dtype
         self.width = width
         self.height = height
         self.crs = crs
@@ -82,46 +73,41 @@ class ImageStack:
         self.coordinates_y = coords_y
         self.block_rows = block_rows
         self.windows = windows
-        self.ordinal_bands = ordinal_bands
-        self.categorical_bands = categorical_bands
-        self.ordinal_names = ordinal_names
-        self.categorical_names = categorical_names
-        self.ordinal_missing = ordinal_missing
-        self.categorical_missing = categorical_missing
+        self.bands = bands
+        self.names = names
+        self.missing = missing
 
-    def categorical_blocks(self) -> Iterator[np.ndarray]:
+    def blocks(self) -> Iterator[np.ndarray]:
         """
-        Create an iterator over categorical blocks from the image stack.
+        Create an iterator over blocks from the image stack.
 
         The iterator will pass through the data only once.
 
         Returns
         -------
         gen : Iterator[np.ndarray]
-            An iterator that has categorical (int-valued) image segments
+            An iterator that has image segments
             with block_rows rows of data from the image stack.
 
         """
-        gen = _read(self.categorical_bands, self.windows,
-                    self.categorical_dtype)
+        gen = _read(self.bands, self.windows, self.dtype)
         return gen
 
-    def ordinal_blocks(self) -> Iterator[np.ndarray]:
-        """
-        Create an iterator over ordinal blocks from the image stack.
 
-        The iterator will pass through the data only once.
+    def can_stack(self, image_stack):
+        height_ok = self.height == image_stack.height
+        width_ok  = self.width == image_stack.width
+        # TODO fix sirsam so this doesnt break
+        #crs_ok = self.crs == image_stack.crs
+        crs_ok = True
+        coords_x_ok = np.all(self.coordinates_x
+                             == image_stack.coordinates_x)
+        coords_y_ok = np.all(self.coordinates_y
+                             == image_stack.coordinates_y)
+        all_ok = height_ok and width_ok and crs_ok \
+            and coords_x_ok and coords_y_ok
+        return all_ok
 
-        Returns
-        -------
-        gen : Iterator[np.ndarray]
-            An iterator that has ordinal (float-valued) image segments
-            with block_rows rows of data from the image stack.
-
-        """
-        gen = _read(self.ordinal_bands, self.windows,
-                    self.ordinal_dtype)
-        return gen
 
 
 def _match(f: Callable[[Any], Any],
@@ -140,6 +126,15 @@ def _match(f: Callable[[Any], Any],
         _fatal_mismatch(property_list, images, name)
     result = property_set.pop()
     return result
+
+
+def _match_transforms(transforms, images):
+    t0 = transforms[0]
+    for t in transforms[1:]:
+        if not t0.almost_equals(t):
+            import IPython; IPython.embed(); import sys; sys.exit()
+            _fatal_mismach(transforms, images, "transforms")
+    return t0
 
 
 def _fatal_mismatch(property_list: List[Any],

@@ -6,7 +6,7 @@ import numpy as np
 from lru import LRU
 from tables.carray import CArray
 
-log = logging.getLogger("__name__")
+log = logging.getLogger(__name__)
 
 
 class RowCache:

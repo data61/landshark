@@ -1,5 +1,6 @@
 """Input/output routines for geo data types."""
 
+from functools import partial
 import itertools
 import logging
 import datetime
@@ -10,6 +11,7 @@ import shapefile
 from typing import List, Tuple, Iterator, Union
 
 from landshark import iteration
+from landshark.importers.category import _Categories
 
 log = logging.getLogger(__name__)
 
@@ -29,19 +31,9 @@ def _get_record_info(shp):
     field_list = shp.fields[1:]
     labels, type_strings, nbytes, decimals = zip(*field_list)
     record0 = shp.record(0)
-    record0[3] = str(record0[3])
     types_from_data = [type(k) for k in record0]
     type_list = [_extract_type(t, l) for t, l in zip(types_from_data, nbytes)]
     return labels, type_list
-
-
-def _get_dtype(labels, all_labels, all_dtypes):
-    dtype_dict = dict(zip(all_labels, all_dtypes))
-    dtype_set = {dtype_dict[l] for l in labels}
-    if len(dtype_set) > 1:
-        raise ValueError("Requested target labels have different types")
-    dtype = dtype_set.pop()
-    return dtype
 
 
 def _to_array(record, indices, dtype):
@@ -60,6 +52,14 @@ def _to_coords(shape):
     return result
 
 
+def _get_dtype(labels, all_labels, all_dtypes):
+    dtype_dict = dict(zip(all_labels, all_dtypes))
+    dtype_set = {dtype_dict[l] for l in labels}
+    if len(dtype_set) > 1:
+        raise ValueError("Requested target labels have different types")
+    dtype = dtype_set.pop()
+    return dtype
+
 def _convert_batch(b):
     coords, arrays = zip(*b)
     coords_x, coords_y = zip(*coords)
@@ -68,6 +68,10 @@ def _convert_batch(b):
     data = np.vstack(arrays)
     return coords_x, coords_y, data
 
+def _categorical_batch(b, categories):
+    x, y, d = b
+    dstar = categories.update(d)
+    return x, y, dstar
 
 class ShapefileTargets:
     """
@@ -82,16 +86,28 @@ class ShapefileTargets:
         The shapefile (.shp)
     """
     def __init__(self, filename: str, labels: List[str],
-                 batchsize: int=100) -> None:
+                 batchsize: int=100, subsample_factor: int=1,
+                 is_categorical: bool=False) -> None:
         """Construct an instance of ShapefileTargets."""
         self._sf = shapefile.Reader(filename)
         self.all_fields, self.all_dtypes = _get_record_info(self._sf)
         self.labels = labels
         self._label_indices = _get_indices(self.labels, self.all_fields)
-        self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes)
+        self.dtype = _get_dtype(self.labels, self.all_fields, self.all_dtypes) \
+            if is_categorical else np.float32
+        self.subsample_factor = subsample_factor
+        self.is_categorical = is_categorical
+
+        if is_categorical:
+            self._categories = _Categories([None] * len(self.labels))
+
         self._ntotal = self._sf.numRecords
-        self.n = self._ntotal
+        self.n = self._ntotal // self.subsample_factor
+        log.info("Shapefile contains {} records "
+                 "of {} requested targets.".format(self.n, len(self.labels)))
         self.batchsize = batchsize
+        self._seen_all_data = False
+
 
     def _data(self) -> Iterator[np.ndarray]:
         """Create an iterator for the shapefile data.
@@ -103,12 +119,45 @@ class ShapefileTargets:
         ------
 
         """
-        for sr in self._sf.iterShapeRecords():
+        # TODO: don't use so much memory
+        rnd = np.random.RandomState(666)
+        perm = rnd.permutation(self._ntotal)[0:self.n]
+        # it = itertools.islice(self._sf.iterShapeRecords(), 0, None,
+        #                       self.subsample_factor)
+        for i in perm:
+            sr = self._sf.shapeRecord(i)
             coords = _to_coords(sr.shape)
             array = _to_array(sr.record, self._label_indices, self.dtype)
             yield coords, array
+        self._seen_all_data = True
 
     def batches(self):
-        list_batch_it = iteration.batch(self._data(), self.batchsize)
+        list_batch_it = iteration.batch(self._data(), self.batchsize, self.n)
         batch_it = map(_convert_batch, list_batch_it)
-        return batch_it
+        if self.is_categorical:
+            f = partial(_categorical_batch, categories=self._categories)
+            res_batch_it = map(f, batch_it)
+        else:
+            res_batch_it = batch_it
+
+        return res_batch_it
+
+    @property
+    def categorical_counts(self):
+        if self.is_categorical:
+            if not self._seen_all_data:
+                raise RuntimeError("You must complete the data iterator before"
+                                   " having the category counts")
+            return self._categories.counts
+        else:
+            return None
+
+    @property
+    def categorical_map(self):
+        if self.is_categorical:
+            if not self._seen_all_data:
+                raise RuntimeError("You must complete the data iterator before"
+                                   " having the category mappings")
+            return self._categories.maps
+        else:
+            return None

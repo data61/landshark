@@ -294,9 +294,12 @@ def _indices_query(
     column_slice = column_slice if column_slice else slice(0, None)
     row_slice = row_slice if row_slice else slice(0, None)
 
-    coords_it = product(range(image_height)[row_slice],
-                        range(image_width)[column_slice])
+    height_ind = range(image_height)[row_slice]
+    width_ind = range(image_width)[column_slice]
 
-    batch_it = iteration.batch(coords_it, batchsize)
+    coords_it = product(height_ind, width_ind)
+    total_size = len(height_ind) * len(width_ind)
+
+    batch_it = iteration.batch(coords_it, batchsize, total_size)
     array_it = map(lambda x: tuple(np.array(x).T[::-1]), batch_it)
     return array_it
