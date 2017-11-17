@@ -5,6 +5,7 @@ import logging
 import os
 from glob import glob
 from importlib.util import spec_from_file_location, module_from_spec
+from shutil import copyfile
 
 import click
 
@@ -18,6 +19,15 @@ from landshark.importers.metadata import write_metadata, load_metadata
 from landshark.model import TrainingConfig, QueryConfig
 
 log = logging.getLogger(__name__)
+
+
+def _load_config(module_name, path):
+    # Load the model
+    modspec = spec_from_file_location(module_name, path)
+    cf = module_from_spec(modspec)
+    modspec.loader.exec_module(cf)
+    # needed for pickling??
+    sys.modules[module_name] = cf
 
 
 def _setup_training(config, directory):
@@ -42,11 +52,7 @@ def _setup_training(config, directory):
 
     # Load the model
     module_name = "userconfig"
-    modspec = spec_from_file_location(module_name, config)
-    cf = module_from_spec(modspec)
-    modspec.loader.exec_module(cf)
-    # needed for pickling??
-    sys.modules[module_name] = cf
+    _load_config(module_name, config)
 
     return training_records, testing_records, metadata, model_dir, module_name
 
@@ -86,6 +92,9 @@ def sktrain(directory: str, config: str, batchsize: int, maxpoints: int,
     """Train a model specified by an input configuration."""
     training_records, testing_records, metadata, model_dir, cf = \
         _setup_training(config, directory)
+
+    # copy the model spec to the model dir
+    copyfile(config, os.path.join(model_dir,"config.py"))
     skmodel.train_test(cf, training_records, testing_records,
                        metadata, model_dir, maxpoints,
                        batchsize, random_seed)
@@ -152,6 +161,29 @@ def predict(
     imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
     metadata.image_spec = imspec
     write_geotiffs(y_dash_it, modeldir, metadata, params.percentiles,
+                   tag="{}of{}".format(strip, nstrips))
+    return 0
+
+@cli.command()
+@click.argument("modeldir", type=click.Path(exists=True))
+@click.argument("querydir", type=click.Path(exists=True))
+@click.option("--batchsize", type=int, default=100000)
+def skpredict(
+        modeldir: str,
+        querydir: str,
+        batchsize: int) -> int:
+    """Predict using a learned model."""
+    metadata = load_metadata(os.path.join(modeldir, "METADATA.bin"))
+    query_records = glob(os.path.join(querydir, "*.tfrecord"))
+
+    config_file = os.path.join(modeldir, "config.py")
+    _load_config("userconfig", config_file)
+
+    y_dash_it = skmodel.predict(modeldir, metadata, query_records, batchsize)
+    strip, nstrips = _get_strips(query_records)
+    imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
+    metadata.image_spec = imspec
+    write_geotiffs(y_dash_it, modeldir, metadata, None,
                    tag="{}of{}".format(strip, nstrips))
     return 0
 

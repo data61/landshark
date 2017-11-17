@@ -1,6 +1,7 @@
 import logging
 import os.path
 
+from tqdm import tqdm
 import tensorflow as tf
 import numpy as np
 import pickle
@@ -73,6 +74,27 @@ def _get_data(records_train, records_test, metadata, npoints,
     return (ord_array, cat_array, y_array,
             ord_array_test, cat_array_test, y_array_test)
 
+def _query_it(records_query, batch_size, metadata):
+
+    total_size = metadata.image_spec.height * metadata.image_spec.width
+    dataset = model.test_data(records_query, batch_size)
+    iterator = dataset.make_one_shot_iterator()
+    Xo, Xom, Xc, Xcm, Y = model.decode(iterator, metadata)
+
+    with tqdm(total=total_size) as pbar:
+        with tf.Session() as sess:
+            while True:
+                try:
+                    xo, xom, xc, xcm = sess.run([Xo, Xom, Xc, Xcm])
+                    ord_array = xo
+                    ord_array[xom] = np.nan
+                    cat_array = xc
+                    pbar.update(xo.shape[0])
+                    yield ord_array, cat_array
+                except tf.errors.OutOfRangeError:
+                    break
+            return
+
 
 def train_test(config_module, records_train, records_test, metadata, model_dir,
                maxpoints, batchsize, random_seed):
@@ -100,29 +122,17 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
         pickle.dump(model, f)
 
 
-def predict():
-    pass
+def predict(modeldir, metadata, query_records, batch_size):
 
-#     def predict(xo, xc):
-#         x_onehot = enc.transform(xc)
-#         x_imputed = imp.transform(xo)
-#         x = np.concatenate([x_onehot, x_imputed], axis=1)
-#         y_star = est.predict(x)
-#         if np.ndim(y_star) is 1:
-#             y_star = y_star[:, np.newaxis]
-#         return y_star.astype(np.float32)
+    model_path = os.path.join(modeldir, "skmodel.pickle")
+    with open(model_path, 'rb') as f:
+        model = pickle.load(f)
 
-#     y_star = predict(ord_array_test, cat_array_test)
-#     scores = r2_score(y_array_test, y_star, multioutput='raw_values')
-#     log.info("Random forest R2: {}".format(scores))
+    for xo, xc in _query_it(query_records, batch_size, metadata):
+        Ey = model.predict(xo, xc)
+        Ey = Ey.astype(metadata.target_dtype)
+        if Ey.ndim == 1:
+            Ey = Ey[:, np.newaxis]
+        perc = []
+        yield Ey, perc
 
-#     # predict over image
-#     qdata = query_data(features, batch_size, metadata.halfwidth)
-#     for d in qdata:
-#         x_ord = d.x_ord.reshape((d.x_ord.shape[0], -1))
-#         x_cat = d.x_cat.reshape((d.x_cat.shape[0], -1))
-#         x_ord.data[x_ord.mask] = np.nan
-#         ys = predict(x_ord.data, x_cat.data)
-#         ysl = np.zeros_like(ys, dtype=np.float32)
-#         ysu = np.zeros_like(ys, dtype=np.float32)
-#         yield ys, ysl, ysu

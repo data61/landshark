@@ -58,6 +58,9 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
 
     classification = metadata.target_dtype != np.float32
 
+    if percentiles is None:
+        percentiles = []
+
     log.info("Initialising Geotiff writers")
     log.info("Image width: {} height: {}".format(metadata.image_spec.width,
                                                  metadata.image_spec.height))
@@ -90,7 +93,6 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
                      for lbl_list in perc_labels]
 
         for i, (mbatch, pbatch) in enumerate(y_dash):
-
             # write mean data
             for ym, mwriter in zip(mbatch.T, m_writers):
                 mwriter.write(ym)
