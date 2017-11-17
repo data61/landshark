@@ -1,13 +1,14 @@
 import logging
+import os.path
 
 import tensorflow as tf
 import numpy as np
+import pickle
 
 from landshark import model
 from landshark.feed import query_data
-from sklearn.preprocessing import Imputer, OneHotEncoder
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import accuracy_score, log_loss, r2_score
+import scipy.stats
 
 log = logging.getLogger(__name__)
 
@@ -73,43 +74,34 @@ def _get_data(records_train, records_test, metadata, npoints,
             ord_array_test, cat_array_test, y_array_test)
 
 
-def train_test(records_train, records_test, metadata, model_dir,
-               maxpoints, trees, batchsize, random_seed):
+def train_test(config_module, records_train, records_test, metadata, model_dir,
+               maxpoints, batchsize, random_seed):
 
-    imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
-                  verbose=0, copy=True)
-
-    if metadata.nfeatures_cat > 0:
-        psize = (2 * metadata.halfwidth + 1)**2
-        n_values = [k for k in metadata.ncategories for _ in range(psize)]
-        enc = OneHotEncoder(n_values=n_values, categorical_features="all",
-                            dtype=np.float32, sparse=False)
-
-    est = RandomForestClassifier(n_estimators=trees) if \
-        metadata.target_dtype == np.float32 else \
-        RandomForestRegressor(n_estimators=trees)
-
+    log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
                            batchsize, random_seed)
-
     ord_array, cat_array, y_array, \
         ord_array_test, cat_array_test, y_array_test = data_tuple
 
-    if metadata.nfeatures_cat > 0:
-        X_onehot = enc.fit_transform(cat_array)
-    else:
-        X_onehot = np.zeros((y_array.shape[0], 0 ), dtype=np.float32)
+    userconfig = __import__(config_module)
 
-    if metadata.nfeatures_ord > 0:
-        X_imputed = imp.fit_transform(ord_array)
-    else:
-        X_imputed = np.zeros((y_array.shape[0], 0 ), dtype=np.float32)
+    log.info("Training model")
+    model = userconfig.SKModel(metadata)
+    model.fit(ord_array, cat_array, y_array)
+    log.info("Evaluating test data")
+    EYs = model.predict(ord_array_test, cat_array_test)
 
-    X = np.concatenate([X_onehot, X_imputed], axis=1)
-    log.info("Training random forest")
-    est.fit(X, y_array)
+    r2 = r2_score(y_array_test, EYs, multioutput='raw_values')
+    log.info("Sklearn r2: {}" .format(r2))
 
-    import IPython; IPython.embed(); import sys; sys.exit()
+    log.info("Saving model to disk")
+    model_path = os.path.join(model_dir, "skmodel.pickle")
+    with open(model_path, 'wb') as f:
+        pickle.dump(model, f)
+
+
+def predict():
+    pass
 
 #     def predict(xo, xc):
 #         x_onehot = enc.transform(xc)

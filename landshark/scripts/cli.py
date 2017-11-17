@@ -8,10 +8,9 @@ from importlib.util import spec_from_file_location, module_from_spec
 
 import click
 
-from landshark import model
+from landshark import model, skmodel
 from landshark.hread import ImageFeatures
 from landshark.feed import query_data
-from landshark import rf
 from landshark.importers.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
 from landshark.image import strip_image_spec
@@ -21,26 +20,8 @@ from landshark.model import TrainingConfig, QueryConfig
 log = logging.getLogger(__name__)
 
 
-@click.group()
-@click.option("-v", "--verbosity",
-              type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
-              default="INFO", help="Level of logging")
-def cli(verbosity: str) -> int:
-    """Parse the command line arguments."""
-    configure_logging(verbosity)
-    return 0
-
-@cli.command()
-@click.argument("directory", type=click.Path(exists=True))
-@click.option("--batchsize", type=click.IntRange(min=1), default=1000,
-              help="Training batch size")
-@click.option("--maxpoints", type=int, default=2000)
-@click.option("--trees", type=int, default=100)
-@click.option("--random_seed", type=int, default=666)
-def baseline(directory: str, batchsize: int, maxpoints: int,
-             trees: int, random_seed: int) -> int:
-    """Train a model specified by an input configuration."""
-    name = os.path.basename(directory) + "_baseline"
+def _setup_training(config, directory):
+    name = os.path.basename(config).rsplit(".")[0] + "_model"
 
     # Get the data
     test_dir = os.path.join(directory, "testing")
@@ -59,12 +40,57 @@ def baseline(directory: str, batchsize: int, maxpoints: int,
         pass
     write_metadata(model_dir, metadata)
 
-    # Train
-    print('calling train')
-    rf.train_test(training_records, testing_records, metadata, model_dir,
-                  maxpoints, trees, batchsize, random_seed)
-    print('called train')
+    # Load the model
+    module_name = "userconfig"
+    modspec = spec_from_file_location(module_name, config)
+    cf = module_from_spec(modspec)
+    modspec.loader.exec_module(cf)
+    # needed for pickling??
+    sys.modules[module_name] = cf
+
+    return training_records, testing_records, metadata, model_dir, module_name
+
+
+def _get_strips(records):
+    def f(k):
+        r = os.path.basename(k).rsplit(".", maxsplit=3)[1]
+        tups = tuple(int(i) for i in r.split("of"))
+        return tups
+    strip_set = set(f(k) for k in records)
+    if len(strip_set) > 1:
+        log.error("TFRecord files can only be from a single strip.")
+        sys.exit()
+    strip = strip_set.pop()
+    return strip
+
+
+
+@click.group()
+@click.option("-v", "--verbosity",
+              type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+              default="INFO", help="Level of logging")
+def cli(verbosity: str) -> int:
+    """Parse the command line arguments."""
+    configure_logging(verbosity)
     return 0
+
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.argument("config", type=click.Path(exists=True))
+@click.option("--batchsize", type=click.IntRange(min=1), default=1000,
+              help="Training batch size")
+@click.option("--maxpoints", type=int, default=2000)
+@click.option("--random_seed", type=int, default=666)
+def sktrain(directory: str, config: str, batchsize: int, maxpoints: int,
+            random_seed: int) -> int:
+    """Train a model specified by an input configuration."""
+    training_records, testing_records, metadata, model_dir, cf = \
+        _setup_training(config, directory)
+    skmodel.train_test(cf, training_records, testing_records,
+                       metadata, model_dir, maxpoints,
+                       batchsize, random_seed)
+    return 0
+
 
 
 @cli.command()
@@ -86,29 +112,8 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
           test_batchsize: int, samples: int, test_samples: int,
           gpu: bool) -> int:
     """Train a model specified by an input configuration."""
-    name = os.path.basename(config).rsplit(".")[0] + "_model"
-
-    # Get the data
-    test_dir = os.path.join(directory, "testing")
-    training_records = glob(os.path.join(directory, "*.tfrecord"))
-    testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
-
-    # Get metadata for feeding to the model
-    metadata_path = os.path.join(directory, "METADATA.bin")
-    metadata = load_metadata(metadata_path)
-
-    # Write the metadata
-    model_dir = os.path.join(os.getcwd(), name)
-    try:
-        os.makedirs(model_dir)
-    except FileExistsError:
-        pass
-    write_metadata(model_dir, metadata)
-
-    # Load the model
-    modspec = spec_from_file_location("config", config)
-    cf = module_from_spec(modspec)
-    modspec.loader.exec_module(cf)
+    training_records, testing_records, metadata, model_dir, cf = \
+        _setup_training(config, directory)
 
     # Train
     training_params = TrainingConfig(epochs, batchsize, samples,
@@ -117,18 +122,6 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
                      cf, training_params)
     return 0
 
-
-def _get_strips(records):
-    def f(k):
-        r = os.path.basename(k).rsplit(".", maxsplit=3)[1]
-        tups = tuple(int(i) for i in r.split("of"))
-        return tups
-    strip_set = set(f(k) for k in records)
-    if len(strip_set) > 1:
-        log.error("TFRecord files can only be from a single strip.")
-        sys.exit()
-    strip = strip_set.pop()
-    return strip
 
 
 @cli.command()
