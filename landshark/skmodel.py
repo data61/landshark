@@ -99,6 +99,8 @@ def _query_it(records_query, batch_size, metadata):
 def train_test(config_module, records_train, records_test, metadata, model_dir,
                maxpoints, batchsize, random_seed):
 
+    classification = metadata.target_dtype != np.float32
+
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
                            batchsize, random_seed)
@@ -111,10 +113,20 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
     model = userconfig.SKModel(metadata)
     model.fit(ord_array, cat_array, y_array)
     log.info("Evaluating test data")
-    EYs = model.predict(ord_array_test, cat_array_test)
+    res = model.predict(ord_array_test, cat_array_test)
 
-    r2 = r2_score(y_array_test, EYs, multioutput='raw_values')
-    log.info("Sklearn r2: {}" .format(r2))
+    if classification:
+        EYs, pys = res
+        acc = accuracy_score(y_array_test, EYs)
+        nlabels = len(metadata.target_map[0])
+        labels = np.arange(nlabels)
+        lp = -1 * log_loss(y_array_test, pys, labels=labels)
+        log.info("Sklearn acc: {:.5f}, lp: {:.5f}".format(acc, lp))
+
+    else:
+        EYs, _ = res
+        r2 = r2_score(y_array_test, EYs, multioutput='raw_values')
+        log.info("Sklearn r2: {}" .format(r2))
 
     log.info("Saving model to disk")
     model_path = os.path.join(model_dir, "skmodel.pickle")
@@ -129,10 +141,6 @@ def predict(modeldir, metadata, query_records, batch_size):
         model = pickle.load(f)
 
     for xo, xc in _query_it(query_records, batch_size, metadata):
-        Ey = model.predict(xo, xc)
-        Ey = Ey.astype(metadata.target_dtype)
-        if Ey.ndim == 1:
-            Ey = Ey[:, np.newaxis]
-        perc = []
-        yield Ey, perc
+        res = model.predict(xo, xc)
+        yield res
 
