@@ -10,8 +10,6 @@ from shutil import copyfile
 import click
 
 from landshark import model, skmodel
-from landshark.hread import ImageFeatures
-from landshark.feed import query_data
 from landshark.importers.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
 from landshark.image import strip_image_spec
@@ -70,7 +68,6 @@ def _get_strips(records):
     return strip
 
 
-
 @click.group()
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
@@ -79,6 +76,7 @@ def cli(verbosity: str) -> int:
     """Parse the command line arguments."""
     configure_logging(verbosity)
     return 0
+
 
 @cli.command()
 @click.argument("directory", type=click.Path(exists=True))
@@ -94,12 +92,11 @@ def sktrain(directory: str, config: str, batchsize: int, maxpoints: int,
         _setup_training(config, directory)
 
     # copy the model spec to the model dir
-    copyfile(config, os.path.join(model_dir,"config.py"))
+    copyfile(config, os.path.join(model_dir, "config.py"))
     skmodel.train_test(cf, training_records, testing_records,
                        metadata, model_dir, maxpoints,
                        batchsize, random_seed)
     return 0
-
 
 
 @cli.command()
@@ -128,9 +125,8 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
     training_params = TrainingConfig(epochs, batchsize, samples,
                                      test_batchsize, test_samples, gpu)
     model.train_test(training_records, testing_records, metadata, model_dir,
-                     cf, training_params)
+                     sys.modules[cf], training_params)
     return 0
-
 
 
 @cli.command()
@@ -164,6 +160,7 @@ def predict(
                    tag="{}of{}".format(strip, nstrips))
     return 0
 
+
 @cli.command()
 @click.argument("modeldir", type=click.Path(exists=True))
 @click.argument("querydir", type=click.Path(exists=True))
@@ -186,5 +183,3 @@ def skpredict(
     write_geotiffs(y_dash_it, modeldir, metadata, None,
                    tag="{}of{}".format(strip, nstrips))
     return 0
-
-
