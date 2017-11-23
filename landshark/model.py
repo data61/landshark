@@ -182,7 +182,7 @@ def predict(model, metadata, records, params):
     classification = metadata.target_dtype != np.float32
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
-                                 gpu_options={'allow_growth': True})
+                                 gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
 
@@ -197,7 +197,7 @@ def predict(model, metadata, records, params):
             _records = graph.get_operation_by_name("QueryRecords").outputs[0]
             _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
             _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
-            feed_dict = {_records:records, _batchsize: params.batchsize,
+            feed_dict = {_records: records, _batchsize: params.batchsize,
                          _nsamples: params.samples}
 
             # Restore prediction network
@@ -209,7 +209,8 @@ def predict(model, metadata, records, params):
                 eval_list = [Ey, prob]
             else:
                 Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
-                Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
+                Y_samps = graph.get_operation_by_name("Test/Y_sample")\
+                    .outputs[0]
                 Per = ab.sample_percentiles(Y_samps, params.percentiles)
                 eval_list = [Ey, Per]
 

@@ -28,7 +28,7 @@ def training(data, output_directory: str,
     if not os.path.exists(test_directory):
         os.makedirs(test_directory)
     writer = _MultiFileWriter(output_directory, tag="train")
-    test_writer= _MultiFileWriter(test_directory, tag="test")
+    test_writer = _MultiFileWriter(test_directory, tag="test")
     rnd = np.random.RandomState(random_seed)
 
     n_train = 0
@@ -93,7 +93,7 @@ class _MultiFileWriter:
         self.tag = tag
         self.file_index = -1
         self._options = tf.python_io.TFRecordOptions(
-        tf.python_io.TFRecordCompressionType.ZLIB)
+            tf.python_io.TFRecordCompressionType.ZLIB)
         self._nextfile()
 
     def _nextfile(self):
@@ -122,7 +122,7 @@ def _split_on_mask(d, rnd, test_frac):
     nmask = ~mask
 
     train_batch = [None] * 3
-    test_batch  = [None] * 3
+    test_batch = [None] * 3
 
     for i, d_i in enumerate(d):
         if d_i is not None:
