@@ -100,11 +100,12 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
             )
     train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-    Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y_in = decode(iterator, metadata)
 
     # Model
     with tf.name_scope("Deepnet"):
-        F, lkhood, loss = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)
+        F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y_in,
+                                      _samples, metadata)
         tf.summary.scalar("loss", loss)
 
     # Training
