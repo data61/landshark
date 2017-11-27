@@ -3,6 +3,7 @@ from collections import namedtuple
 import signal
 import logging
 from itertools import count
+import os.path
 
 
 from tqdm import tqdm
@@ -100,12 +101,11 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
             )
     train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-    Xo, Xom, Xc, Xcm, Y_in = decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
 
     # Model
     with tf.name_scope("Deepnet"):
-        F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y_in,
-                                      _samples, metadata)
+        F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)
         tf.summary.scalar("loss", loss)
 
     # Training
@@ -135,6 +135,9 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
         {"step": global_step, "loss": loss},
         every_n_secs=60)
 
+    saver = tf.train.Saver()
+
+    best_scores = [-1 * np.inf]
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -163,16 +166,35 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                     acc, bacc, lp = classify_test_loop(Y, Ey, prob, sess,
                                                        test_fdict, metadata,
                                                        step)
+                    if lp > best_scores[0]:
+                        best_scores = [lp, acc, bacc]
+                        # Save the variables to disk.
+                        rsess = sess._sess._sess._sess._sess
+                        save_path = saver.save(
+                            rsess, os.path.join(directory, "model_best.ckpt"))
+                        log.info("New best model saved with lp: {}".format(lp))
+
                 else:
                     r2, lp = regress_test_loop(Y, Ey, logprob, sess,
                                                test_fdict, metadata, step)
 
+                    if r2 > best_score:
+                        best_scores = [lp, r2]
+                        # Save the variables to disk.
+                        rsess = sess._sess._sess._sess._sess
+                        save_path = saver.save(
+                            rsess, os.path.join(directory, "model_best.ckpt"))
+                        log.info("New best model saved with lp: {}".format(lp))
+
+
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
                 if classification:
+                    lp, acc, bacc = best_scores
                     log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
                              "Final lp: {:.5f}.".format(acc, bacc, lp))
                 else:
+                    lp, r2 = best_scores
                     log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
 
@@ -186,44 +208,43 @@ def predict(model, metadata, records, params):
                                  gpu_options={'allow_growth': True})
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
+    tf.reset_default_graph()
+    with tf.Session(config=sess_config) as sess:
+        graph = tf.get_default_graph()
+        save = tf.train.import_meta_graph("{}.meta".format(model_file))
+        log.info("Restoring {}".format(model_file))
+        save.restore(sess, model_file)
 
-    graph = tf.Graph()
-    with graph.as_default():
-        sess = tf.Session(config=sess_config)
-        with sess.as_default():
-            save = tf.train.import_meta_graph("{}.meta".format(model_file))
-            save.restore(sess, model_file)
+        # Restore place holders and prediction network
+        _records = graph.get_operation_by_name("QueryRecords").outputs[0]
+        _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
+        _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
+        feed_dict = {_records:records, _batchsize: params.batchsize,
+                     _nsamples: params.samples}
 
-            # Restore place holders and prediction network
-            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
-            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
-            _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
-            feed_dict = {_records:records, _batchsize: params.batchsize,
-                         _nsamples: params.samples}
+        # Restore prediction network
+        it_op = graph.get_operation_by_name("QueryInit")
 
-            # Restore prediction network
-            it_op = graph.get_operation_by_name("QueryInit")
+        if classification:
+            Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
+            prob = graph.get_operation_by_name("Test/prob").outputs[0]
+            eval_list = [Ey, prob]
+        else:
+            Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
+            Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
+            Per = ab.sample_percentiles(Y_samps, params.percentiles)
+            eval_list = [Ey, Per]
 
-            if classification:
-                Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
-                prob = graph.get_operation_by_name("Test/prob").outputs[0]
-                eval_list = [Ey, prob]
-            else:
-                Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
-                Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
-                Per = ab.sample_percentiles(Y_samps, params.percentiles)
-                eval_list = [Ey, Per]
-
-            # Initialise the dataset iterator
-            sess.run(it_op, feed_dict=feed_dict)
-            with tqdm(total=total_size) as pbar:
-                while True:
-                    try:
-                        res = sess.run(eval_list, feed_dict=feed_dict)
-                        pbar.update(res[0].shape[0])
-                        yield res
-                    except tf.errors.OutOfRangeError:
-                        return
+        # Initialise the dataset iterator
+        sess.run(it_op, feed_dict=feed_dict)
+        with tqdm(total=total_size) as pbar:
+            while True:
+                try:
+                    res = sess.run(eval_list, feed_dict=feed_dict)
+                    pbar.update(res[0].shape[0])
+                    yield res
+                except tf.errors.OutOfRangeError:
+                    return
 
 def train_loop(train, global_step, sess):
     try:
