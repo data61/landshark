@@ -146,7 +146,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
             checkpoint_dir=directory,
             scaffold=tf.train.Scaffold(local_init_op=train_init_op),
             save_summaries_steps=None,
-            save_checkpoint_secs=20,
+            save_checkpoint_secs=None,
             save_summaries_secs=20,
             log_step_count_steps=6000,
             hooks=[logger]
@@ -179,7 +179,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                     r2, lp = regress_test_loop(Y, Ey, logprob, sess,
                                                test_fdict, metadata, step)
 
-                    if r2 > best_score:
+                    if lp > best_scores[0]:
                         best_scores = [lp, r2]
                         # Save the variables to disk.
                         rsess = sess._sess._sess._sess._sess
