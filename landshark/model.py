@@ -24,9 +24,9 @@ FDICT = {
     "y": tf.FixedLenFeature([], tf.string)
     }
 
-TrainingConfig = namedtuple("TrainingConfig", ["epochs", "batchsize", "samples",
-                                               "test_batchsize", "test_samples",
-                                               "use_gpu"])
+TrainingConfig = namedtuple("TrainingConfig",
+                            ["epochs", "batchsize", "samples",
+                             "test_batchsize", "test_samples", "use_gpu"])
 
 QueryConfig = namedtuple("QueryConfig", ["batchsize", "samples",
                                          "percentiles", "use_gpu"])
@@ -50,6 +50,7 @@ def test_data(records: list, batch_size: int) -> tf.data.TFRecordDataset:
 
 
 def decode(iterator, metadata):
+    """Decode tf.record strings."""
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=FDICT)
     npatch = (2 * metadata.halfwidth + 1) ** 2
@@ -76,7 +77,7 @@ def decode(iterator, metadata):
 def train_test(records_train, records_test, metadata, directory, cf, params):
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
-                                 gpu_options={'allow_growth': True})
+                                 gpu_options={"allow_growth": True})
 
     classification = metadata.target_dtype != np.float32
 
@@ -106,6 +107,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
     # Model
     with tf.name_scope("Deepnet"):
         F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)
+        tf.identity(F, name="F_sample")
+        tf.identity(ab.sample_mean(F), name="F_mean")
         tf.summary.scalar("loss", loss)
 
     # Training
@@ -126,9 +129,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
             acc, bacc, lp = 0.0, 0.0, -float("inf")
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
-            Ey = tf.identity(ab.sample_mean(Y_samps), name='Y_mean')
+            Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
             r2, lp = -float("inf"), float("inf")
-
 
     # Logging learning progress
     logger = tf.train.LoggingTensorHook(
@@ -136,7 +138,6 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
         every_n_secs=60)
 
     saver = tf.train.Saver()
-
     best_scores = [-1 * np.inf]
 
     # This is the main training "loop"
@@ -152,7 +153,7 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
             ) as sess:
 
         for i in count():
-            log.info("Training round {} with {} epochs." \
+            log.info("Training round {} with {} epochs."
                      .format(i, params.epochs))
             try:
 
@@ -200,12 +201,12 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
 
 
 def predict(model, metadata, records, params):
-
+    """Load a model and predict results for record inputs."""
     total_size = metadata.image_spec.height * metadata.image_spec.width
     classification = metadata.target_dtype != np.float32
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
-                                 gpu_options={'allow_growth': True})
+                                 gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
     print("Loading model: {}".format(model_file))
     tf.reset_default_graph()
@@ -215,43 +216,53 @@ def predict(model, metadata, records, params):
         log.info("Restoring {}".format(model_file))
         save.restore(sess, model_file)
 
-        # Restore place holders and prediction network
-        _records = graph.get_operation_by_name("QueryRecords").outputs[0]
-        _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
-        _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
-        feed_dict = {_records:records, _batchsize: params.batchsize,
-                     _nsamples: params.samples}
+    graph = tf.Graph()
+    with graph.as_default():
+        sess = tf.Session(config=sess_config)
+        with sess.as_default():
+            save = tf.train.import_meta_graph("{}.meta".format(model_file))
+            save.restore(sess, model_file)
 
-        # Restore prediction network
-        it_op = graph.get_operation_by_name("QueryInit")
+            # Restore place holders and prediction network
+            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
+            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
+            _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
+            feed_dict = {_records: records, _batchsize: params.batchsize,
+                         _nsamples: params.samples}
 
-        if classification:
-            Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
-            prob = graph.get_operation_by_name("Test/prob").outputs[0]
-            eval_list = [Ey, prob]
-        else:
-            Ey = graph.get_operation_by_name("Test/Y_mean").outputs[0]
-            Y_samps = graph.get_operation_by_name("Test/Y_sample").outputs[0]
-            Per = ab.sample_percentiles(Y_samps, params.percentiles)
-            eval_list = [Ey, Per]
+            # Restore prediction network
+            it_op = graph.get_operation_by_name("QueryInit")
 
-        # Initialise the dataset iterator
-        sess.run(it_op, feed_dict=feed_dict)
-        with tqdm(total=total_size) as pbar:
-            while True:
-                try:
-                    res = sess.run(eval_list, feed_dict=feed_dict)
-                    pbar.update(res[0].shape[0])
-                    yield res
-                except tf.errors.OutOfRangeError:
-                    return
+            if classification:
+                Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
+                prob = graph.get_operation_by_name("Test/prob").outputs[0]
+                eval_list = [Ey, prob]
+            else:
+                Ef = graph.get_operation_by_name("Deepnet/F_mean").outputs[0]
+                F_samps = graph.get_operation_by_name("Deepnet/F_sample")\
+                    .outputs[0]
+                Per = ab.sample_percentiles(F_samps, params.percentiles)
+                eval_list = [Ef, Per]
+
+            # Initialise the dataset iterator
+            sess.run(it_op, feed_dict=feed_dict)
+            with tqdm(total=total_size) as pbar:
+                while True:
+                    try:
+                        res = sess.run(eval_list, feed_dict=feed_dict)
+                        pbar.update(res[0].shape[0])
+                        yield res
+                    except tf.errors.OutOfRangeError:
+                        return
+
 
 def train_loop(train, global_step, sess):
+    """Train using an intialised Dataset iterator."""
     try:
         while not sess.should_stop():
             _, step = sess.run([train, global_step])
     except tf.errors.OutOfRangeError:
-        log.info("Training epoch complete.")
+        log.info("Training epoch(s) complete.")
 
     return step
 
@@ -275,7 +286,7 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)
     weights = np.zeros_like(counts, dtype=float)
-    weights[counts != 0] = 1. / counts[counts!= 0].astype(float)
+    weights[counts != 0] = 1. / counts[counts != 0].astype(float)
     sample_weights = weights[Ys]
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
@@ -283,9 +294,9 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     acc_summary(acc, sess, step)
     bacc_summary(bacc, sess, step)
     logloss_summary(lp, sess, step)
-    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}" .format(acc,
-                                                                      bacc, lp))
-    return acc, bacc,lp
+    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
+             .format(acc, bacc, lp))
+    return acc, bacc, lp
 
 
 def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
@@ -302,18 +313,17 @@ def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
     lp = np.concatenate(LP, axis=1).mean()
-    r2 = r2_score(Ys, EYs, multioutput='raw_values')
+    r2 = r2_score(Ys, EYs, multioutput="raw_values")
     rsquare_summary(r2, sess, metadata.target_labels, step)
     logprob_summary(lp, sess, step)
     log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
     return r2, lp
 
 
-
 def rsquare_summary(r2, session, labels, step=None):
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = [tf.Summary.Value(tag='r-square-{}'.format(l), simple_value=r)
+    sum_val = [tf.Summary.Value(tag="r-square-{}".format(l), simple_value=r)
                for l, r in zip(labels, r2)]
     score_sum = tf.Summary(value=sum_val)
     summary_writer.add_summary(score_sum, step)
@@ -321,25 +331,27 @@ def rsquare_summary(r2, session, labels, step=None):
 
 def logprob_summary(logprob, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='mean log prob', simple_value=logprob)
+    sum_val = tf.Summary.Value(tag="mean log prob", simple_value=logprob)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
+
 
 def logloss_summary(logloss, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='log loss', simple_value=logloss)
+    sum_val = tf.Summary.Value(tag="log loss", simple_value=logloss)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 
+
 def acc_summary(acc, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='accuracy', simple_value=acc)
+    sum_val = tf.Summary.Value(tag="accuracy", simple_value=acc)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 
 def bacc_summary(bacc, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag='balanced accuracy', simple_value=bacc)
+    sum_val = tf.Summary.Value(tag="balanced accuracy", simple_value=bacc)
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 

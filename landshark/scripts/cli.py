@@ -151,6 +151,7 @@ def predict(
     """Predict using a learned model."""
     metadata = load_metadata(os.path.join(modeldir, "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
+    query_records.sort()
     params = QueryConfig(batchsize, samples, [lower, upper], gpu)
     y_dash_it = model.predict(modeldir, metadata, query_records, params)
     strip, nstrips = _get_strips(query_records)

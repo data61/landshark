@@ -61,10 +61,10 @@ def tifs(categorical: str, ordinal: str,
 
     if ordinal:
         ord_tif_filenames = _tifnames(ordinal)
-        ord_stack = ImageStack(ord_tif_filenames, 'ordinal')
+        ord_stack = ImageStack(ord_tif_filenames, "ordinal")
     if categorical:
         cat_tif_filenames = _tifnames(categorical)
-        cat_stack = ImageStack(cat_tif_filenames, 'categorical')
+        cat_stack = ImageStack(cat_tif_filenames, "categorical")
 
     write_datafile(ord_stack, cat_stack, out_filename, standardise)
     return 0
@@ -107,6 +107,7 @@ def targets(shapefile: str, test_frac: float, random_seed: int,
     mt.write_metadata(directory, metadata)
     return 0
 
+
 @cli.command()
 @click.option("--features", type=click.Path(exists=True), required=True)
 @click.option("--random_seed", type=int, default=666)
@@ -120,7 +121,7 @@ def queries(random_seed: int,
             features: str, batchsize: int, halfwidth: int,
             cache_blocksize: int, cache_nblocks: int,
             strip: int, totalstrips: int) -> int:
-    """grab a chunk for prediction"""
+    """Grab a chunk for prediction."""
     log.info("Loading image feature stack")
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
@@ -132,7 +133,7 @@ def queries(random_seed: int,
         pass
 
     feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
-    indices_it = indices_strip(feature_obj.image_spec,strip, totalstrips,
+    indices_it = indices_strip(feature_obj.image_spec, strip, totalstrips,
                                batchsize)
     data_it = feed.query_data(indices_it, feature_obj, halfwidth)
     tag = "query.{}of{}".format(strip, totalstrips)
