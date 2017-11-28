@@ -96,6 +96,17 @@ def _query_it(records_query, batch_size, metadata):
             return
 
 
+def _convert_res(res):
+    """Make sure Y adheres to our conventions."""
+    y, extra = res
+    if y.ndim == 1:
+        y = y[:, np.newaxis]
+    if y.dtype == np.float64:
+        y = y.astype(np.float32)
+    if y.dtype == np.int64:
+        y = y.astype(np.int32)
+    return y, extra
+
 def train_test(config_module, records_train, records_test, metadata, model_dir,
                maxpoints, batchsize, random_seed):
 
@@ -114,6 +125,7 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
     model.fit(ord_array, cat_array, y_array)
     log.info("Evaluating test data")
     res = model.predict(ord_array_test, cat_array_test)
+    res = _convert_res(res)
 
     if classification:
         EYs, pys = res
@@ -142,5 +154,6 @@ def predict(modeldir, metadata, query_records, batch_size):
 
     for xo, xc in _query_it(query_records, batch_size, metadata):
         res = model.predict(xo, xc)
+        res = _convert_res(res)
         yield res
 
