@@ -221,33 +221,31 @@ def predict(model, metadata, records, params):
         sess = tf.Session(config=sess_config)
         with sess.as_default():
             save = tf.train.import_meta_graph("{}.meta".format(model_file))
-            save.restore(sess, model_file)
-
-            # Restore place holders and prediction network
-            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
-            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
-            _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
-            feed_dict = {_records: records, _batchsize: params.batchsize,
-                         _nsamples: params.samples}
-
-            # Restore prediction network
-            it_op = graph.get_operation_by_name("QueryInit")
-
-            if classification:
-                Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
-                prob = graph.get_operation_by_name("Test/prob").outputs[0]
-                eval_list = [Ey, prob]
-            else:
-                Ef = graph.get_operation_by_name("Deepnet/F_mean").outputs[0]
-                F_samps = graph.get_operation_by_name("Deepnet/F_sample")\
-                    .outputs[0]
-                Per = ab.sample_percentiles(F_samps, params.percentiles)
-                eval_list = [Ef, Per]
-
-            # Initialise the dataset iterator
-            sess.run(it_op, feed_dict=feed_dict)
             with tqdm(total=total_size) as pbar:
                 while True:
+                    save.restore(sess, model_file)
+                    # Restore place holders and prediction network
+                    _records = graph.get_operation_by_name("QueryRecords").outputs[0]
+                    _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
+                    _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
+                    feed_dict = {_records: records, _batchsize: params.batchsize,
+                                 _nsamples: params.samples}
+
+                    # Restore prediction network
+                    it_op = graph.get_operation_by_name("QueryInit")
+
+                    if classification:
+                        Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
+                        prob = graph.get_operation_by_name("Test/prob").outputs[0]
+                        eval_list = [Ey, prob]
+                    else:
+                        Ef = graph.get_operation_by_name("Deepnet/F_mean").outputs[0]
+                        F_samps = graph.get_operation_by_name("Deepnet/F_sample")\
+                            .outputs[0]
+                        Per = ab.sample_percentiles(F_samps, params.percentiles)
+                        eval_list = [Ef, Per]
+                    # Initialise the dataset iterator
+                    sess.run(it_op, feed_dict=feed_dict)
                     try:
                         res = sess.run(eval_list, feed_dict=feed_dict)
                         pbar.update(res[0].shape[0])
