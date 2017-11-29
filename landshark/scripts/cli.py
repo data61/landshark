@@ -173,7 +173,7 @@ def skpredict(
     """Predict using a learned model."""
     metadata = load_metadata(os.path.join(modeldir, "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
-
+    query_records.sort()
     config_file = os.path.join(modeldir, "config.py")
     _load_config("userconfig", config_file)
 
