@@ -41,6 +41,10 @@ class BoundingBox:
         self.ymin = min(y0, yn)
         self.ymax = max(y0, yn)
 
+    def __repr__(self):
+        return "<bbox ([{:.2f},{:.2f}], [{:.2f},{:.2f}])>".format(
+            self.xmin, self.xmax, self.ymin, self.ymax)
+
     def contains(self, coords: np.ndarray) -> np.ndarray:
         """
         Check membership of coordinates in the bbox.
@@ -101,6 +105,11 @@ class ImageSpec:
         self.affine = from_bounds(west=self.bbox.xmin, east=self.bbox.xmax,
                                   north=self.bbox.ymax, south=self.bbox.ymin,
                                   width=self.width, height=self.height)
+    def __repr__(self):
+        return "<{}x{} image with bbox {} in {}>".format(self.height,
+                                                       self.width,
+                                                       self.bbox,
+                                                       self.crs)
 
 
 def pixel_coordinates(width: int,
@@ -252,9 +261,10 @@ def indices_strip(image_spec, strip, nstrips, batchsize):
     assert strip >= 1 and strip <= nstrips
     slices = _strip_slices(image_spec.height, nstrips)
     s = slices[strip - 1]   # indexed from one
+    n_total = (s.stop - s.start) * image_spec.width
     it = _indices_query(image_spec.width, image_spec.height, batchsize,
                       row_slice=s)
-    return it
+    return it, n_total
 
 def _indices_query(
     image_width: int,
@@ -299,7 +309,6 @@ def _indices_query(
 
     coords_it = product(height_ind, width_ind)
     total_size = len(height_ind) * len(width_ind)
-
     batch_it = iteration.batch(coords_it, batchsize, total_size)
     array_it = map(lambda x: tuple(np.array(x).T[::-1]), batch_it)
     return array_it

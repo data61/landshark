@@ -22,12 +22,14 @@ class BatchWriter:
         self.rows_written = 0
 
     def write(self, data):
+
+        assert data.ndim == 1
         all_data = np.hstack((self.res, data))
         nrows = len(all_data) // self.width
         if nrows > 0:
             # w = (slice(self.rows_written, self.rows_written + nrows),
                  # slice(0, self.width))
-            d = all_data[0: nrows*self.width].reshape(nrows, self.width)
+            d = all_data[0: nrows * self.width].reshape(nrows, self.width)
             w = Window(0, self.rows_written, d.shape[1], d.shape[0])
             self.f.write(d, 1, window=w)
             self.rows_written += nrows
@@ -70,7 +72,7 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
         assert len(labels) == 1
         label = labels[0]
         ey_writer = _make_writer(directory, label, np.int32,
-                                  metadata.image_spec)
+                                 metadata.image_spec)
         p_labels = _make_classify_labels(label, metadata.target_map)
         p_writers = [_make_writer(directory, l, np.float32,
                                   metadata.image_spec) for l in p_labels]
