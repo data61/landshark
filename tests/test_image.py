@@ -115,46 +115,15 @@ def test_image_spec(mocker):
     p_bbox = mocker.patch("landshark.image.BoundingBox")
     x_coords = np.arange(10)
     y_coords = np.arange(5)
-    spec = image.ImageSpec(x_coords, y_coords)
+    crs = {"init": "egs123"}
+    spec = image.ImageSpec(x_coords, y_coords, crs)
     assert spec.width == 9
     assert spec.height == 4
     assert spec.bbox == p_bbox.return_value
+    assert spec.crs == crs
 
 
-def test_coords_training():
-    """Check we get consistent target coodinates in the batch generator."""
-    batchsize = 10
-    width = 100
-    height = 50
-
-    # Fake up some image coord data, make coords equal indices
-    x = np.arange(width)
-    y = np.arange(height)
-
-    # fake some labels coords
-    rnd = np.random.RandomState(SEED)
-    label_x = rnd.choice(width, 30, replace=False)
-    label_y = rnd.choice(height, 30, replace=False)
-    label_coords = np.stack((label_x, label_y)).T
-
-    # Make the generator
-    coord_gen = image.coords_training(label_coords, x, y, batchsize)
-
-    label_accum = []
-    for cx, cy in coord_gen:
-
-        # Test sensible batch sizes
-        assert len(cx) <= batchsize
-        assert len(cy) <= batchsize
-
-        label_accum.append((cx, cy))
-
-    # Test we can reconstruct the labels array
-    label_accum = np.concatenate(label_accum, axis=-1).T
-    assert np.all(label_accum == label_coords)
-
-
-def test_coords_query():
+def test_indices_query():
     """Check we get consistent image coodinates in the batch generator."""
     batchsize = 10
     width = 20
@@ -165,7 +134,7 @@ def test_coords_query():
     xy = np.array(list(product(y, x)))[..., ::-1]
 
     # Make the generator
-    coord_gen = image.coords_query(width, height, batchsize)
+    coord_gen = image._indices_query(width, height, batchsize)
 
     coord_accum = []
     for cx, cy in coord_gen:
