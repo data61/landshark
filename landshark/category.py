@@ -2,6 +2,7 @@ import logging
 import numpy as np
 from collections import OrderedDict
 from landshark import iteration
+from landshark.basetypes import CategoricalValues
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class CategoryPreprocessor:
         return unique_vals, counts
 
 
-class CategoryMapper:
+class _CategoryMapper:
     def __init__(self):
         self.counts = OrderedDict()
 
@@ -43,7 +44,7 @@ class CategoricalOutputTransform:
             for i, v in enumerate(m):
                 indices = old_col == v
                 new_col[indices] = i
-        return new_array
+                return new_array
 
 
 def get_categories(source, batchsize, pool):
@@ -51,7 +52,7 @@ def get_categories(source, batchsize, pool):
     n_rows = array_src.shape[0]
     n_features = array_src.shape[-1]
     missing_values = array_src.missing
-    mappers = [CategoryMapper() for _ in range(n_features)]
+    mappers = [_CategoryMapper() for _ in range(n_features)]
 
     it = iteration.batch_slices(batchsize, n_rows)
     f = CategoryPreprocessor(n_features)

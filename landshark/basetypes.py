@@ -1,6 +1,7 @@
 """Baseclass for datatypes. Modron-light basically."""
 
 import logging
+from collections import namedtuple
 
 import numpy as np
 from typing import Union, Tuple
@@ -11,6 +12,19 @@ NumericalType = Union[np.integer, np.floating]
 OrdinalType = np.float32
 CategoricalType = np.int32
 CoordinateType = np.float64
+
+
+class FixedSlice:
+    def __init__(self, start: int, stop: int) -> None:
+        assert start >= 0
+        assert stop >= start
+        self.start = start
+        self.stop = stop
+
+    @property
+    def as_slice(self) -> slice:
+        s = slice(self.start, self.stop)
+        return s
 
 
 class CategoricalValues:
