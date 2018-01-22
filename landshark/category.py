@@ -1,17 +1,27 @@
+"""Operations to support categorical data."""
+
 import logging
-import numpy as np
 from collections import OrderedDict
-from landshark import iteration
+
+import numpy as np
+from typing import Tuple, List
+
 from landshark.basetypes import CategoricalValues
+from landshark import iteration
 
 log = logging.getLogger(__name__)
 
-class CategoryPreprocessor:
 
-    def __init__(self, ncols):
+class _CategoryPreprocessor:
+    """Stateful function for returning unique values."""
+
+    def __init__(self, ncols: int) -> None:
+        assert ncols > 0
+        """Initialise the object."""
         self.ncols = ncols
 
-    def __call__(self, values):
+    def __call__(self, values: np.ndarray) \
+            -> Tuple[List[np.ndarray], List[int]]:
         x = values.categorical
         x = x.reshape((-1), self.ncols)
         unique_vals = [np.unique(c) for c in x.T]
@@ -55,7 +65,7 @@ def get_categories(source, batchsize, pool):
     mappers = [_CategoryMapper() for _ in range(n_features)]
 
     it = iteration.batch_slices(batchsize, n_rows)
-    f = CategoryPreprocessor(n_features)
+    f = _CategoryPreprocessor(n_features)
     data_it = ((source.slice(start, end)) for start, end in it)
     out_it = pool.imap(f, data_it)
     for mapper, m in zip(mappers, missing_values):
