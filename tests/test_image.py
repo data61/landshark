@@ -1,11 +1,55 @@
 """Tests for the image module."""
 from itertools import product
 
+import pytest
 import numpy as np
 
 from landshark import image
 
 SEED = 666
+
+
+def test_bounding_box():
+
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+
+    b = image.BoundingBox(x_coords, y_coords)
+    assert b.xmin == x_coords[0]
+    assert b.xmax == x_coords[-1]
+    assert b.ymin == y_coords[0]
+    assert b.ymax == y_coords[-1]
+
+    b = image.BoundingBox(x_coords[::-1], y_coords[::-1])
+    assert b.xmin == x_coords[0]
+    assert b.xmax == x_coords[-1]
+    assert b.ymin == y_coords[0]
+    assert b.ymax == y_coords[-1]
+
+
+def test_bounding_box_contains():
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+
+    b = image.BoundingBox(x_coords, y_coords)
+
+    tests = np.array([[1, 1], [-1, 3], [3, -1],
+                      [8, 7], [0, 0], [9, 4], [10, 10]])
+    result = b.contains(tests)
+    ans = np.array([True, False, False, False, True, True, False])
+    assert np.all(result == ans)
+
+
+def test_image_spec(mocker):
+    p_bbox = mocker.patch("landshark.image.BoundingBox")
+    x_coords = np.arange(10)
+    y_coords = np.arange(5)
+    crs = {"init": "egs123"}
+    spec = image.ImageSpec(x_coords, y_coords, crs)
+    assert spec.width == 9
+    assert spec.height == 4
+    assert spec.bbox == p_bbox.return_value
+    assert spec.crs == crs
 
 
 def test_pixel_coordinates(random_image_transform):
@@ -80,47 +124,73 @@ def test_world_to_image_centers(random_image_transform):
     assert np.all(true_idx_y == idx_y)
 
 
-def test_bounding_box():
-
-    x_coords = np.arange(10)
-    y_coords = np.arange(5)
-
-    b = image.BoundingBox(x_coords, y_coords)
-    assert b.xmin == x_coords[0]
-    assert b.xmax == x_coords[-1]
-    assert b.ymin == y_coords[0]
-    assert b.ymax == y_coords[-1]
-
-    b = image.BoundingBox(x_coords[::-1], y_coords[::-1])
-    assert b.xmin == x_coords[0]
-    assert b.xmax == x_coords[-1]
-    assert b.ymin == y_coords[0]
-    assert b.ymax == y_coords[-1]
-
-
-def test_bounding_box_contains():
-    x_coords = np.arange(10)
-    y_coords = np.arange(5)
-
-    b = image.BoundingBox(x_coords, y_coords)
-
-    tests = np.array([[1, 1], [-1, 3], [3, -1],
-                      [8, 7], [0, 0], [9, 4], [10, 10]])
-    result = b.contains(tests)
-    ans = np.array([True, False, False, False, True, True, False])
-    assert np.all(result == ans)
-
-
-def test_image_spec(mocker):
-    p_bbox = mocker.patch("landshark.image.BoundingBox")
-    x_coords = np.arange(10)
-    y_coords = np.arange(5)
+@pytest.mark.parametrize("nstrips,rows,cols",
+                         [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
+def test_strip_image_spec(nstrips, rows, cols):
+    # coords are 1 past last pixel
+    x_coords = np.arange(cols + 1)
+    y_coords = np.arange(rows + 1)
     crs = {"init": "egs123"}
     spec = image.ImageSpec(x_coords, y_coords, crs)
-    assert spec.width == 9
-    assert spec.height == 4
-    assert spec.bbox == p_bbox.return_value
-    assert spec.crs == crs
+    specs = [image.strip_image_spec(i + 1, nstrips, spec)
+             for i in range(nstrips)]
+    for s in specs:
+        assert s.crs == crs
+        assert np.all(x_coords == s.x_coordinates)
+
+    y_coords_new = np.concatenate([a.y_coordinates[:-1] for a in specs[:-1]] +
+                                  [specs[-1].y_coordinates], axis=0)
+    assert np.all(y_coords == y_coords_new)
+
+
+@pytest.mark.parametrize("nstrips,rows,cols",
+                         [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
+def test_indices_strip(nstrips, rows, cols):
+    # coords are 1 past last pixel
+    x_coords = np.arange(cols + 1)
+    y_coords = np.arange(rows + 1)
+    crs = {"init": "egs123"}
+    spec = image.ImageSpec(x_coords, y_coords, crs)
+    batchsize = 10
+    x_inds = []
+    y_inds = []
+    n = 0
+    for i in range(nstrips):
+        it_i, n_i = image.indices_strip(spec, i + 1, nstrips, batchsize)
+        n += n_i
+        for x, y in it_i:
+            assert x.shape[0] <= batchsize
+            assert y.shape[0] <= batchsize
+            x_inds.append(x)
+            y_inds.append(y)
+    x_inds = np.concatenate(x_inds, axis=0)
+    y_inds = np.concatenate(y_inds, axis=0)
+    assert n == rows * cols
+
+    ans = list(product(range(rows), range(cols)))
+    pairs = zip(x_inds, y_inds)
+    pairs_rev = [(a, b) for b, a in pairs]
+    assert ans == pairs_rev
+
+
+@pytest.mark.parametrize("total_size, nstrips",
+                         [(100, 4), (10, 10), (7, 2), (8, 1)])
+def test_strip_slices(total_size, nstrips):
+    slice_list = image._strip_slices(total_size, nstrips)
+    assert len(slice_list) == nstrips
+    assert slice_list[0].start == 0
+    for i in range(1, len(slice_list)):
+        assert slice_list[i].start == slice_list[i - 1].stop
+    assert slice_list[-1].stop == total_size
+
+
+def test_array_pair_it():
+    """Test the convenience function for manipulating the batch iterators."""
+    x = np.random.randn(10, 2)
+    x_list = x.tolist()
+    out = image._array_pair_it(x_list)
+    assert np.all(out[0] == x[:, 1])
+    assert np.all(out[1] == x[:, 0])
 
 
 def test_indices_query():
