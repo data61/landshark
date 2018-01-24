@@ -6,26 +6,31 @@ from landshark.basetypes import CategoricalValues
 
 
 def test_category_preprocessor():
-    ncols = 4
-    p = category.CategoryPreprocessor(ncols)
-    x = CategoricalValues(np.array([[1, 2, 2], [1, 2, 3],
-                                    [1, 1, 2], [1, 1, 1]]))
+    ncols = 3
+    p = category._CategoryPreprocessor(ncols)
+    in_data = np.array([[1, 2, 2], [1, 2, 3],
+                        [1, 1, 2], [1, 1, 1]])
+    x = CategoricalValues(in_data)
     unique_vals, counts = p(x)
-    true_vals = [np.array([1, 2]), np.array([1, 2, 3]),
-                 np.array([1, 2]), np.array([1])]
-    true_counts = [np.array([1, 2]), np.array([1, 1, 1]),
-                   np.array([2, 1]), np.array([3])]
+    true_vals = [np.array([1]), np.array([1, 2]), np.array([1, 2, 3])]
+    true_counts = [np.array([4]), np.array([2, 2]), np.array([1, 2, 1])]
 
     for v, w in zip(unique_vals, true_vals):
         assert np.all(v == w)
     for v, w in zip(counts, true_counts):
         assert np.all(v == w)
 
-    y = CategoricalValues(np.array([[2, 3, 4], [1, 5, 6],
-                                    [1, 1, 1], [1, 8, 8]]))
 
-    new_unique, new_counts = p(y)
-    import IPython; IPython.embed(); import sys; sys.exit()
+def test_category_accumulator():
+    pass
+
+
+
+    # in_data_2 = np.array([[2, 3, 4], [1, 5, 6],
+    #                       [1, 1, 1], [1, 8, 8]])
+    # y = CategoricalValues(in_data_2)
+    # new_unique, new_counts = p(y)
+    # import IPython; IPython.embed(); import sys; sys.exit()
 
 
 # def test_category_obj_missing():

@@ -10,7 +10,7 @@ from typing import List
 
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
     CategoricalArraySource, OrdinalDataSource, CategoricalDataSource, \
-    CoordinateType
+    CoordinateArraySource
 
 log = logging.getLogger(__name__)
 
@@ -75,19 +75,26 @@ class _ShpArraySource(ArraySource):
         array = np.array(data, dtype=self.dtype)
         return array
 
+
 class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
     pass
+
 
 class CategoricalShpArraySource(_ShpArraySource, CategoricalArraySource):
     pass
 
-class CoordinateShpArraySource(_ShpArraySource, OrdinalArraySource):
+
+class CoordinateShpArraySource(CoordinateArraySource):
 
     def __init__(self, filename: str, random_seed: int)-> None:
-        labels = ["X", "Y"]
-        super().__init__(filename, labels, random_seed)
-        # This is not data so we want to be more precise
-        self._dtype = CoordinateType
+        self._sf = shapefile.Reader(filename)
+        self._shape = (self._sf.numRecords, 2)
+        self._native = 1
+        self._missing = [None, None]
+        self._columns = ["X", "Y"]
+        self._seed = 1
+        rnd = np.random.RandomState(random_seed)
+        self._perm = rnd.permutation(self._shape[0])
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
         indices = self._perm[start: end]

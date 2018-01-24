@@ -140,13 +140,16 @@ class ArraySource:
         raise NotImplementedError
 
 
-class OrdinalArraySource:
+class OrdinalArraySource(ArraySource):
     _dtype = OrdinalType
 
 
-class CategoricalArraySource:
+class CategoricalArraySource(ArraySource):
     _dtype = CategoricalType
 
+
+class CoordinateArraySource(ArraySource):
+    _dtype = CoordinateType
 
 class OrdinalDataSource(DataSource):
 

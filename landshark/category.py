@@ -16,13 +16,15 @@ class _CategoryPreprocessor:
     """Stateful function for returning unique values."""
 
     def __init__(self, ncols: int) -> None:
-        assert ncols > 0
         """Initialise the object."""
+        assert ncols > 0
         self.ncols = ncols
 
-    def __call__(self, values: np.ndarray) \
+    def __call__(self, values: CategoricalValues) \
             -> Tuple[List[np.ndarray], List[int]]:
+        """Get the unique values and their counts from the input."""
         x = values.categorical
+        assert x.shape[-1] == self.ncols
         x = x.reshape((-1), self.ncols)
         unique_vals = [np.unique(c) for c in x.T]
         counts = [np.array([np.sum(c == v) for v in uv])
@@ -30,16 +32,47 @@ class _CategoryPreprocessor:
         return unique_vals, counts
 
 
-class _CategoryMapper:
-    def __init__(self):
-        self.counts = OrderedDict()
+class _CategoryAccumulator:
+    """Class for accumulating categorical values and their counts."""
 
-    def update(self, values, counts):
+    def __init__(self) -> None:
+        """Initialise the object."""
+        self.counts: OrderedDict = OrderedDict()
+
+    def update(self, values: List[np.ndarray], counts: List[int]) -> None:
+        """Add a new set of values from a batch."""
         for v, c in zip(values, counts):
             if v in self.counts:
                 self.counts[v] += c
             else:
                 self.counts[v] = c
+
+
+def get_categories(source, batchsize, pool):
+    array_src = source.categorical
+    n_rows = array_src.shape[0]
+    n_features = array_src.shape[-1]
+    missing_values = array_src.missing
+    accums = [_CategoryAccumulator() for _ in range(n_features)]
+
+    it = iteration.batch_slices(batchsize, n_rows)
+    f = _CategoryPreprocessor(n_features)
+    data_it = ((source.slice(start, end)) for start, end in it)
+    out_it = pool.imap(f, data_it)
+    for acc, m in zip(accums, missing_values):
+        if m is not None:
+            acc.update([m], [0])
+
+    log.info("Computing unique values in categorical features:")
+    for unique_vals, counts in out_it:
+        for mapper, u, c in zip(accums, unique_vals, counts):
+            mapper.update(u, c)
+
+    count_dicts = [m.counts for m in accums]
+    mappings = [np.array(list(c.keys()), dtype=np.int32) for c in count_dicts]
+    counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
+    return mappings, counts
+
 
 class CategoricalOutputTransform:
     def __init__(self, mappings):
@@ -56,29 +89,4 @@ class CategoricalOutputTransform:
                 new_col[indices] = i
                 return new_array
 
-
-def get_categories(source, batchsize, pool):
-    array_src = source.categorical
-    n_rows = array_src.shape[0]
-    n_features = array_src.shape[-1]
-    missing_values = array_src.missing
-    mappers = [_CategoryMapper() for _ in range(n_features)]
-
-    it = iteration.batch_slices(batchsize, n_rows)
-    f = _CategoryPreprocessor(n_features)
-    data_it = ((source.slice(start, end)) for start, end in it)
-    out_it = pool.imap(f, data_it)
-    for mapper, m in zip(mappers, missing_values):
-        if m is not None:
-            mapper.update([m], [0])
-
-    log.info("Computing unique values in categorical features:")
-    for unique_vals, counts in out_it:
-        for mapper, u, c in zip(mappers, unique_vals, counts):
-            mapper.update(u, c)
-
-    count_dicts = [m.counts for m in mappers]
-    mappings = [np.array(list(c.keys()), dtype=np.int32) for c in count_dicts]
-    counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
-    return mappings, counts
 
