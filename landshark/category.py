@@ -2,11 +2,13 @@
 
 import logging
 from collections import OrderedDict
+from multiprocessing import Pool
 
 import numpy as np
 from typing import Tuple, List
 
-from landshark.basetypes import CategoricalValues
+
+from landshark.basetypes import CategoricalValues, CategoricalDataSource
 from landshark import iteration
 
 log = logging.getLogger(__name__)
@@ -48,7 +50,30 @@ class _CategoryAccumulator:
                 self.counts[v] = c
 
 
-def get_categories(source, batchsize, pool):
+def get_categories(source: CategoricalDataSource,
+                   batchsize: int,
+                   pool: Pool) -> None:
+    """
+    Extract the unique categorical variables and their counts.
+
+    Parameters
+    ----------
+    source : CategoricalDataSource
+        The data source to examine.
+    batchsize : int
+        The number of rows to examine in one iteration (by 1 proc)
+    pool : multiprocessing.Pool
+        The pool of processes over which to distribute the work.
+
+    Returns
+    -------
+    mappings : List[np.ndarray]
+        The mapping of unique values for each feature.
+    counts : List[np.ndarray]
+        The counts of unique values for each feature.
+
+
+    """
     array_src = source.categorical
     n_rows = array_src.shape[0]
     n_features = array_src.shape[-1]
