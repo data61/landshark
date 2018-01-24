@@ -52,7 +52,7 @@ class _CategoryAccumulator:
 
 def get_categories(source: CategoricalDataSource,
                    batchsize: int,
-                   pool: Pool) -> None:
+                   pool: Pool):
     """
     Extract the unique categorical variables and their counts.
 
@@ -93,10 +93,11 @@ def get_categories(source: CategoricalDataSource,
         for mapper, u, c in zip(accums, unique_vals, counts):
             mapper.update(u, c)
 
+    missing = [np.int32(0) if k is not None else None for k in missing_values]
     count_dicts = [m.counts for m in accums]
     mappings = [np.array(list(c.keys()), dtype=np.int32) for c in count_dicts]
     counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
-    return mappings, counts
+    return mappings, counts, missing
 
 
 class CategoricalOutputTransform:
@@ -112,6 +113,6 @@ class CategoricalOutputTransform:
             for i, v in enumerate(m):
                 indices = old_col == v
                 new_col[indices] = i
-                return new_array
+        return new_array
 
 

@@ -57,12 +57,14 @@ def write_categorical(source, h5file, batchsize, pool):
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = h5file.create_carray(h5file.root, name="categorical_data",
                                  atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = array_src.columns
-    array.attrs.missing = array_src.missing
 
-    mappings, counts = get_categories(source, batchsize, pool)
+    array.attrs.columns = array_src.columns
+    # We always map missing values to zero
+
+    mappings, counts, missing = get_categories(source, batchsize, pool)
     array.attrs.mappings = mappings
     array.attrs.counts = counts
+    array.attrs.missing = missing
 
     f = CategoricalOutputTransform(mappings)
     log.info("Writing categorical data to disk:")
