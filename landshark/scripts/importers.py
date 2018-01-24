@@ -38,11 +38,14 @@ def cli(verbosity: str) -> int:
 
 def _tifnames(directory: str) -> List[str]:
     if directory is not None:
-        names = glob(os.path.join(directory, "*.tif"))
-        result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+        file_types = ('tif', 'gtif')
+        names = []
+        for t in file_types:
+            glob_pattern = os.path.join(directory, "**", "*.{}".format(t))
+            names.extend(glob(glob_pattern, recursive=True))
     else:
-        result = None
-    return result
+        names = None
+    return names
 
 
 @cli.command()
