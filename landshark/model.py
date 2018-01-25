@@ -1,20 +1,25 @@
 """Train/test with tfrecords."""
-from collections import namedtuple
 import signal
 import logging
-from itertools import count
 import os.path
+from typing import List, Module, Generator
+from itertools import count
+from collections import namedtuple
 
-
-from tqdm import tqdm
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
+from landshark.importers.metadata import TrainingMetadata
+from tqdm import tqdm
 from sklearn.metrics import accuracy_score, log_loss, r2_score
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
+
+#
+# Module constants and types
+#
 
 FDICT = {
     "x_cat": tf.FixedLenFeature([], tf.string),
@@ -32,50 +37,17 @@ QueryConfig = namedtuple("QueryConfig", ["batchsize", "samples",
                                          "percentiles", "use_gpu"])
 
 
-def train_data(records: list, batch_size: int, epochs: int=1) \
-        -> tf.data.TFRecordDataset:
-    """Train dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .repeat(count=epochs) \
-        .shuffle(buffer_size=1000) \
-        .batch(batch_size)
-    return dataset
+#
+# Main functionality
+#
 
-
-def test_data(records: list, batch_size: int) -> tf.data.TFRecordDataset:
-    """Test and query dataset feeder"""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .batch(batch_size)
-    return dataset
-
-
-def decode(iterator, metadata):
-    """Decode tf.record strings."""
-    str_features = iterator.get_next()
-    raw_features = tf.parse_example(str_features, features=FDICT)
-    npatch = (2 * metadata.halfwidth + 1) ** 2
-    y_type = tf.float32 if metadata.target_dtype == np.float32 \
-        else tf.int32
-    with tf.name_scope("Inputs"):
-        x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
-        x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
-        x_ord_mask = tf.decode_raw(raw_features["x_ord_mask"], tf.uint8)
-        x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
-        x_ord_mask = tf.cast(x_ord_mask, tf.bool)
-        x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], y_type)
-
-        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
-        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
-        y.set_shape((None, metadata.ntargets))
-
-    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
-
-
-def train_test(records_train, records_test, metadata, directory, cf, params):
-
+def train_test(records_train: List[str],
+               records_test: List[str],
+               metadata: TrainingMetadata,
+               directory: str,
+               cf: Module,
+               params: TrainingConfig) -> None:
+    """Model training and periodic hold-out testing."""
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
 
@@ -85,11 +57,10 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
     _query_records = tf.placeholder_with_default(
         records_test, (None,), name="QueryRecords")
     _query_batchsize = tf.placeholder_with_default(
-        tf.constant(params.test_batchsize, dtype=tf.int64),
-        shape=tuple(), name="BatchSize")
+        tf.constant(params.test_batchsize, dtype=tf.int64), shape=(),
+        name="BatchSize")
     _samples = tf.placeholder_with_default(
-        tf.constant(params.samples, dtype=tf.int32),
-        shape=tuple(), name="NSamples")
+        tf.constant(params.samples, dtype=tf.int32), shape=(), name="NSamples")
 
     # Datasets
     train_dataset = train_data(records_train, params.batchsize, params.epochs)
@@ -171,8 +142,8 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                         best_scores = [lp, acc, bacc]
                         # Save the variables to disk.
                         rsess = sess._sess._sess._sess._sess
-                        save_path = saver.save(
-                            rsess, os.path.join(directory, "model_best.ckpt"))
+                        saver.save(rsess,
+                                   os.path.join(directory, "model_best.ckpt"))
                         log.info("New best model saved with lp: {}".format(lp))
 
                 else:
@@ -183,10 +154,9 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                         best_scores = [lp, r2]
                         # Save the variables to disk.
                         rsess = sess._sess._sess._sess._sess
-                        save_path = saver.save(
-                            rsess, os.path.join(directory, "model_best.ckpt"))
+                        saver.save(rsess,
+                                   os.path.join(directory, "model_best.ckpt"))
                         log.info("New best model saved with lp: {}".format(lp))
-
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
@@ -200,7 +170,10 @@ def train_test(records_train, records_test, metadata, directory, cf, params):
                 break
 
 
-def predict(model, metadata, records, params):
+def predict(model: str,
+            metadata: TrainingMetadata,
+            records: List[str],
+            params: QueryConfig) -> Generator:
     """Load a model and predict results for record inputs."""
     total_size = metadata.image_spec.height * metadata.image_spec.width
     classification = metadata.target_dtype != np.float32
@@ -208,6 +181,7 @@ def predict(model, metadata, records, params):
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
+
     print("Loading model: {}".format(model_file))
     tf.reset_default_graph()
     with tf.Session(config=sess_config) as sess:
@@ -222,26 +196,26 @@ def predict(model, metadata, records, params):
         with sess.as_default():
             save = tf.train.import_meta_graph("{}.meta".format(model_file))
             save.restore(sess, model_file)
+
             # Restore place holders and prediction network
-            _records = graph.get_operation_by_name("QueryRecords").outputs[0]
-            _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
-            _nsamples = graph.get_operation_by_name("NSamples").outputs[0]
-            feed_dict = {_records: records, _batchsize: params.batchsize,
-                         _nsamples: params.samples}
-            # Restore prediction network
-            it_op = graph.get_operation_by_name("QueryInit")
+            _records = load_op(graph, "QueryRecords")
+            _batchsize = load_op(graph, "BatchSize")
+            _nsamples = load_op(graph, "NSamples")
 
             if classification:
-                Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
-                prob = graph.get_operation_by_name("Test/prob").outputs[0]
+                Ey = load_op(graph, "Test/Ey")
+                prob = load_op(graph, "Test/prob")
                 eval_list = [Ey, prob]
             else:
-                Ef = graph.get_operation_by_name("Deepnet/F_mean").outputs[0]
-                F_samps = graph.get_operation_by_name("Deepnet/F_sample")\
-                    .outputs[0]
+                Ef = load_op(graph, "Deepnet/F_mean")
+                F_samps = load_op(graph, "Deepnet/F_sample")
                 Per = ab.sample_percentiles(F_samps, params.percentiles)
                 eval_list = [Ef, Per]
+
             # Initialise the dataset iterator
+            feed_dict = {_records: records, _batchsize: params.batchsize,
+                         _nsamples: params.samples}
+            it_op = graph.get_operation_by_name("QueryInit")
             sess.run(it_op, feed_dict=feed_dict)
 
             with tqdm(total=total_size) as pbar:
@@ -252,6 +226,52 @@ def predict(model, metadata, records, params):
                         pbar.update(res[0].shape[0])
                     except tf.errors.OutOfRangeError:
                         return
+
+
+#
+# Module utility functions
+#
+
+def train_data(records: List[str], batch_size: int, epochs: int=1) \
+        -> tf.data.TFRecordDataset:
+    """Train dataset feeder."""
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .repeat(count=epochs) \
+        .shuffle(buffer_size=1000) \
+        .batch(batch_size)
+    return dataset
+
+
+def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
+    """Test and query dataset feeder."""
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .batch(batch_size)
+    return dataset
+
+
+def decode(iterator, metadata):
+    """Decode tf.record strings."""
+    str_features = iterator.get_next()
+    raw_features = tf.parse_example(str_features, features=FDICT)
+    npatch = (2 * metadata.halfwidth + 1) ** 2
+    y_type = tf.float32 if metadata.target_dtype == np.float32 \
+        else tf.int32
+    with tf.name_scope("Inputs"):
+        x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
+        x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
+        x_ord_mask = tf.decode_raw(raw_features["x_ord_mask"], tf.uint8)
+        x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
+        x_ord_mask = tf.cast(x_ord_mask, tf.bool)
+        x_cat_mask = tf.cast(x_cat_mask, tf.bool)
+        y = tf.decode_raw(raw_features["y"], y_type)
+
+        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
+        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
+        y.set_shape((None, metadata.ntargets))
+
+    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 
 
 def train_loop(train, global_step, sess):
@@ -347,6 +367,7 @@ def acc_summary(acc, session, step=None):
     score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 
+
 def bacc_summary(bacc, session, step=None):
     summary_writer = session._hooks[1]._summary_writer
     sum_val = tf.Summary.Value(tag="balanced accuracy", simple_value=bacc)
@@ -361,3 +382,9 @@ def patch_slices(metadata):
     end = range(npatch, dim + npatch, npatch)
     slices = [slice(b, e) for b, e in zip(begin, end)]
     return slices
+
+
+def load_op(graph: tf.Graph, name: str) -> tf.Tensor:
+    """Load an operation/tensor from a graph."""
+    tensor = graph.get_operation_by_name(name).outputs[0]
+    return tensor
