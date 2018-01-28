@@ -84,7 +84,7 @@ class _MultiFileWriter:
 def _split_on_mask(data, rnd, test_frac):
     n = len(data)
     mask = rnd.choice([True, False], size=(n,),
-                      p=[test_frac, 1.0 - test_frac])
+                      p=[1.0 - test_frac, test_frac])
     nmask = ~mask
     train_batch = [data[i] for i, m in enumerate(mask) if m]
     test_batch = [data[i] for i, m in enumerate(nmask) if m]
