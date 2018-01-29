@@ -2,7 +2,9 @@ import numpy as np
 
 from typing import List, Union
 
-MissingValueList = List[Union[np.float32, np.int32, None]]
+from landshark.basetypes import CategoricalType, OrdinalType
+
+MissingValueList = List[Union[OrdinalType, CategoricalType, None]]
 
 def to_masked(array: np.ndarray, missing_values: MissingValueList) \
         -> np.ma.MaskedArray:

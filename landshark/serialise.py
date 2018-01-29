@@ -3,6 +3,7 @@ from itertools import repeat
 import tensorflow as tf
 import numpy as np
 
+from basetypes import OrdinalType
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     """Create an ndarray feature stored as bytes."""
@@ -31,7 +32,7 @@ def serialise(x_ord, x_cat, y):
         x_cat = repeat(np.ma.MaskedArray(data=[], mask=[]))
     if y is None:
         # TODO dont know the dtype so this is a bit dodgy
-        y = repeat(np.array([], dtype=np.float32))
+        y = repeat(np.array([], dtype=OrdinalType))
 
     string_list = []
     for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):

@@ -7,6 +7,9 @@ import numpy as np
 import pickle
 
 from landshark import model
+from landshark.basetypes import CategoricalType, OrdinalType
+
+
 from sklearn.metrics import accuracy_score, log_loss, r2_score
 import scipy.stats
 
@@ -100,16 +103,16 @@ def _convert_res(res):
     y, extra = res
     if y.ndim == 1:
         y = y[:, np.newaxis]
-    if y.dtype == np.float64:
-        y = y.astype(np.float32)
-    if y.dtype == np.int64:
-        y = y.astype(np.int32)
+    if y.dtype == np.float64 or y.dtype == np.float32:
+        y = y.astype(OrdinalType)
+    elif y.dtype == np.int64 or y.dtype == np.int32:
+        y = y.astype(CategoricalType)
     return y, extra
 
 def train_test(config_module, records_train, records_test, metadata, model_dir,
                maxpoints, batchsize, random_seed):
 
-    classification = metadata.target_dtype != np.float32
+    classification = metadata.target_dtype != OrdinalType
 
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,

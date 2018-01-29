@@ -10,16 +10,16 @@ from typing import List
 
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
     CategoricalArraySource, OrdinalDataSource, CategoricalDataSource, \
-    CoordinateArraySource
+    CoordinateArraySource, OrdinalType, CategoricalType
 
 log = logging.getLogger(__name__)
 
 
 def _extract_type(python_type, field_length):
     if python_type is float:
-        return np.float32
+        return OrdinalType
     elif python_type is int:
-        return np.int32
+        return CategoricalType
     elif python_type is str:
         return "a" + str(field_length)
     elif python_type is datetime.date:
