@@ -14,8 +14,8 @@ NumericalType = Union[np.float32, np.int32]
 MissingType = Optional[NumericalType]
 CoordinateType = np.float64
 
-# Datasources have 1 or more ArraySources. An array source provides a single
-# type of data, where-as a DataSource provides mixed types, for example when
+# DataSources have 1 or more ArraySources. An array source provides a single
+# type of data, whereas a DataSource provides mixed types, for example when
 # there is ordinal and categorical data.
 # Datasources return "Value" objects which are just structs that have the
 # different data types as separate members.
@@ -255,6 +255,10 @@ class ArraySource(Sized):
         """Perform the array slice. This gets overridden by children."""
         raise NotImplementedError
 
+    def __len__(self) -> int:
+        """Return the number of rows (1st dimension)."""
+        return self._shape[0]
+
 
 class OrdinalArraySource(ArraySource):
     """Array source for Ordinal data."""
@@ -274,7 +278,7 @@ class CoordinateArraySource(ArraySource):
     _dtype = CoordinateType
 
 
-class DataSource:
+class DataSource(Sized):
     """
     Abstract Data object that may have categorical, ordinal or mixed data.
 
