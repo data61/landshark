@@ -14,6 +14,12 @@ NumericalType = Union[np.float32, np.int32]
 MissingType = Optional[NumericalType]
 CoordinateType = np.float64
 
+# Datasources have 1 or more ArraySources. An array source provides a single
+# type of data, where-as a DataSource provides mixed types, for example when
+# there is ordinal and categorical data.
+# Datasources return "Value" objects which are just structs that have the
+# different data types as separate members.
+
 
 class FixedSlice:
     """
