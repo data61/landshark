@@ -9,7 +9,7 @@ from collections import namedtuple
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
-from landshark.importers.metadata import TrainingMetadata
+from landshark.metadata import TrainingMetadata
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, log_loss, r2_score
 
