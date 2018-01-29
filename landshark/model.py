@@ -208,7 +208,6 @@ def predict(model, metadata, records, params):
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
-    print("Loading model: {}".format(model_file))
     tf.reset_default_graph()
     with tf.Session(config=sess_config) as sess:
         graph = tf.get_default_graph()
@@ -222,6 +221,7 @@ def predict(model, metadata, records, params):
         with sess.as_default():
             save = tf.train.import_meta_graph("{}.meta".format(model_file))
             save.restore(sess, model_file)
+
             # Restore place holders and prediction network
             _records = graph.get_operation_by_name("QueryRecords").outputs[0]
             _batchsize = graph.get_operation_by_name("BatchSize").outputs[0]
@@ -230,6 +230,7 @@ def predict(model, metadata, records, params):
                          _nsamples: params.samples}
             # Restore prediction network
             it_op = graph.get_operation_by_name("QueryInit")
+
 
             if classification:
                 Ey = graph.get_operation_by_name("Test/Ey").outputs[0]
@@ -243,6 +244,10 @@ def predict(model, metadata, records, params):
                 eval_list = [Ef, Per]
             # Initialise the dataset iterator
             sess.run(it_op, feed_dict=feed_dict)
+
+            # Get a single set of samples from the model
+            # sample_feed_dict = ab.sample_model(graph, sess, feed_dict)
+            # feed_dict.update(sample_feed_dict)
 
             with tqdm(total=total_size) as pbar:
                 while True:

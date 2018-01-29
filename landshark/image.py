@@ -1,14 +1,14 @@
 """Image operations that move between world and image coordinates."""
 import logging
-from itertools import product, islice
+from itertools import product
 
-from rasterio.transform import from_bounds
 import numpy as np
+from rasterio.transform import from_bounds
 from affine import Affine
-# mypy type checking
-from typing import Tuple, Iterable
+from typing import Tuple, Iterable, Dict, List, Optional, Any
 
 from landshark import iteration
+from landshark.basetypes import FixedSlice
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +40,12 @@ class BoundingBox:
         self.xmax = max(x0, xn)
         self.ymin = min(y0, yn)
         self.ymax = max(y0, yn)
+
+    def __repr__(self) -> str:
+        """Print a string representation of object."""
+        rep = "<bbox ([{:.2f},{:.2f}], [{:.2f},{:.2f}])>".format(
+            self.xmin, self.xmax, self.ymin, self.ymax)
+        return rep
 
     def contains(self, coords: np.ndarray) -> np.ndarray:
         """
@@ -84,7 +90,7 @@ class ImageSpec:
     """
 
     def __init__(self, x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray, crs) -> None:
+                 y_coordinates: np.ndarray, crs: Dict[str, str]) -> None:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
@@ -101,6 +107,12 @@ class ImageSpec:
         self.affine = from_bounds(west=self.bbox.xmin, east=self.bbox.xmax,
                                   north=self.bbox.ymax, south=self.bbox.ymin,
                                   width=self.width, height=self.height)
+
+    def __repr__(self) -> str:
+        """Create a string representation of the object."""
+        rep = "<{}x{} image with bbox {} in {}>".format(
+            self.height, self.width, self.bbox, self.crs)
+        return rep
 
 
 def pixel_coordinates(width: int,
@@ -227,79 +239,114 @@ def world_to_image(points: np.ndarray,
     return idx
 
 
-def strip_image_spec(strip, nstrips, image_spec):
+def strip_image_spec(strip: int, nstrips: int,
+                     image_spec: ImageSpec) -> ImageSpec:
+    """
+    Create an imagespec for an indexed strip of a larger image.
+
+    Parameters
+    ----------
+    strip : int
+        The index of the strip of the larger image. 1 <= strip <= nstrips.
+
+    nstrips : int
+        The total number of strips between which to divide the image.
+        Must be greater than 0.
+
+    image_spec : ImageSpec
+        The imagespec of the full-sized image that is being divided.
+
+    Returns
+    -------
+    new_spec : ImageSpec
+        The imagespec of the strip.
+
+    """
+    assert nstrips > 0
+    assert strip >= 1 and strip <= nstrips
     # strips are indexed from one
     strip_slice = _strip_slices(image_spec.height, nstrips)[strip - 1]
     # coordinates are of all pixel edges so need to go one past the end
     x_coords = image_spec.x_coordinates
-    y_coords = image_spec.y_coordinates[strip_slice.start:strip_slice.stop + 1]
+    y_coords = image_spec.y_coordinates[
+        strip_slice.start: strip_slice.stop + 1]
     crs = image_spec.crs
     new_spec = ImageSpec(x_coords, y_coords, crs)
     return new_spec
 
-def _strip_slices(size, nstrips):
-    strip_size_small, nbig = divmod(size, nstrips)
+
+def indices_strip(image_spec: ImageSpec, strip: int, nstrips: int,
+                  batchsize: int) \
+        -> Tuple[Iterable[Tuple[np.ndarray, np.ndarray]], int]:
+    """
+    Create an iterator over each row of a strip.
+
+    Parameters
+    ----------
+    image_spec : ImageSpec
+        The imagespec of the full-sized image.
+    strip : int
+        The index of the strip. 1 <= strip <= nstrips.
+    nstrips : int
+        The total number of strips into which to divide the image.
+    batchsize : int
+        The (maximum) number of rows in each batch from the iterator.
+
+    Returns
+    -------
+    it : Iterator[np.ndarray, np.ndarray]
+        The indices of each batch as x, y arrays.
+    n_total : int
+        The total number of elements that the iterator passes over.
+
+    """
+    assert nstrips > 0
+    assert strip >= 1 and strip <= nstrips
+    assert batchsize > 0
+    slices = _strip_slices(image_spec.height, nstrips)
+    s = slices[strip - 1]   # indexed from one
+    n_total = (s.stop - s.start) * image_spec.width
+    it = _indices_query(image_spec.width, image_spec.height, batchsize,
+                        row_slice=s)
+    return it, n_total
+
+
+def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
+    """Compute the slices corresponding to every strip along a dimension."""
+    assert nstrips > 0
+    assert total_size >= nstrips
+    strip_size_small, nbig = divmod(total_size, nstrips)
     strip_size_big = strip_size_small + 1
     strip_sizes = [strip_size_big] * nbig + \
         [strip_size_small] * (nstrips - nbig)
     indices = np.cumsum([0] + strip_sizes)
-    slices = [slice(i, j) for i, j in zip(indices[0:-1], indices[1:])]
+    slices = [FixedSlice(i, j) for i, j in zip(indices[0:-1], indices[1:])]
     return slices
 
 
-def indices_strip(image_spec, strip, nstrips, batchsize):
-    """Do stuff. WRITE DOCO"""
-    assert strip >= 1 and strip <= nstrips
-    slices = _strip_slices(image_spec.height, nstrips)
-    s = slices[strip - 1]   # indexed from one
-    it = _indices_query(image_spec.width, image_spec.height, batchsize,
-                      row_slice=s)
-    return it
+def _array_pair_it(x: Iterable[Any]) -> Tuple[np.ndarray, np.ndarray]:
+    """Get the x and y coordinate arrays from the batch iterator."""
+    a = np.array(x).T[::-1]
+    r = (a[0], a[1])
+    return r
+
 
 def _indices_query(
     image_width: int,
     image_height: int,
     batchsize: int,
-    column_slice: slice=None,
-    row_slice: slice=None
+    column_slice: Optional[FixedSlice]=None,
+    row_slice: Optional[FixedSlice]=None
         ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
-    """Create a generator of batches of coordinates from an image.
+    """Create a generator of batches of coordinates from an image."""
+    column_slice = column_slice if column_slice else FixedSlice(0, image_width)
+    row_slice = row_slice if row_slice else FixedSlice(0, image_height)
 
-    This will iterate through ALL of the pixel coordinates in an image, so is
-    useful for querying/prediction.
-
-    Parameters
-    ----------
-    image_width : int
-        The width of the image in pixels
-    image_height : int
-        The height of the image in pixels
-    column_slice : slice
-        The index to slice columns. slice(3,5) will get columns 3 and 4.
-    row_slice : slice
-        The index to slice rows. slice(0,2) will get rows 0 and 1.
-    batchsize : int
-        the number of coorinates to yield at once.
-
-    Yields
-    ------
-    col_indices : ndarray
-        the x coordinates (width) of the image in pixels indices, of shape
-        (batchsize,).
-    row_indices : ndarray
-        the y coordinates (height) of the image in pixels indices, of shape
-        (batchsize,).
-
-    """
-    column_slice = column_slice if column_slice else slice(0, None)
-    row_slice = row_slice if row_slice else slice(0, None)
-
-    height_ind = range(image_height)[row_slice]
-    width_ind = range(image_width)[column_slice]
+    height_ind = range(image_height)[row_slice.as_slice]
+    width_ind = range(image_width)[column_slice.as_slice]
 
     coords_it = product(height_ind, width_ind)
     total_size = len(height_ind) * len(width_ind)
-
     batch_it = iteration.batch(coords_it, batchsize, total_size)
-    array_it = map(lambda x: tuple(np.array(x).T[::-1]), batch_it)
+    array_it = map(_array_pair_it, batch_it)
     return array_it
