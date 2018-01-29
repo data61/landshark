@@ -3,20 +3,27 @@
 import logging
 import os.path
 from glob import glob
+from multiprocessing import cpu_count, Pool
 
+import tables
 import click
 # mypy type checking
 from typing import List
 
-from landshark.importers.tifread import ImageStack
-from landshark.hread import ImageFeatures
-from landshark.importers.featurewrite import write_datafile
-from landshark.importers.shpread import ShapefileTargets
-from landshark.importers import tfwrite
-from landshark.importers import metadata as mt
+from landshark.tifread import shared_image_spec, OrdinalStackSource, \
+    CategoricalStackSource
+
+# from landshark.hread import ImageFeatures
+from landshark.featurewrite import write_imagespec, write_ordinal, write_categorical, write_pointspec
+from landshark.shpread import OrdinalShpSource, CategoricalShpSource, CoordinateShpSource
+# from landshark.importers import tfwrite
+# from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
-from landshark import feed
-from landshark.image import indices_strip
+# from landshark import feed
+from landshark.hread import OrdinalH5Source, CategoricalH5Source, read_image_spec
+from landshark.trainingdata import write_trainingdata, write_querydata
+from landshark.metadata import from_files, write_metadata
+from landshark.image import strip_image_spec
 
 log = logging.getLogger(__name__)
 
@@ -46,83 +53,107 @@ def _tifnames(directory: str) -> List[str]:
 
 
 @cli.command()
+@click.option("--batchsize", type=int, default=1000)
 @click.option("--categorical", type=click.Path(exists=True))
+@click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--name", type=str, required=True,
               help="Name of output file")
-@click.option("--standardise/--no-standardise", default=True,
-              help="Standardise the input features")
+@click.option("--nworkers", type=int, default=cpu_count())
 def tifs(categorical: str, ordinal: str,
-         name: str, standardise: bool) -> int:
+         name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
+    pool = Pool(nworkers)
+    log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
+    ord_filenames = _tifnames(ordinal) if ordinal else []
+    cat_filenames = _tifnames(categorical) if categorical else []
+    all_filenames = ord_filenames + cat_filenames
+    spec = shared_image_spec(all_filenames)
 
-    ord_stack, cat_stack = None, None
+    with tables.open_file(out_filename, mode="w", title=name) as h5file:
 
-    if ordinal:
-        ord_tif_filenames = _tifnames(ordinal)
-        ord_stack = ImageStack(ord_tif_filenames, "ordinal")
-    if categorical:
-        cat_tif_filenames = _tifnames(categorical)
-        cat_stack = ImageStack(cat_tif_filenames, "categorical")
+        write_imagespec(spec, h5file)
 
-    write_datafile(ord_stack, cat_stack, out_filename, standardise)
+        if ordinal:
+            ord_source = OrdinalStackSource(spec, ord_filenames)
+            write_ordinal(ord_source, h5file, batchsize, pool)
+
+        if categorical:
+            cat_source = CategoricalStackSource(spec, cat_filenames)
+            write_categorical(cat_source, h5file, batchsize, pool)
+
     return 0
-
 
 @cli.command()
 @click.argument("targets", type=str, nargs=-1)
 @click.option("--shapefile", type=click.Path(exists=True), required=True)
-@click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--test_frac", type=float, default=0.1)
-@click.option("--random_seed", type=int, default=666)
 @click.option("--batchsize", type=int, default=1000)
-@click.option("--halfwidth", type=int, default=1)
-@click.option("--cache_blocksize", type=int, default=100)
-@click.option("--cache_nblocks", type=int, default=10)
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
-def targets(shapefile: str, test_frac: float, random_seed: int,
-            features: str, batchsize: int, halfwidth: int,
-            cache_blocksize: int, cache_nblocks: int,
-            targets: List[str],
-            name: str,
-            every: int,
-            categorical: bool) -> int:
-    """Build training and testing data from shapefile."""
+@click.option("--nworkers", type=int, default=cpu_count())
+@click.option("--random_seed", type=int, default=666)
+def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
+            every: int, categorical: bool,
+            nworkers: int, random_seed: int) -> int:
+    """Build target file from shapefile."""
     log.info("Loading shapefile targets")
-    target_obj = ShapefileTargets(shapefile, targets, batchsize, every,
-                                  categorical)
-    log.info("Loading image feature stack")
-    feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
-    target_it = target_obj.batches()
-    training_it = feed.training_data(target_it, feature_obj, halfwidth)
-    directory = os.path.join(os.getcwd(), name + "_trainingdata")
-    log.info("Writing training data to tfrecords")
-    n_train = tfwrite.training(training_it, directory, test_frac, random_seed)
+    pool = Pool(nworkers)
+    log.info("Using {} worker processes".format(nworkers))
+    out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
+    with tables.open_file(out_filename, mode="w", title=name) as h5file:
 
-    log.info("Writing metadata")
-    metadata = mt.from_data(feature_obj, target_obj, halfwidth, n_train)
-    mt.write_metadata(directory, metadata)
+        coord_src = CoordinateShpSource(shapefile, random_seed)
+        write_pointspec(coord_src, h5file, batchsize)
+
+        if categorical:
+            cat_source = CategoricalShpSource(shapefile, targets, random_seed)
+            write_categorical(cat_source, h5file, batchsize, pool)
+        else:
+            ord_source = OrdinalShpSource(shapefile, targets, random_seed)
+            write_ordinal(ord_source, h5file, batchsize, pool)
     return 0
 
 
 @cli.command()
-@click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--random_seed", type=int, default=666)
-@click.option("--batchsize", type=int, default=1000)
+@click.argument("features", type=click.Path(exists=True))
+@click.argument("targets", type=click.Path(exists=True))
+@click.option("--test_frac", type=float, default=0.1)
 @click.option("--halfwidth", type=int, default=1)
-@click.option("--cache_blocksize", type=int, default=100)
-@click.option("--cache_nblocks", type=int, default=10)
+@click.option("--nworkers", type=int, default=cpu_count())
+@click.option("--batchsize", type=int, default=1000)
+@click.option("--random_seed", type=int, default=666)
+def trainingdata(features: str, targets: str, test_frac: int,
+                 halfwidth: int, batchsize: int, nworkers: int,
+                 random_seed: int):
+    """Get training data."""
+    pool = Pool(nworkers)
+    log.info("Using {} worker processes".format(nworkers))
+    name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
+        os.path.basename(targets).rsplit("_targets.")[0]
+    directory = os.path.join(os.getcwd(), name + "_trainingdata")
+
+    image_spec = read_image_spec(features)
+    n_train = write_trainingdata(features, targets, image_spec, batchsize,
+                                 halfwidth, pool, directory,
+                                 test_frac, random_seed)
+    metadata = from_files(features, targets, image_spec, halfwidth, n_train)
+    write_metadata(directory, metadata)
+
+
+@cli.command()
+@click.option("--features", type=click.Path(exists=True), required=True)
+@click.option("--batchsize", type=int, default=1000)
+@click.option("--nworkers", type=int, default=cpu_count())
+@click.option("--halfwidth", type=int, default=1)
 @click.argument("strip", type=int)
 @click.argument("totalstrips", type=int)
-def queries(random_seed: int,
-            features: str, batchsize: int, halfwidth: int,
-            cache_blocksize: int, cache_nblocks: int,
-            strip: int, totalstrips: int) -> int:
+def querydata(features: str, batchsize: int, nworkers: int,
+              halfwidth: int, strip: int, totalstrips: int) -> int:
     """Grab a chunk for prediction."""
-    log.info("Loading image feature stack")
+    pool = Pool(nworkers)
+    log.info("Using {} worker processes".format(nworkers))
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
         "_query{}of{}".format(strip, totalstrips)
@@ -132,10 +163,8 @@ def queries(random_seed: int,
     except FileExistsError:
         pass
 
-    feature_obj = ImageFeatures(features, cache_blocksize, cache_nblocks)
-    indices_it = indices_strip(feature_obj.image_spec, strip, totalstrips,
-                               batchsize)
-    data_it = feed.query_data(indices_it, feature_obj, halfwidth)
+    image_spec = read_image_spec(features)
     tag = "query.{}of{}".format(strip, totalstrips)
-    tfwrite.query(data_it, directory, tag=tag)
+    write_querydata(features, image_spec, strip, totalstrips,
+                    batchsize, halfwidth, pool, directory, tag)
     return 0

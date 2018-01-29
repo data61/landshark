@@ -7,7 +7,6 @@ import numpy as np
 import pickle
 
 from landshark import model
-from landshark.feed import query_data
 from sklearn.metrics import accuracy_score, log_loss, r2_score
 import scipy.stats
 

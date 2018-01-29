@@ -1,21 +1,25 @@
 import numpy as np
-from tqdm import tqdm
 import itertools
 
 def batch(it, batchsize, total_size):
-    with tqdm(total=total_size) as pbar:
-        while True:
-            batch = list(itertools.islice(it, batchsize))
-            if not batch:
-                return
-            yield batch
-            pbar.update(len(batch))
-
-def random(p, random_state):
-    rnd = np.random.RandomState(random_state)
-    c = np.array([True, False])
-    p = np.array([p, 1.0 - p])
     while True:
-        r = rnd.choice(c, p=p)
-        yield r
+        batch = list(itertools.islice(it, batchsize))
+        if not batch:
+            return
+        yield batch
 
+
+def batch_slices(batchsize, total_size):
+    n = total_size // batchsize
+    ret = [(i * batchsize, (i + 1) * batchsize) for i in range(n)]
+    if total_size % batchsize != 0:
+        ret.append((n * batchsize, total_size))
+    return iter(ret)
+
+def with_slices(it):
+    """Needs iterator over ndarrays"""
+    start_idx = 0
+    for d in it:
+        end_idx = start_idx + d.shape[0]
+        yield (start_idx, end_idx), d
+        start_idx = end_idx
