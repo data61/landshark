@@ -97,19 +97,15 @@ def train_test(records_train: List[str],
         if classification:
             prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
             Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
-            acc, bacc, lp = 0.0, 0.0, -float("inf")
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
             Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
-            r2, lp = -float("inf"), float("inf")
 
-    # Logging learning progress
+    # Logging and saving learning progress
     logger = tf.train.LoggingTensorHook(
         {"step": global_step, "loss": loss},
         every_n_secs=60)
-
-    saver = tf.train.Saver()
-    best_scores = [-1 * np.inf]
+    saver = BestScoreSaver(directory)
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -122,6 +118,8 @@ def train_test(records_train: List[str],
             log_step_count_steps=6000,
             hooks=[logger]
             ) as sess:
+
+        saver.attach_session(sess._sess._sess._sess._sess)
 
         for i in count():
             log.info("Training round {} with {} epochs."
@@ -138,34 +136,21 @@ def train_test(records_train: List[str],
                     acc, bacc, lp = classify_test_loop(Y, Ey, prob, sess,
                                                        test_fdict, metadata,
                                                        step)
-                    if lp > best_scores[0]:
-                        best_scores = [lp, acc, bacc]
-                        # Save the variables to disk.
-                        rsess = sess._sess._sess._sess._sess
-                        saver.save(rsess,
-                                   os.path.join(directory, "model_best.ckpt"))
-                        log.info("New best model saved with lp: {}".format(lp))
+                    saver.save(lp, acc, bacc)
 
                 else:
                     r2, lp = regress_test_loop(Y, Ey, logprob, sess,
                                                test_fdict, metadata, step)
-
-                    if lp > best_scores[0]:
-                        best_scores = [lp, r2]
-                        # Save the variables to disk.
-                        rsess = sess._sess._sess._sess._sess
-                        saver.save(rsess,
-                                   os.path.join(directory, "model_best.ckpt"))
-                        log.info("New best model saved with lp: {}".format(lp))
+                    saver.save(lp, r2)
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
                 if classification:
-                    lp, acc, bacc = best_scores
+                    lp, acc, bacc = saver.best_scores
                     log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
                              "Final lp: {:.5f}.".format(acc, bacc, lp))
                 else:
-                    lp, r2 = best_scores
+                    lp, r2 = saver.best_scores
                     log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
 
@@ -275,6 +260,24 @@ def decode(iterator, metadata):
         y.set_shape((None, metadata.ntargets))
 
     return x_ord, x_ord_mask, x_cat, x_cat_mask, y
+
+
+class BestScoreSaver:
+    # TODO - see if we can make the "best score" persist between runs?
+
+    def __init__(self, directory):
+        self.path = os.path.join(directory, "model_best.ckpt")
+        self.best_scores = [-1 * np.inf]
+        self.saver = tf.train.Saver()
+
+    def attach_session(self, session):
+        self.sess = session
+
+    def save(self, score, *other_scores):
+        if score > self.best_scores[0]:
+            self.best_scores = [score] + list(other_scores)
+            self.saver.save(self.sess, self.path)
+            log.info("New best model saved with score: {}".format(score))
 
 
 def train_loop(train, global_step, sess):
