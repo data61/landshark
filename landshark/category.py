@@ -1,37 +1,35 @@
 """Operations to support categorical data."""
 
 import logging
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from multiprocessing import Pool
 
 import numpy as np
 from typing import Tuple, List
 
 
-from landshark.basetypes import CategoricalValues, CategoricalDataSource
+from landshark.basetypes import CategoricalValues, CategoricalDataSource, \
+    CategoricalType
 from landshark import iteration
 
 log = logging.getLogger(__name__)
 
+CategoryInfo = namedtuple("CategoryInfo", ["mappings", "counts", "missing"])
 
-class _CategoryPreprocessor:
-    """Stateful function for returning unique values."""
 
-    def __init__(self, ncols: int) -> None:
-        """Initialise the object."""
-        assert ncols > 0
-        self.ncols = ncols
+def _unique_values(values: CategoricalValues) \
+        -> Tuple[List[np.ndarray], List[int]]:
+    """
+    Return unique values and their counts from an array.
 
-    def __call__(self, values: CategoricalValues) \
-            -> Tuple[List[np.ndarray], List[int]]:
-        """Get the unique values and their counts from the input."""
-        x = values.categorical
-        assert x.shape[-1] == self.ncols
-        x = x.reshape((-1), self.ncols)
-        unique_vals = [np.unique(c) for c in x.T]
-        counts = [np.array([np.sum(c == v) for v in uv])
-                  for uv, c in zip(unique_vals, x.T)]
-        return unique_vals, counts
+    The last dimension of the values is assumed to be features.
+
+    """
+    x = values.categorical
+    x = x.reshape((-1), x.shape[-1])
+    unique_vals, counts = zip(*[np.unique(c, return_counts=True)
+                                for c in x.T])
+    return unique_vals, counts
 
 
 class _CategoryAccumulator:
@@ -41,8 +39,13 @@ class _CategoryAccumulator:
         """Initialise the object."""
         self.counts: OrderedDict = OrderedDict()
 
-    def update(self, values: List[np.ndarray], counts: List[int]) -> None:
+    def update(self, values: np.ndarray, counts: np.ndarray) -> None:
         """Add a new set of values from a batch."""
+        assert values.ndim == 1
+        assert counts.ndim == 1
+        assert values.shape == counts.shape
+        assert counts.dtype == int
+        assert np.all(counts >= 0)
         for v, c in zip(values, counts):
             if v in self.counts:
                 self.counts[v] += c
@@ -50,9 +53,11 @@ class _CategoryAccumulator:
                 self.counts[v] = c
 
 
+
+
 def get_categories(source: CategoricalDataSource,
                    batchsize: int,
-                   pool: Pool):
+                   pool: Pool) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
@@ -67,11 +72,12 @@ def get_categories(source: CategoricalDataSource,
 
     Returns
     -------
+    category_info : CategoryInfo
     mappings : List[np.ndarray]
         The mapping of unique values for each feature.
     counts : List[np.ndarray]
         The counts of unique values for each feature.
-
+    missing : List[Optional[int]]
 
     """
     array_src = source.categorical
@@ -80,32 +86,64 @@ def get_categories(source: CategoricalDataSource,
     missing_values = array_src.missing
     accums = [_CategoryAccumulator() for _ in range(n_features)]
 
-    it = iteration.batch_slices(batchsize, n_rows)
-    f = _CategoryPreprocessor(n_features)
-    data_it = ((source.slice(start, end)) for start, end in it)
-    out_it = pool.imap(f, data_it)
+    # Add the missing values initially as zeros
     for acc, m in zip(accums, missing_values):
         if m is not None:
-            acc.update([m], [0])
+            acc.update(np.array([m]), np.array([0], dtype=int))
+
+    it = iteration.batch_slices(batchsize, n_rows)
+    data_it = ((source.slice(start, end)) for start, end in it)
+    out_it = pool.imap(_unique_values, data_it)
 
     log.info("Computing unique values in categorical features:")
     for unique_vals, counts in out_it:
-        for mapper, u, c in zip(accums, unique_vals, counts):
-            mapper.update(u, c)
+        for a, u, c in zip(accums, unique_vals, counts):
+            a.update(u, c)
 
-    missing = [np.int32(0) if k is not None else None for k in missing_values]
+    missing = [CategoricalType(0) if k is not None else None
+               for k in missing_values]
     count_dicts = [m.counts for m in accums]
     mappings = [np.array(list(c.keys()), dtype=np.int32) for c in count_dicts]
     counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
-    return mappings, counts, missing
+    result = CategoryInfo(mappings=mappings, counts=counts, missing=missing)
+    return result
 
 
 class CategoricalOutputTransform:
-    def __init__(self, mappings):
+    """
+    Callable object that maps n categorical values to 0..n-1.
+
+    Parameters
+    ----------
+    mappings : List[np.ndarray]
+        A list of ndarrays, one for each feature (corresponding to the
+        final dimension of input). A value of v at position i in the ndarray
+        implies a mapping from v to i.
+
+    """
+
+    def __init__(self, mappings: List[np.ndarray]) -> None:
+        """Initialise the object with a set of mappings."""
         self.mappings = mappings
 
-    def __call__(self, values):
+    def __call__(self, values: CategoricalValues) -> np.array:
+        """
+        Transform the values by the mapping given at initialisation.
+
+        Parameters
+        ----------
+        values : CategoricalValues
+            The values to transform. Reads the .categorical attribute.
+
+        Returns
+        -------
+        new_array : np.ndarray
+            An array of the same shape as CategoricalValues.categorical
+            but with the mapping applied so values are 0..n-1.
+
+        """
         x = values.categorical
+        assert x.shape[-1] == len(self.mappings)
         new_array = np.zeros_like(x, dtype=x.dtype)
         for col_idx, m in enumerate(self.mappings):
             old_col = x[..., col_idx]

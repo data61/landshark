@@ -60,8 +60,9 @@ def write_categorical(source, h5file, batchsize, pool):
 
     array.attrs.columns = array_src.columns
     # We always map missing values to zero
+    res = get_categories(source, batchsize, pool)
+    mappings, counts, missing = res.mappings, res.counts, res.missing
 
-    mappings, counts, missing = get_categories(source, batchsize, pool)
     array.attrs.mappings = mappings
     array.attrs.counts = counts
     array.attrs.missing = missing
