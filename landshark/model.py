@@ -2,7 +2,7 @@
 import signal
 import logging
 import os.path
-from typing import List, Module, Generator
+from typing import List, Any, Generator
 from itertools import count
 from collections import namedtuple
 
@@ -45,7 +45,7 @@ def train_test(records_train: List[str],
                records_test: List[str],
                metadata: TrainingMetadata,
                directory: str,
-               cf: Module,
+               cf: Any,  # Module type
                params: TrainingConfig) -> None:
     """Model training and periodic hold-out testing."""
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
@@ -182,7 +182,6 @@ def predict(model: str,
                                  gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
 
-    print("Loading model: {}".format(model_file))
     tf.reset_default_graph()
     with tf.Session(config=sess_config) as sess:
         graph = tf.get_default_graph()
@@ -217,6 +216,10 @@ def predict(model: str,
                          _nsamples: params.samples}
             it_op = graph.get_operation_by_name("QueryInit")
             sess.run(it_op, feed_dict=feed_dict)
+
+            # Get a single set of samples from the model
+            # sample_feed_dict = ab.sample_model(graph, sess, feed_dict)
+            # feed_dict.update(sample_feed_dict)
 
             with tqdm(total=total_size) as pbar:
                 while True:
