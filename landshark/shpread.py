@@ -64,7 +64,6 @@ class _ShpArraySource(ArraySource):
                  "of {} requested columns.".format(
                      self._shape[0], self._shape[1]))
         self._native = 1
-        self._seed = 1
         rnd = np.random.RandomState(random_seed)
         self._perm = rnd.permutation(self._shape[0])
 
@@ -92,7 +91,6 @@ class CoordinateShpArraySource(CoordinateArraySource):
         self._native = 1
         self._missing = [None, None]
         self._columns = ["X", "Y"]
-        self._seed = 1
         rnd = np.random.RandomState(random_seed)
         self._perm = rnd.permutation(self._shape[0])
 
