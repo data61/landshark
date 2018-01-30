@@ -17,6 +17,12 @@ def _load_config(module_name, path):
     sys.modules[module_name] = cf
 
 
+def load_model(config_file):
+    module_name = "userconfig"
+    _load_config(module_name, config_file)
+    return module_name
+
+
 def setup_training(config, directory):
     name = os.path.basename(config).rsplit(".")[0] + "_model"
 
@@ -38,8 +44,7 @@ def setup_training(config, directory):
     write_metadata(model_dir, metadata)
 
     # Load the model
-    module_name = "userconfig"
-    _load_config(module_name, config)
+    module_name = load_model(config)
 
     return training_records, testing_records, metadata, model_dir, module_name
 
