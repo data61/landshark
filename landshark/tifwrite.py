@@ -5,7 +5,7 @@ import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from basetypes import CategoricalType, OrdinalType
+from landshark.basetypes import CategoricalType, OrdinalType
 # with ExitStack() as stack:
 #     files = [stack.enter_context(open(fname)) for fname in filenames]
 

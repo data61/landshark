@@ -12,7 +12,7 @@ from mypy_extensions import NoReturn
 
 from landshark.image import pixel_coordinates, ImageSpec
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, OrdinalDataSource, CategoricalDataSource
+    CategoricalArraySource
 
 
 log = logging.getLogger(__name__)
@@ -77,15 +77,15 @@ class OrdinalStackArraySource(_ImageStackSource, OrdinalArraySource):
 class CategoricalStackArraySource(_ImageStackSource, CategoricalArraySource):
     pass
 
-class OrdinalStackSource(OrdinalDataSource):
-    def __init__(self, spec: ImageSpec, filenames: str):
-        source = OrdinalStackArraySource(spec, filenames)
-        super().__init__(source)
+# class OrdinalStackSource(OrdinalDataSource):
+#     def __init__(self, spec: ImageSpec, filenames: str):
+#         source = OrdinalStackArraySource(spec, filenames)
+#         super().__init__(source)
 
-class CategoricalStackSource(CategoricalDataSource):
-    def __init__(self, spec: ImageSpec, filenames: str):
-        source = CategoricalStackArraySource(spec, filenames)
-        super().__init__(source)
+# class CategoricalStackSource(CategoricalDataSource):
+#     def __init__(self, spec: ImageSpec, filenames: str):
+#         source = CategoricalStackArraySource(spec, filenames)
+#         super().__init__(source)
 
 
 

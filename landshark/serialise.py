@@ -3,7 +3,8 @@ from itertools import repeat
 import tensorflow as tf
 import numpy as np
 
-from basetypes import OrdinalType
+from landshark.basetypes import OrdinalType
+
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     """Create an ndarray feature stored as bytes."""

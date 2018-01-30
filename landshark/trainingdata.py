@@ -10,7 +10,7 @@ from landshark.patch import PatchRowRW, PatchMaskRowRW
 from landshark.iteration import batch_slices
 from landshark import image
 from landshark import tfwrite
-from landshark.hread import datatype
+from landshark.hread import H5Features
 from landshark.image import indices_strip
 from landshark.serialise import serialise
 
@@ -77,8 +77,7 @@ def _get_rows(patch_reads, source):
 
 class TrainingDataProcessor:
 
-    def __init__(self, image_spec, feature_class, feature_file, halfwidth):
-        self.feature_class = feature_class
+    def __init__(self, image_spec, feature_file, halfwidth):
         self.feature_file = feature_file
         self.halfwidth = halfwidth
         self.image_spec = image_spec
@@ -86,9 +85,9 @@ class TrainingDataProcessor:
 
     def __call__(self, values):
         if not self.feature_source:
-            self.feature_source = self.feature_class(self.feature_file)
+            self.feature_source = H5Features(self.feature_file)
 
-        coords_x, coords_y = values.coords.T
+        coords_x, coords_y = values.coordinates.T
         targets = values.ordinal if hasattr(values, "ordinal") \
             else values.categorical
         indices_x = image.world_to_image(coords_x,
@@ -115,8 +114,7 @@ class TrainingDataProcessor:
 
 class QueryDataProcessor:
 
-    def __init__(self, image_spec, feature_class, feature_file, halfwidth):
-        self.feature_class = feature_class
+    def __init__(self, image_spec, feature_file, halfwidth):
         self.feature_file = feature_file
         self.halfwidth = halfwidth
         self.image_spec = image_spec
@@ -124,7 +122,7 @@ class QueryDataProcessor:
 
     def __call__(self, indices):
         if not self.feature_source:
-            self.feature_source = self.feature_class(self.feature_file)
+            self.feature_source = H5Features(self.feature_file)
 
         indices_x, indices_y = indices
         patch_reads, mask_reads = patch.patches(indices_x, indices_y,
@@ -149,10 +147,9 @@ def write_trainingdata(features, targets, image_spec, batchsize,
                        halfwidth, pool, output_directory, test_frac,
                        random_seed):
 
-    feature_class = datatype(features)
-    target_source = datatype(targets)(targets)
+    target_source = H5Features(targets)
 
-    f = TrainingDataProcessor(image_spec, feature_class, features, halfwidth)
+    f = TrainingDataProcessor(image_spec, features, halfwidth)
     n_rows = len(target_source)
     it = batch_slices(batchsize, n_rows)
     data_it = ((target_source.slice(start, end)) for start, end in it)
@@ -166,9 +163,8 @@ def write_trainingdata(features, targets, image_spec, batchsize,
 def write_querydata(features, image_spec, strip, total_strips, batchsize,
                     halfwidth, pool, output_directory, tag):
 
-    feature_class = datatype(features)
     it, n_total = indices_strip(image_spec, strip, total_strips, batchsize)
 
-    f = QueryDataProcessor(image_spec, feature_class, features, halfwidth)
+    f = QueryDataProcessor(image_spec, features, halfwidth)
     out_it = pool.imap(f, it)
     tfwrite.query(out_it, n_total, output_directory, tag)

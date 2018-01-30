@@ -24,8 +24,7 @@ def write_imagespec(spec, h5file):
                         obj=spec.y_coordinates)
 
 
-def write_ordinal(source, h5file, batchsize, pool):
-    array_src = source.ordinal
+def write_ordinal(array_src, h5file, batchsize, pool):
     batchsize = batchsize if batchsize else array_src.native
     shape = array_src.shape[0:-1]
     # The bands will form part of the atom
@@ -39,17 +38,16 @@ def write_ordinal(source, h5file, batchsize, pool):
     array.attrs.missing = missing
 
     log.info("Computing statistics for standardisation:")
-    mean, variance = get_stats(source, batchsize, pool)
+    mean, variance = get_stats(array_src, batchsize, pool)
     array.attrs.mean = mean
     array.attrs.variance = variance
 
     f = OrdinalOutputTransform(mean, variance, missing)
     log.info("Writing ordinal data to disk:")
-    _write(source, array, f, batchsize, pool)
+    _write(array_src, array, f, batchsize, pool)
 
 
-def write_categorical(source, h5file, batchsize, pool):
-    array_src = source.categorical
+def write_categorical(array_src, h5file, batchsize, pool):
     shape = array_src.shape[0:-1]
     # The bands will form part of the atom
     nbands = array_src.shape[-1]
@@ -60,7 +58,7 @@ def write_categorical(source, h5file, batchsize, pool):
 
     array.attrs.columns = array_src.columns
     # We always map missing values to zero
-    res = get_categories(source, batchsize, pool)
+    res = get_categories(array_src, batchsize, pool)
     mappings, counts, missing = res.mappings, res.counts, res.missing
 
     array.attrs.mappings = mappings
@@ -69,20 +67,20 @@ def write_categorical(source, h5file, batchsize, pool):
 
     f = CategoricalOutputTransform(mappings)
     log.info("Writing categorical data to disk:")
-    _write(source, array, f, batchsize, pool)
+    _write(array_src, array, f, batchsize, pool)
 
 
-def write_pointspec(source, h5file, batchsize):
-    shape = source.ordinal.shape[0:1]
-    atom = tables.Float64Atom(shape=(source.ordinal.shape[1],))
+def write_coordinates(array_src, h5file, batchsize):
+    shape = array_src.shape[0:1]
+    atom = tables.Float64Atom(shape=(array_src.shape[1],))
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = h5file.create_carray(h5file.root, name="coordinates",
                                  atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = source.ordinal.columns
-    array.attrs.missing = source.ordinal.missing
-    it = batch_slices(batchsize, source.ordinal.shape[0])
+    array.attrs.columns = array_src.columns
+    array.attrs.missing = array_src.missing
+    it = batch_slices(batchsize, array_src.shape[0])
     for start_idx, end_idx in it:
-        array[start_idx: end_idx] = source.slice(start_idx, end_idx).ordinal
+        array[start_idx: end_idx] = array_src.slice(start_idx, end_idx)
 
 
 def _write(source, array, f, batchsize, pool):

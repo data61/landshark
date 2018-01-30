@@ -48,8 +48,7 @@ class NormaliserPreprocessor:
         self.ncols = ncols
         self.missing_values = missing_values
 
-    def __call__(self, values):
-        x = values.ordinal
+    def __call__(self, x):
         bs = x.reshape((-1, self.ncols))
         bm = to_masked(bs, self.missing_values)
         return bm
@@ -61,25 +60,22 @@ class OrdinalOutputTransform:
         self.variance = variance
         self.missing_values = missing_values
 
-    def __call__(self, values):
-        # read-only buffer from ipc
-        x = values.ordinal
-        xc = np.copy(x)
-        bm = to_masked(xc, self.missing_values)
+    def __call__(self, x):
+        bm = to_masked(x, self.missing_values)
         bm -= self.mean
         bm /= np.sqrt(self.variance)
         out = bm.data
         return out
 
 
-def get_stats(source, batchsize, pool):
-    n_rows = source.ordinal.shape[0]
-    n_features = source.ordinal.shape[-1]
-    missing_values = source.ordinal.missing
+def get_stats(array_src, batchsize, pool):
+    n_rows = array_src.shape[0]
+    n_features = array_src.shape[-1]
+    missing_values = array_src.missing
     norm = Normaliser(n_features)
     it = iteration.batch_slices(batchsize, n_rows)
     f = NormaliserPreprocessor(n_features, missing_values)
-    data_it = ((source.slice(start, end)) for start, end in it)
+    data_it = ((array_src.slice(start, end)) for start, end in it)
     out_it = pool.imap(f, data_it)
     for ma in out_it:
         norm.update(ma)

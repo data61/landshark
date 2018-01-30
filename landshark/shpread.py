@@ -9,8 +9,8 @@ import shapefile
 from typing import List
 
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, OrdinalDataSource, CategoricalDataSource, \
-    CoordinateArraySource, OrdinalType, CategoricalType
+    CategoricalArraySource, CoordinateArraySource, \
+    OrdinalType, CategoricalType
 
 log = logging.getLogger(__name__)
 
@@ -100,23 +100,3 @@ class CoordinateShpArraySource(CoordinateArraySource):
                   for r in indices]
         array = np.array(coords, dtype=self.dtype)
         return array
-
-
-class OrdinalShpSource(OrdinalDataSource):
-    def __init__(self, filename: str, labels: List[str],
-                 random_seed: int) -> None:
-        source = OrdinalShpArraySource(filename, labels, random_seed)
-        super().__init__(source)
-
-class CategoricalShpSource(CategoricalDataSource):
-    def __init__(self, filename: str, labels: List[str],
-                 random_seed: int) -> None:
-        source = CategoricalShpArraySource(filename, labels, random_seed)
-        super().__init__(source)
-
-class CoordinateShpSource(OrdinalDataSource):
-    def __init__(self, filename: str, random_seed: int) -> None:
-        source = CoordinateShpArraySource(filename, random_seed)
-        super().__init__(source)
-
-
