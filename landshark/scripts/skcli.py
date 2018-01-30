@@ -10,7 +10,7 @@ from landshark import skmodel
 from landshark.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
 from landshark.image import strip_image_spec
-from landshark.tfread import setup_training, get_strips, setup_query
+from landshark.tfread import setup_training, get_strips, setup_query, load_model
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +52,8 @@ def train(directory: str, config: str, batchsize: int, maxpoints: int,
 @click.option("--batchsize", type=int, default=100000)
 def predict(modeldir: str, querydir: str, batchsize: int) -> int:
     """Predict using a learned model."""
+
+    load_model(os.path.join(modeldir, "config.py"))
     metadata, query_records = setup_query(modeldir, querydir)
     y_dash_it = skmodel.predict(modeldir, metadata, query_records, batchsize)
     strip, nstrips = get_strips(query_records)

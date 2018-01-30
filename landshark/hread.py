@@ -2,14 +2,13 @@
 
 import numpy as np
 import tables
+
 from landshark.image import ImageSpec
-
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, OrdinalDataSource, CategoricalDataSource, \
-    MixedDataSource, OrdinalCoordSource, CategoricalCoordSource
+    CategoricalArraySource, CoordinateArraySource, FeatureValues
 
 
-class _H5ArraySource(ArraySource):
+class H5ArraySource(ArraySource):
 
     def __init__(self, carray) -> None:
         self._shape = tuple(list(carray.shape) + [carray.atom.shape[0]])
@@ -23,67 +22,61 @@ class _H5ArraySource(ArraySource):
         return self._carray[start:end]
 
 
-class _OrdinalH5ArraySource(_H5ArraySource, OrdinalArraySource):
+class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
     pass
 
 
-class _CategoricalH5ArraySource(_H5ArraySource, CategoricalArraySource):
+class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
+    pass
+
+class CoordinateH5ArraySource(H5ArraySource, CoordinateArraySource):
     pass
 
 
-class OrdinalH5Source(OrdinalDataSource):
+class H5Features:
+
     def __init__(self, h5file):
         self._hfile = tables.open_file(h5file, "r")
-        source = _OrdinalH5ArraySource(self._hfile.root.ordinal_data)
-        super().__init__(source)
+        self.ordinal = None
+        self.categorical = None
+        self.coordinates = None
 
-class CategoricalH5Source(CategoricalDataSource):
-    def __init__(self, h5file):
-        self._hfile = tables.open_file(h5file, "r")
-        source = _CategoricalH5ArraySource(self._hfile.root.categorical_data)
-        super().__init__(source)
+        if hasattr(self._hfile.root, "ordinal_data"):
+            self.ordinal = OrdinalH5ArraySource(
+                self._hfile.root.ordinal_data)
+        if hasattr(self._hfile.root, "categorical_data"):
+            self.categorical = CategoricalH5ArraySource(
+                self._hfile.root.categorical_data)
+        if hasattr(self._hfile.root, "coordinates"):
+            self.coordinates = CoordinateH5ArraySource(
+                self._hfile.root.coordinates)
+        assert not (self.ordinal is None and self.categorical is None)
+        if self.ordinal:
+            self._n = len(self.ordinal)
+        if self.categorical:
+            self._n = len(self.categorical)
+        if self.ordinal and self.categorical:
+            assert len(self.ordinal) == len(self.categorical)
+        if self.ordinal and self.coordinates:
+            assert len(self.ordinal) == len(self.coordinates)
+        if self.categorical and self.coordinates:
+            assert len(self.categorical) == len(self.coordinates)
 
-class MixedH5Source(MixedDataSource):
-    def __init__(self, h5file):
-        self._hfile = tables.open_file(h5file, "r")
-        ord_source = _OrdinalH5ArraySource(self._hfile.root.ordinal_data)
-        cat_source = _CategoricalH5ArraySource(self._hfile.root.categorical_data)
-        super().__init__(ord_source, cat_source)
+    def __len__(self):
+        return self._n
 
-class OrdinalCoordH5Source(OrdinalCoordSource):
-    def __init__(self, h5file):
-        self._hfile = tables.open_file(h5file, "r")
-        ord_source = _OrdinalH5ArraySource(self._hfile.root.ordinal_data)
-        coord_source = _OrdinalH5ArraySource(self._hfile.root.coordinates)
-        super().__init__(ord_source, coord_source)
+    def slice(self, start: int, end: int):
+        ord_data = None
+        cat_data = None
+        coord_data = None
+        if self.ordinal:
+            ord_data = self.ordinal.slice(start, end)
+        if self.categorical:
+            cat_data = self.categorical.slice(start, end)
+        if self.coordinates:
+            coord_data = self.coordinates.slice(start, end)
+        return FeatureValues(ord_data, cat_data, coord_data)
 
-
-class CategoricalCoordH5Source(CategoricalCoordSource):
-    def __init__(self, h5file):
-        self._hfile = tables.open_file(h5file, "r")
-        cat_source = _CategoricalH5ArraySource(self._hfile.root.categorical_data)
-        coord_source = _OrdinalH5ArraySource(self._hfile.root.coordinates)
-        super().__init__(cat_source, coord_source)
-
-
-def datatype(hfile):
-    with tables.open_file(hfile, mode="r") as h5file:
-        categorical = hasattr(h5file.root, "categorical_data")
-        ordinal = hasattr(h5file.root, "ordinal_data")
-        coords = hasattr(h5file.root, "coordinates")
-
-    if coords and ordinal:
-        return OrdinalCoordH5Source
-    elif coords and categorical:
-        return CategoricalCoordH5Source
-    elif ordinal and categorical:
-        return MixedH5Source
-    elif ordinal:
-        return OrdinalH5Source
-    elif categorical:
-        return CategoricalH5Source
-    else:
-        return ValueError("H5 file missing tables for datatype conversion.")
 
 
 def read_image_spec(filename):

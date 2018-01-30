@@ -8,7 +8,7 @@ from affine import Affine
 from typing import Tuple, Iterable, Dict, List, Optional, Any
 
 from landshark import iteration
-from landshark.basetypes import FixedSlice
+from landshark.basetypes import FixedSlice, CoordinateType
 
 log = logging.getLogger(__name__)
 
@@ -150,8 +150,8 @@ def pixel_coordinates(width: int,
     origin_y = affine[5]
 
     # construct the canonical pixel<->position map: +1 for outer corner
-    pix_x = np.arange(width + 1, dtype=np.float64)
-    pix_y = np.arange(height + 1, dtype=np.float64)
+    pix_x = np.arange(width + 1, dtype=CoordinateType)
+    pix_y = np.arange(height + 1, dtype=CoordinateType)
     coords_x = (pix_x * pixel_width) + origin_x
     coords_y = (pix_y * pixel_height) + origin_y
 
@@ -186,7 +186,7 @@ def image_to_world(indices: np.ndarray,
     assert indices.ndim == 1
     assert indices.dtype == np.int64
     assert pixel_coordinate_array.ndim == 1
-    assert pixel_coordinate_array.dtype == np.float64
+    assert pixel_coordinate_array.dtype == CoordinateType
     assert np.all(indices >= 0)
     assert np.all(indices < (pixel_coordinate_array.shape[0] - 1))
 

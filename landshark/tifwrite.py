@@ -5,6 +5,7 @@ import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
+from landshark.basetypes import CategoricalType, OrdinalType
 # with ExitStack() as stack:
 #     files = [stack.enter_context(open(fname)) for fname in filenames]
 
@@ -62,7 +63,7 @@ def _make_classify_labels(label, target_map):
 
 def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
 
-    classification = metadata.target_dtype != np.float32
+    classification = metadata.target_dtype != OrdinalType
 
     if percentiles is None:
         percentiles = []
@@ -75,10 +76,10 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
     if classification:
         assert len(labels) == 1
         label = labels[0]
-        ey_writer = _make_writer(directory, label, np.int32,
+        ey_writer = _make_writer(directory, label, CategoricalType,
                                  metadata.image_spec)
         p_labels = _make_classify_labels(label, metadata.target_map)
-        p_writers = [_make_writer(directory, l, np.float32,
+        p_writers = [_make_writer(directory, l, OrdinalType,
                                   metadata.image_spec) for l in p_labels]
         for b, (ey_batch, prob_batch) in enumerate(y_dash):
             ey_writer.write(ey_batch)
@@ -92,9 +93,9 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
         perc_labels = [[l + "_p{}".format(p) for l in labels]
                        for p in percentiles]
 
-        m_writers = [_make_writer(directory, l, np.float32, metadata.image_spec)
+        m_writers = [_make_writer(directory, l, OrdinalType, metadata.image_spec)
                      for l in labels]
-        p_writers = [[_make_writer(directory, lbl, np.float32,
+        p_writers = [[_make_writer(directory, lbl, OrdinalType,
                                    metadata.image_spec) for lbl in lbl_list]
                      for lbl_list in perc_labels]
 
