@@ -113,7 +113,7 @@ def train_test(records_train: List[str],
             checkpoint_dir=directory,
             scaffold=tf.train.Scaffold(local_init_op=train_init_op),
             save_summaries_steps=None,
-            save_checkpoint_secs=None,
+            save_checkpoint_secs=None,  # We will save model manually
             save_summaries_secs=20,
             log_step_count_steps=6000,
             hooks=[logger]
@@ -133,15 +133,13 @@ def train_test(records_train: List[str],
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    acc, bacc, lp = classify_test_loop(Y, Ey, prob, sess,
-                                                       test_fdict, metadata,
-                                                       step)
-                    saver.save(lp, acc, bacc)
-
+                    *scores, lp = classify_test_loop(Y, Ey, prob, sess,
+                                                     test_fdict, metadata,
+                                                     step)
                 else:
-                    r2, lp = regress_test_loop(Y, Ey, logprob, sess,
-                                               test_fdict, metadata, step)
-                    saver.save(lp, r2)
+                    *scores, lp = regress_test_loop(Y, Ey, logprob, sess,
+                                                    test_fdict, metadata, step)
+                saver.save(lp, *scores)
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
@@ -203,10 +201,14 @@ def predict(model: str,
             sess.run(it_op, feed_dict=feed_dict)
 
             # Get a single set of samples from the model
-            # sample_feed_dict = ab.sample_model(graph, sess, feed_dict)
-            # feed_dict.update(sample_feed_dict)
+            res = fix_samples(graph, sess, eval_list, feed_dict)
 
             with tqdm(total=total_size) as pbar:
+                # Yeild prediction result from fixing samples
+                yield res
+                pbar.update(res[0].shape[0])
+
+                # Continue obtaining predictions
                 while True:
                     try:
                         res = sess.run(eval_list, feed_dict=feed_dict)
@@ -219,6 +221,23 @@ def predict(model: str,
 #
 # Module utility functions
 #
+
+def fix_samples(graph, sess, eval_list, feed_dict):
+    """Fix the samples in an Aboleth graph for prediction.
+
+    This also requires one evaluation of the graph, so the result is returned.
+    """
+    # Get the stochastic parameters from the graph (and the eval_list)
+    params = graph.get_collection("SampleTensors")
+    res = sess.run(eval_list + list(params), feed_dict=feed_dict)
+
+    # Update the feed dict with these samples
+    neval = len(eval_list)
+    sample_feed_dict = dict(zip(params, res[neval:]))
+    feed_dict.update(sample_feed_dict)
+
+    return res[0:neval]
+
 
 def train_data(records: List[str], batch_size: int, epochs: int=1) \
         -> tf.data.TFRecordDataset:
