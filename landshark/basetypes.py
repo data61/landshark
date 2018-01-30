@@ -4,18 +4,39 @@ import logging
 from collections import namedtuple
 
 import numpy as np
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional, List, Sized
 
 log = logging.getLogger(__name__)
 
-NumericalType = Union[np.integer, np.floating]
+# Definitions of numerical types used in the project.
 OrdinalType = np.float32
 CategoricalType = np.int32
+NumericalType = Union[np.float32, np.int32]
+MissingType = Optional[NumericalType]
 CoordinateType = np.float64
+
+FeatureValues = namedtuple("FeatureValues",
+                           ["ordinal", "categorical", "coordinates"])
 
 
 class FixedSlice:
+    """
+    Slice object that requires a start and end point.
+
+    This is mainly for typing reasons, in a normal slice start and stop
+    can be None. This is not allowed in this class.
+
+    Parameters
+    ----------
+    start : int
+        Start of the slice (inclusive).
+    stop : int
+        End of the slice (exclusive).
+
+    """
+
     def __init__(self, start: int, stop: int) -> None:
+        """Initialise the object."""
         assert start >= 0
         assert stop >= start
         self.start = start
@@ -23,66 +44,12 @@ class FixedSlice:
 
     @property
     def as_slice(self) -> slice:
+        """Convert to a python native slice."""
         s = slice(self.start, self.stop)
         return s
 
 
-class CategoricalValues:
-    def __init__(self, array: np.ndarray):
-        self.categorical = array
-
-
-class OrdinalValues:
-    def __init__(self, array: np.ndarray):
-        self.ordinal = array
-
-
-class MixedValues(CategoricalValues, OrdinalValues):
-    def __init__(self, ord_array, cat_array):
-        assert len(ord_array) == len(cat_array)
-        OrdinalValues.__init__(self, ord_array)
-        CategoricalValues.__init__(self, cat_array),
-
-
-class CategoricalCoords(CategoricalValues):
-    def __init__(self, array: np.ndarray, coords: np.ndarray):
-        super().__init__(array)
-        self.coords = coords
-
-
-class OrdinalCoords(OrdinalValues):
-    def __init__(self, array: np.ndarray, coords: np.ndarray):
-        super().__init__(array)
-        self.coords = coords
-
-
-class MixedCoords(MixedValues):
-    def __init__(self, ord_array: np.ndarray, cat_array: np.ndarray,
-                 coords: np.ndarray):
-        super().__init__(ord_array, cat_array)
-        self.coords = coords
-
-
-Values = Union[CategoricalValues, OrdinalValues, MixedValues]
-
-
-class DataSource:
-    def __init__(self) -> None:
-        """Stub init for data type."""
-        self._n = 0
-
-    def slice(self, start: int, end: int) -> Values:
-        """Implement slice..."""
-        return self._slice(start, end)
-
-    def _slice(self, start: int, end: int) -> Values:
-        raise NotImplementedError
-
-    def __len__(self) -> int:
-        return self._n
-
-
-class ArraySource:
+class ArraySource(Sized):
     """Abstract UniData interface."""
 
     def __init__(self) -> None:
@@ -90,8 +57,8 @@ class ArraySource:
         self._shape = (0, 0)
         self._native = 0
         self._dtype = OrdinalType
-        self._missing = []
-        self._columns = []
+        self._missing: List[MissingType] = []
+        self._columns: List[str] = []
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -117,7 +84,8 @@ class ArraySource:
 
     @property
     def native(self) -> int:
-        """Get the native access size (in rows) of the data source.
+        """
+        Get the native access size (in rows) of the data source.
 
         Returns
         -------
@@ -127,83 +95,77 @@ class ArraySource:
         return self._native
 
     @property
-    def missing(self):
-        """Missing values."""
+    def missing(self) -> List[MissingType]:
+        """
+        Get the special values that show missing data for each feature.
+
+        Features are indexed by the LAST axis.
+
+        Returns
+        -------
+        m : List[MissingType]
+            A list entry for each feature, with either the missing value
+            or None to indicate there is no missing value defined.
+
+        """
         return self._missing
 
     @property
-    def columns(self):
+    def columns(self) -> List[str]:
+        """
+        Get text descriptors of each (column) feature.
+
+        Returns
+        -------
+        l : List[str]
+            A list of feature/column names. Should be the same length
+            as the last dimension of the data.
+
+        """
         return self._columns
 
+    def slice(self, start: int, end: int) -> np.ndarray:
+        """
+        Get a slice from the array along the first dimension.
+
+        Parameters
+        ----------
+        start : int
+            The start of the slice (inclusive)
+        end : int
+            The end of the slice (exclusive)
+
+        Returns
+        -------
+        array : np.ndarray
+            The values of the slice. First dimension will have length
+            end - start.
+
+        """
+        return self._arrayslice(start, end)
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
+        """Perform the array slice. This gets overridden by children."""
         raise NotImplementedError
+
+    def __len__(self) -> int:
+        """Return the number of rows (1st dimension)."""
+        return self._shape[0]
 
 
 class OrdinalArraySource(ArraySource):
+    """Array source for Ordinal data."""
+
     _dtype = OrdinalType
 
 
 class CategoricalArraySource(ArraySource):
+    """Array source for categorical data."""
+
     _dtype = CategoricalType
 
 
 class CoordinateArraySource(ArraySource):
+    """Array source for coordinate data."""
+
     _dtype = CoordinateType
-
-class OrdinalDataSource(DataSource):
-
-    def __init__(self, source: OrdinalArraySource) -> None:
-        self.ordinal = source
-        self._n = self.ordinal.shape[0]
-
-    def _slice(self, start: int, end: int) -> OrdinalValues:
-        result = OrdinalValues(self.ordinal._arrayslice(start, end))
-        return result
-
-class OrdinalCoordSource(OrdinalDataSource):
-    def __init__(self, ord_source: OrdinalArraySource,
-                 coord_source: OrdinalArraySource) -> None:
-        super().__init__(ord_source)
-        self.coordinates = coord_source
-
-    def _slice(self, start: int, end: int) -> OrdinalCoords:
-        result = OrdinalCoords(self.ordinal._arrayslice(start, end),
-                               self.coordinates._arrayslice(start, end))
-        return result
-
-class CategoricalDataSource(DataSource):
-
-    def __init__(self, source: CategoricalArraySource) -> None:
-        self.categorical = source
-        self._n = self.categorical.shape[0]
-
-    def _slice(self, start: int, end: int) -> CategoricalValues:
-        result = CategoricalValues(self.categorical._arrayslice(start, end))
-        return result
-
-class CategoricalCoordSource(CategoricalDataSource):
-    def __init__(self, cat_source: CategoricalArraySource,
-                 coord_source: OrdinalArraySource) -> None:
-        super().__init__(cat_source)
-        self.coordinates = coord_source
-
-    def _slice(self, start: int, end: int) -> CategoricalCoords:
-        result = CategoricalCoords(self.categorical._arrayslice(start, end),
-                                   self.coordinates._arrayslice(start, end))
-        return result
-
-
-class MixedDataSource(DataSource):
-
-    def __init__(self, ordinal_source: OrdinalArraySource,
-                 categorical_source: CategoricalArraySource,):
-        self.ordinal = ordinal_source
-        self.categorical = categorical_source
-        assert ordinal_source.shape[0] == categorical_source.shape[0]
-        self._n = ordinal_source.shape[0]
-
-    def _slice(self, start: int, stop: int):
-        result = MixedValues(self.ordinal._arrayslice(start, stop),
-                             self.categorical._arrayslice(start, stop))
-        return result

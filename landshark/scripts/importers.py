@@ -10,17 +10,19 @@ import click
 # mypy type checking
 from typing import List
 
-from landshark.tifread import shared_image_spec, OrdinalStackSource, \
-    CategoricalStackSource
+from landshark.tifread import shared_image_spec, OrdinalStackArraySource, \
+    CategoricalStackArraySource
 
 # from landshark.hread import ImageFeatures
-from landshark.featurewrite import write_imagespec, write_ordinal, write_categorical, write_pointspec
-from landshark.shpread import OrdinalShpSource, CategoricalShpSource, CoordinateShpSource
+from landshark.featurewrite import write_imagespec, write_ordinal, \
+    write_categorical, write_coordinates
+from landshark.shpread import OrdinalShpArraySource,  \
+    CategoricalShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
 # from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
 # from landshark import feed
-from landshark.hread import OrdinalH5Source, CategoricalH5Source, read_image_spec
+from landshark.hread import read_image_spec
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
 from landshark.image import strip_image_spec
@@ -45,17 +47,19 @@ def cli(verbosity: str) -> int:
 
 def _tifnames(directory: str) -> List[str]:
     if directory is not None:
-        names = glob(os.path.join(directory, "*.tif"))
-        result = list(filter(lambda x: x.rsplit(".")[1] == "tif", names))
+        file_types = ('tif', 'gtif')
+        names = []
+        for t in file_types:
+            glob_pattern = os.path.join(directory, "**", "*.{}".format(t))
+            names.extend(glob(glob_pattern, recursive=True))
     else:
-        result = None
-    return result
+        names = None
+    return names
 
 
 @cli.command()
 @click.option("--batchsize", type=int, default=1000)
 @click.option("--categorical", type=click.Path(exists=True))
-@click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--name", type=str, required=True,
               help="Name of output file")
@@ -76,11 +80,11 @@ def tifs(categorical: str, ordinal: str,
         write_imagespec(spec, h5file)
 
         if ordinal:
-            ord_source = OrdinalStackSource(spec, ord_filenames)
+            ord_source = OrdinalStackArraySource(spec, ord_filenames)
             write_ordinal(ord_source, h5file, batchsize, pool)
 
         if categorical:
-            cat_source = CategoricalStackSource(spec, cat_filenames)
+            cat_source = CategoricalStackArraySource(spec, cat_filenames)
             write_categorical(cat_source, h5file, batchsize, pool)
 
     return 0
@@ -104,14 +108,15 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
     with tables.open_file(out_filename, mode="w", title=name) as h5file:
 
-        coord_src = CoordinateShpSource(shapefile, random_seed)
-        write_pointspec(coord_src, h5file, batchsize)
+        coord_src = CoordinateShpArraySource(shapefile, random_seed)
+        write_coordinates(coord_src, h5file, batchsize)
 
         if categorical:
-            cat_source = CategoricalShpSource(shapefile, targets, random_seed)
+            cat_source = CategoricalShpArraySource(shapefile, targets,
+                                                   random_seed)
             write_categorical(cat_source, h5file, batchsize, pool)
         else:
-            ord_source = OrdinalShpSource(shapefile, targets, random_seed)
+            ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
             write_ordinal(ord_source, h5file, batchsize, pool)
     return 0
 

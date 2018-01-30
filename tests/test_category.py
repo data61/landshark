@@ -3,14 +3,13 @@ from multiprocessing import Pool
 
 import numpy as np
 from landshark import category
-from landshark.basetypes import CategoricalValues, CategoricalDataSource, CategoricalArraySource, CategoricalType
+from landshark.basetypes import CategoricalArraySource, CategoricalType
 
 
 
 def test_unique_values():
-    in_data = np.array([[1, 2, 2], [1, 2, 3],
-                        [1, 1, 2], [1, 1, 1]])
-    x = CategoricalValues(in_data)
+    x = np.array([[1, 2, 2], [1, 2, 3],
+                 [1, 1, 2], [1, 1, 1]], dtype=CategoricalType)
     unique_vals, counts = category._unique_values(x)
     true_vals = [np.array([1]), np.array([1, 2]), np.array([1, 2, 3])]
     true_counts = [np.array([4]), np.array([2, 2]), np.array([1, 2, 1])]
@@ -52,10 +51,10 @@ class NPCatArraySource(CategoricalArraySource):
 
 def test_get_categories(mocker):
     rnd = np.random.RandomState(seed=666)
-    x = rnd.randint(0, 10, size=(20, 3))
+    x = rnd.randint(0, 10, size=(20, 3), dtype=CategoricalType)
     missing_in = [None, 0, 1]
     columns = ["1", "2", "3"]
-    source = CategoricalDataSource(NPCatArraySource(x, missing_in, columns))
+    source = NPCatArraySource(x, missing_in, columns)
     pool = Pool(2)
     batchsize = 3
     res = category.get_categories(source, batchsize, pool)
@@ -71,42 +70,10 @@ def test_categorical_transform():
 
     mappings = [np.array([1, 2, 3]), np.array([4, 1, 2])]
     x = np.array([[2, 2, 3, 1], [4, 1, 1, 2]], dtype=CategoricalType).T
-    values = CategoricalValues(x)
     f = category.CategoricalOutputTransform(mappings)
-    out = f(values)
+    out = f(x)
     ans = np.array([[1, 0],
                     [1, 1],
                     [2, 1],
                     [0, 2]], dtype=CategoricalType)
     assert np.all(out == ans)
-
-# def test_category_obj_missing():
-#     missing_values = [None, 11]
-#     cat = category._Categories(missing_values)
-#     assert cat.missing_values == [None, 0]
-
-# def test_category_obj():
-
-#     missing_values = [None, 11]
-#     data = np.array([[0, 10],
-#                      [1, 11],
-#                      [0, 10],
-#                      [4, 14],
-#                      [5, 15],
-#                      [1, 11],
-#                      [6, 16]])
-
-#     data_list = [data[0:2], data[2:5], data[5:]]
-#     new_list = []
-#     cat = category._Categories(missing_values)
-#     for d in data_list:
-#         new_list.append(cat.update(d))
-#     new_data = np.concatenate(new_list, axis=0)
-#     answer = np.array([[0, 1],
-#                        [1, 0],
-#                        [0, 1],
-#                        [2, 2],
-#                        [3, 3],
-#                        [1, 0],
-#                        [4, 4]])
-#     assert np.all(new_data == answer)
