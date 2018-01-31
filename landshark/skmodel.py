@@ -22,28 +22,38 @@ def _extract(Xo, Xom, Xc, Xcm, Y, sess, data_frac=None, random_seed=666):
     ord_list = []
     cat_list = []
     y_list = []
+
+    has_ord = int(Xo.shape[1]) != 0
+    has_cat = int(Xc.shape[1]) != 0
+
     try:
         while True:
             result = sess.run([Xo, Xom, Xc, Xcm, Y])
             x_ord_data, x_ord_mask, x_cat, _, y = result
-            x_ord = np.ma.MaskedArray(data=x_ord_data, mask=x_ord_mask)
-            n = x_ord.shape[0]
+            n = x_ord_data.shape[0]
+            if has_ord:
+                x_ord = np.ma.MaskedArray(data=x_ord_data, mask=x_ord_mask)
             if data_frac is not None:
                 mask = rnd.choice([True, False], size=(n,),
                                   p=[data_frac, 1.0 - data_frac])
-                ord_list.append(x_ord[mask])
-                cat_list.append(x_cat[mask])
-                y_list.append(y[mask])
             else:
-                ord_list.append(x_ord)
-                cat_list.append(x_cat)
-                y_list.append(y)
+                mask = slice(n)
+
+            if has_ord:
+                ord_list.append(x_ord[mask])
+            if has_cat:
+                cat_list.append(x_cat[mask])
+            y_list.append(y[mask])
     except tf.errors.OutOfRangeError:
         pass
-    ord_array = np.ma.concatenate(ord_list, axis=0)
-    ord_array.data[ord_array.mask] = np.nan
-    ord_array = ord_array.data
-    cat_array = np.concatenate(cat_list, axis=0)
+    ord_array = None
+    cat_array = None
+    if has_ord:
+        ord_array = np.ma.concatenate(ord_list, axis=0)
+        ord_array.data[ord_array.mask] = np.nan
+        ord_array = ord_array.data
+    if has_cat:
+        cat_array = np.concatenate(cat_list, axis=0)
     y_array = np.concatenate(y_list, axis=0)
     return ord_array, cat_array, y_array
 
