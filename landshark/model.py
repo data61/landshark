@@ -2,7 +2,7 @@
 import signal
 import logging
 import os.path
-from typing import List, Any, Generator
+from typing import List, Any, Generator, Optional
 from itertools import count
 from collections import namedtuple
 
@@ -46,7 +46,8 @@ def train_test(records_train: List[str],
                metadata: TrainingMetadata,
                directory: str,
                cf: Any,  # Module type
-               params: TrainingConfig) -> None:
+               params: TrainingConfig,
+               iterations: Optional[int]) -> None:
     """Model training and periodic hold-out testing."""
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
@@ -63,8 +64,8 @@ def train_test(records_train: List[str],
         tf.constant(params.samples, dtype=tf.int32), shape=(), name="NSamples")
 
     # Datasets
-    train_dataset = train_data(records_train, params.batchsize, params.epochs)
-    test_dataset = test_data(_query_records, _query_batchsize)
+    train_dataset = _train_data(records_train, params.batchsize, params.epochs)
+    test_dataset = _test_data(_query_records, _query_batchsize)
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
             train_dataset.output_types,
@@ -73,7 +74,7 @@ def train_test(records_train: List[str],
             )
     train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-    Xo, Xom, Xc, Xcm, Y = decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y = _decode(iterator, metadata)
 
     # Model
     with tf.name_scope("Deepnet"):
@@ -105,7 +106,7 @@ def train_test(records_train: List[str],
     logger = tf.train.LoggingTensorHook(
         {"step": global_step, "loss": loss},
         every_n_secs=60)
-    saver = BestScoreSaver(directory)
+    saver = _BestScoreSaver(directory)
 
     # This is the main training "loop"
     with tf.train.MonitoredTrainingSession(
@@ -121,24 +122,26 @@ def train_test(records_train: List[str],
 
         saver.attach_session(sess._sess._sess._sess._sess)
 
-        for i in count():
+        counter = range(iterations) if iterations else count()
+        for i in counter:
             log.info("Training round {} with {} epochs."
                      .format(i, params.epochs))
             try:
 
                 # Train loop
                 sess.run(train_init_op)
-                step = train_loop(train, global_step, sess)
+                step = _train_loop(train, global_step, sess)
 
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    *scores, lp = classify_test_loop(Y, Ey, prob, sess,
+                    *scores, lp = _classify_test_loop(Y, Ey, prob, sess,
+                                                      test_fdict, metadata,
+                                                      step)
+                else:
+                    *scores, lp = _regress_test_loop(Y, Ey, logprob, sess,
                                                      test_fdict, metadata,
                                                      step)
-                else:
-                    *scores, lp = regress_test_loop(Y, Ey, logprob, sess,
-                                                    test_fdict, metadata, step)
                 saver.save(lp, *scores)
 
             except KeyboardInterrupt:
@@ -165,32 +168,26 @@ def predict(model: str,
                                  gpu_options={"allow_growth": True})
     model_file = tf.train.latest_checkpoint(model)
 
-    tf.reset_default_graph()
-    with tf.Session(config=sess_config) as sess:
-        graph = tf.get_default_graph()
-        save = tf.train.import_meta_graph("{}.meta".format(model_file))
-        log.info("Restoring {}".format(model_file))
-        save.restore(sess, model_file)
-
     graph = tf.Graph()
     with graph.as_default():
         sess = tf.Session(config=sess_config)
         with sess.as_default():
+            log.info("Restoring {}".format(model_file))
             save = tf.train.import_meta_graph("{}.meta".format(model_file))
             save.restore(sess, model_file)
 
             # Restore place holders and prediction network
-            _records = load_op(graph, "QueryRecords")
-            _batchsize = load_op(graph, "BatchSize")
-            _nsamples = load_op(graph, "NSamples")
+            _records = _load_op(graph, "QueryRecords")
+            _batchsize = _load_op(graph, "BatchSize")
+            _nsamples = _load_op(graph, "NSamples")
 
             if classification:
-                Ey = load_op(graph, "Test/Ey")
-                prob = load_op(graph, "Test/prob")
+                Ey = _load_op(graph, "Test/Ey")
+                prob = _load_op(graph, "Test/prob")
                 eval_list = [Ey, prob]
             else:
-                Ef = load_op(graph, "Deepnet/F_mean")
-                F_samps = load_op(graph, "Deepnet/F_sample")
+                Ef = _load_op(graph, "Deepnet/F_mean")
+                F_samps = _load_op(graph, "Deepnet/F_sample")
                 Per = ab.sample_percentiles(F_samps, params.percentiles)
                 eval_list = [Ef, Per]
 
@@ -201,7 +198,7 @@ def predict(model: str,
             sess.run(it_op, feed_dict=feed_dict)
 
             # Get a single set of samples from the model
-            res = fix_samples(graph, sess, eval_list, feed_dict)
+            res = _fix_samples(graph, sess, eval_list, feed_dict)
 
             with tqdm(total=total_size) as pbar:
                 # Yeild prediction result from fixing samples
@@ -218,11 +215,20 @@ def predict(model: str,
                         return
 
 
+def patch_slices(metadata):
+    npatch = (metadata.halfwidth * 2 + 1) ** 2
+    dim = npatch * metadata.nfeatures_cat
+    begin = range(0, dim, npatch)
+    end = range(npatch, dim + npatch, npatch)
+    slices = [slice(b, e) for b, e in zip(begin, end)]
+    return slices
+
+
 #
-# Module utility functions
+# Private module utility functions
 #
 
-def fix_samples(graph, sess, eval_list, feed_dict):
+def _fix_samples(graph, sess, eval_list, feed_dict):
     """Fix the samples in an Aboleth graph for prediction.
 
     This also requires one evaluation of the graph, so the result is returned.
@@ -239,7 +245,7 @@ def fix_samples(graph, sess, eval_list, feed_dict):
     return res[0:neval]
 
 
-def train_data(records: List[str], batch_size: int, epochs: int=1) \
+def _train_data(records: List[str], batch_size: int, epochs: int=1) \
         -> tf.data.TFRecordDataset:
     """Train dataset feeder."""
     dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
@@ -249,14 +255,14 @@ def train_data(records: List[str], batch_size: int, epochs: int=1) \
     return dataset
 
 
-def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
+def _test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
     """Test and query dataset feeder."""
     dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
         .batch(batch_size)
     return dataset
 
 
-def decode(iterator, metadata):
+def _decode(iterator, metadata):
     """Decode tf.record strings."""
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=FDICT)
@@ -281,7 +287,7 @@ def decode(iterator, metadata):
     return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 
 
-class BestScoreSaver:
+class _BestScoreSaver:
     # TODO - see if we can make the "best score" persist between runs?
 
     def __init__(self, directory):
@@ -299,7 +305,7 @@ class BestScoreSaver:
             log.info("New best model saved with score: {}".format(score))
 
 
-def train_loop(train, global_step, sess):
+def _train_loop(train, global_step, sess):
     """Train using an intialised Dataset iterator."""
     try:
         while not sess.should_stop():
@@ -310,7 +316,7 @@ def train_loop(train, global_step, sess):
     return step
 
 
-def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
+def _classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     Eys = []
     Ys = []
     Ps = []
@@ -334,15 +340,15 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
     lp = -1 * log_loss(Ys, Ps, labels=labels)
-    scalar_summary(acc, sess, "accuracy", step)
-    scalar_summary(bacc, sess, "balanced accuracy", step)
-    scalar_summary(lp, sess, "log probability", step)
+    _scalar_summary(acc, sess, "accuracy", step)
+    _scalar_summary(bacc, sess, "balanced accuracy", step)
+    _scalar_summary(lp, sess, "log probability", step)
     log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
              .format(acc, bacc, lp))
     return acc, bacc, lp
 
 
-def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
+def _regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
@@ -357,13 +363,13 @@ def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     EYs = np.vstack(EYs)
     lp = np.concatenate(LP, axis=1).mean()
     r2 = r2_score(Ys, EYs, multioutput="raw_values")
-    vector_summary(r2, sess, "r-square", metadata.target_labels, step)
-    scalar_summary(lp, sess, "mean log prob", step)
+    _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
+    _scalar_summary(lp, sess, "mean log prob", step)
     log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
     return r2, lp
 
 
-def scalar_summary(scalar, session, tag, step=None):
+def _scalar_summary(scalar, session, tag, step=None):
     """Add and update a summary scalar to TensorBoard."""
     summary_writer = session._hooks[1]._summary_writer
     sum_val = tf.Summary.Value(tag=tag, simple_value=scalar)
@@ -371,7 +377,7 @@ def scalar_summary(scalar, session, tag, step=None):
     summary_writer.add_summary(score_sum, step)
 
 
-def vector_summary(vector, session, tag, labels, step=None):
+def _vector_summary(vector, session, tag, labels, step=None):
     """Add and update a summary vector (list of scalars) to TensorBoard."""
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
@@ -381,16 +387,7 @@ def vector_summary(vector, session, tag, labels, step=None):
     summary_writer.add_summary(score_sum, step)
 
 
-def patch_slices(metadata):
-    npatch = (metadata.halfwidth * 2 + 1) ** 2
-    dim = npatch * metadata.nfeatures_cat
-    begin = range(0, dim, npatch)
-    end = range(npatch, dim + npatch, npatch)
-    slices = [slice(b, e) for b, e in zip(begin, end)]
-    return slices
-
-
-def load_op(graph: tf.Graph, name: str) -> tf.Tensor:
+def _load_op(graph: tf.Graph, name: str) -> tf.Tensor:
     """Load an operation/tensor from a graph."""
     tensor = graph.get_operation_by_name(name).outputs[0]
     return tensor
