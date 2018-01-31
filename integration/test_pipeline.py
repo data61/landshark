@@ -23,7 +23,8 @@ def whichtarget(request):
 def whichalgo(request):
     return request.param
 
-def test_train_predict(data_loc, whichfeatures, whichtarget, whichalgo):
+
+def test_full_pipeline(data_loc, whichfeatures, whichtarget, whichalgo):
     ord_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     target_lbl, target_name, target_flags, model_filename = whichtarget
 
