@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 import aboleth as ab
 from landshark.metadata import TrainingMetadata
+from landshark.serialise import deserialise
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, log_loss, r2_score
 
@@ -20,14 +21,6 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 #
 # Module constants and types
 #
-
-FDICT = {
-    "x_cat": tf.FixedLenFeature([], tf.string),
-    "x_cat_mask": tf.FixedLenFeature([], tf.string),
-    "x_ord": tf.FixedLenFeature([], tf.string),
-    "x_ord_mask": tf.FixedLenFeature([], tf.string),
-    "y": tf.FixedLenFeature([], tf.string)
-    }
 
 TrainingConfig = namedtuple("TrainingConfig",
                             ["epochs", "batchsize", "samples",
@@ -64,8 +57,8 @@ def train_test(records_train: List[str],
         tf.constant(params.samples, dtype=tf.int32), shape=(), name="NSamples")
 
     # Datasets
-    train_dataset = _train_data(records_train, params.batchsize, params.epochs)
-    test_dataset = _test_data(_query_records, _query_batchsize)
+    train_dataset = train_data(records_train, params.batchsize, params.epochs)
+    test_dataset = test_data(_query_records, _query_batchsize)
     with tf.name_scope("Sources"):
         iterator = tf.data.Iterator.from_structure(
             train_dataset.output_types,
@@ -74,7 +67,7 @@ def train_test(records_train: List[str],
             )
     train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-    Xo, Xom, Xc, Xcm, Y = _decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
 
     # Model
     with tf.name_scope("Deepnet"):
@@ -201,7 +194,7 @@ def predict(model: str,
             res = _fix_samples(graph, sess, eval_list, feed_dict)
 
             with tqdm(total=total_size) as pbar:
-                # Yeild prediction result from fixing samples
+                # Yield prediction result from fixing samples
                 yield res
                 pbar.update(res[0].shape[0])
 
@@ -225,6 +218,23 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     return slices
 
 
+def train_data(records: List[str], batch_size: int, epochs: int=1) \
+        -> tf.data.TFRecordDataset:
+    """Train dataset feeder."""
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .repeat(count=epochs) \
+        .shuffle(buffer_size=1000) \
+        .batch(batch_size)
+    return dataset
+
+
+def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
+    """Test and query dataset feeder."""
+    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+        .batch(batch_size)
+    return dataset
+
+
 #
 # Private module utility functions
 #
@@ -245,49 +255,6 @@ def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
     feed_dict.update(sample_feed_dict)
 
     return res[0:neval]
-
-
-def _train_data(records: List[str], batch_size: int, epochs: int=1) \
-        -> tf.data.TFRecordDataset:
-    """Train dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .repeat(count=epochs) \
-        .shuffle(buffer_size=1000) \
-        .batch(batch_size)
-    return dataset
-
-
-def _test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
-    """Test and query dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .batch(batch_size)
-    return dataset
-
-
-def _decode(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
-        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
-    """Decode tf.record strings into Tensors."""
-    str_features = iterator.get_next()
-    raw_features = tf.parse_example(str_features, features=FDICT)
-    npatch = (2 * metadata.halfwidth + 1) ** 2
-    y_type = tf.float32 if metadata.target_dtype == np.float32 \
-        else tf.int32
-    with tf.name_scope("Inputs"):
-        x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
-        x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
-        x_ord_mask = tf.decode_raw(raw_features["x_ord_mask"], tf.uint8)
-        x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
-        x_ord_mask = tf.cast(x_ord_mask, tf.bool)
-        x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], y_type)
-
-        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
-        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
-        y.set_shape((None, metadata.ntargets))
-
-    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 
 
 class _BestScoreSaver:
