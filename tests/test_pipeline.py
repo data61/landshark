@@ -69,11 +69,11 @@ def test_train_predict(data_loc, whichfeatures, whichtarget, whichalgo):
         results = runner.invoke(importers.cli, ["querydata",
                                                 "--features",
                                                 "sirsam_features.hdf5",
-                                                "2", "5"])
+                                                "5", "10"])
         for line in results.output.split("\n"):
             print(line)
         assert results.exit_code == 0
-        querydata_folder = "sirsam_features_query2of5"
+        querydata_folder = "sirsam_features_query5of10"
         assert os.path.isdir(querydata_folder)
 
         # train a model
@@ -92,10 +92,8 @@ def test_train_predict(data_loc, whichfeatures, whichtarget, whichalgo):
                                             querydata_folder])
         for line in results.output.split("\n"):
             print(line)
-        if not results.exit_code == 0:
-            import IPython; IPython.embed(); import sys; sys.exit()
         assert results.exit_code == 0
-        image_filename = "{}_2of5.tif".format(target_lbl)
+        image_filename = "{}_5of10.tif".format(target_lbl)
         image_path = os.path.join(trained_model_dir, image_filename)
         assert os.path.isfile(image_path)
 
