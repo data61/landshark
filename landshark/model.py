@@ -334,9 +334,9 @@ def classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
     lp = -1 * log_loss(Ys, Ps, labels=labels)
-    acc_summary(acc, sess, step)
-    bacc_summary(bacc, sess, step)
-    logloss_summary(lp, sess, step)
+    scalar_summary(acc, sess, "accuracy", step)
+    scalar_summary(bacc, sess, "balanced accuracy", step)
+    scalar_summary(lp, sess, "log probability", step)
     log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
              .format(acc, bacc, lp))
     return acc, bacc, lp
@@ -357,46 +357,27 @@ def regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     EYs = np.vstack(EYs)
     lp = np.concatenate(LP, axis=1).mean()
     r2 = r2_score(Ys, EYs, multioutput="raw_values")
-    rsquare_summary(r2, sess, metadata.target_labels, step)
-    logprob_summary(lp, sess, step)
+    vector_summary(r2, sess, "r-square", metadata.target_labels, step)
+    scalar_summary(lp, sess, "mean log prob", step)
     log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
     return r2, lp
 
 
-def rsquare_summary(r2, session, labels, step=None):
+def scalar_summary(scalar, session, tag, step=None):
+    """Add and update a summary scalar to TensorBoard."""
+    summary_writer = session._hooks[1]._summary_writer
+    sum_val = tf.Summary.Value(tag=tag, simple_value=scalar)
+    score_sum = tf.Summary(value=[sum_val])
+    summary_writer.add_summary(score_sum, step)
+
+
+def vector_summary(vector, session, tag, labels, step=None):
+    """Add and update a summary vector (list of scalars) to TensorBoard."""
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
-    sum_val = [tf.Summary.Value(tag="r-square-{}".format(l), simple_value=r)
-               for l, r in zip(labels, r2)]
+    sum_val = [tf.Summary.Value(tag="{}-{}".format(tag, l), simple_value=v)
+               for l, v in zip(labels, vector)]
     score_sum = tf.Summary(value=sum_val)
-    summary_writer.add_summary(score_sum, step)
-
-
-def logprob_summary(logprob, session, step=None):
-    summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag="mean log prob", simple_value=logprob)
-    score_sum = tf.Summary(value=[sum_val])
-    summary_writer.add_summary(score_sum, step)
-
-
-def logloss_summary(logloss, session, step=None):
-    summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag="log loss", simple_value=logloss)
-    score_sum = tf.Summary(value=[sum_val])
-    summary_writer.add_summary(score_sum, step)
-
-
-def acc_summary(acc, session, step=None):
-    summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag="accuracy", simple_value=acc)
-    score_sum = tf.Summary(value=[sum_val])
-    summary_writer.add_summary(score_sum, step)
-
-
-def bacc_summary(bacc, session, step=None):
-    summary_writer = session._hooks[1]._summary_writer
-    sum_val = tf.Summary.Value(tag="balanced accuracy", simple_value=bacc)
-    score_sum = tf.Summary(value=[sum_val])
     summary_writer.add_summary(score_sum, step)
 
 
