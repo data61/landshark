@@ -113,6 +113,7 @@ def _query_it(records_query, batch_size, metadata):
 def _convert_res(res):
     """Make sure Y adheres to our conventions."""
     y, extra = res
+    extra = extra.astype(OrdinalType)
     if y.ndim == 1:
         y = y[:, np.newaxis]
     if y.dtype == np.float64 or y.dtype == np.float32:
