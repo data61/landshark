@@ -19,7 +19,7 @@ def whichfeatures(request):
 def whichtarget(request):
     return request.param
 
-@pytest.fixture(params=["landshark", "skshark"])
+@pytest.fixture(params=["skshark"])
 def whichalgo(request):
     return request.param
 
