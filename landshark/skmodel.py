@@ -55,6 +55,9 @@ def _extract(Xo, Xom, Xc, Xcm, Y, sess, data_frac=None, random_seed=666):
     if has_cat:
         cat_array = np.concatenate(cat_list, axis=0)
     y_array = np.concatenate(y_list, axis=0)
+    # sklearn only supports 1D Y at the moment
+    assert y_array.ndim == 1 or y_array.shape[1] == 1
+    y_array = y_array.flatten()
     return ord_array, cat_array, y_array
 
 

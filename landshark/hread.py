@@ -77,6 +77,8 @@ class H5Features:
             coord_data = self.coordinates.slice(start, end)
         return FeatureValues(ord_data, cat_data, coord_data)
 
+    def __del__(self):
+        self._hfile.close()
 
 
 def read_image_spec(filename):
