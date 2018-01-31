@@ -1,10 +1,80 @@
+"""Serialise and Deserialise to and from tf records."""
 from itertools import repeat
+from typing import Tuple, List
 
 import tensorflow as tf
 import numpy as np
 
 from landshark.basetypes import OrdinalType
+from landshark.metadata import TrainingMetadata
 
+
+#
+# Module constants and types
+#
+
+_FDICT = {
+    "x_cat": tf.FixedLenFeature([], tf.string),
+    "x_cat_mask": tf.FixedLenFeature([], tf.string),
+    "x_ord": tf.FixedLenFeature([], tf.string),
+    "x_ord_mask": tf.FixedLenFeature([], tf.string),
+    "y": tf.FixedLenFeature([], tf.string)
+    }
+
+
+#
+# Module functions
+#
+
+def serialise(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
+              y: np.array) -> List[str]:
+    """Serialise data to tf.records."""
+    if x_ord is None:
+        x_ord = repeat(np.ma.MaskedArray(data=[], mask=[]))
+    if x_cat is None:
+        x_cat = repeat(np.ma.MaskedArray(data=[], mask=[]))
+    if y is None:
+        # TODO dont know the dtype so this is a bit dodgy
+        y = repeat(np.array([], dtype=OrdinalType))
+
+    string_list = []
+    for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):
+        fdict = _make_features(xo_i, xc_i, y_i)
+        example = tf.train.Example(
+            features=tf.train.Features(feature=fdict))
+        string_list.append(example.SerializeToString())
+    return string_list
+
+
+def deserialise(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
+        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Decode tf.record strings into Tensors."""
+    str_features = iterator.get_next()
+    raw_features = tf.parse_example(str_features, features=_FDICT)
+    npatch = (2 * metadata.halfwidth + 1) ** 2
+    y_type = tf.float32 if metadata.target_dtype == np.float32 \
+        else tf.int32
+    with tf.name_scope("Inputs"):
+        x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
+        x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
+        x_ord_mask = tf.decode_raw(raw_features["x_ord_mask"], tf.uint8)
+        x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
+        x_ord_mask = tf.cast(x_ord_mask, tf.bool)
+        x_cat_mask = tf.cast(x_cat_mask, tf.bool)
+        y = tf.decode_raw(raw_features["y"], y_type)
+
+        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
+        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
+        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
+        y.set_shape((None, metadata.ntargets))
+
+    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
+
+
+#
+# Private module utilities
+#
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     """Create an ndarray feature stored as bytes."""
@@ -25,21 +95,3 @@ def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
         "y": _ndarray_feature(y)
         }
     return fdict
-
-def serialise(x_ord, x_cat, y):
-    if x_ord is None:
-        x_ord = repeat(np.ma.MaskedArray(data=[], mask=[]))
-    if x_cat is None:
-        x_cat = repeat(np.ma.MaskedArray(data=[], mask=[]))
-    if y is None:
-        # TODO dont know the dtype so this is a bit dodgy
-        y = repeat(np.array([], dtype=OrdinalType))
-
-    string_list = []
-    for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):
-        fdict = _make_features(xo_i, xc_i, y_i)
-        example = tf.train.Example(
-            features=tf.train.Features(feature=fdict))
-        string_list.append(example.SerializeToString())
-    return string_list
-

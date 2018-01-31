@@ -1,7 +1,7 @@
 """Main landshark commands."""
-
 import sys
 import logging
+from typing import Optional
 
 import click
 
@@ -39,10 +39,12 @@ def cli(verbosity: str) -> int:
               " test set.")
 @click.option("--test_batchsize", type=click.IntRange(min=1), default=1000,
               help="Testing batch size")
+@click.option("--iterations", type=click.IntRange(min=1), default=None,
+              help="number of training/testing iterations.")
 @click.option("--gpu/--no-gpu", default=False)
 def train(directory: str, config: str, epochs: int, batchsize: int,
           test_batchsize: int, samples: int, test_samples: int,
-          gpu: bool) -> int:
+          gpu: bool, iterations: Optional[int]) -> int:
     """Train a model specified by an input configuration."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, directory)
@@ -51,7 +53,7 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
     training_params = TrainingConfig(epochs, batchsize, samples,
                                      test_batchsize, test_samples, gpu)
     model.train_test(training_records, testing_records, metadata, model_dir,
-                     sys.modules[cf], training_params)
+                     sys.modules[cf], training_params, iterations)
     return 0
 
 
