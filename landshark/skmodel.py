@@ -1,3 +1,4 @@
+"""Scikit Learn training and testing with tf records."""
 import logging
 import os.path
 
@@ -6,12 +7,12 @@ import tensorflow as tf
 import numpy as np
 import pickle
 
-from landshark import model
+from landshark.model import train_data, test_data
+from landshark.serialise import deserialise
 from landshark.basetypes import CategoricalType, OrdinalType
 
-
 from sklearn.metrics import accuracy_score, log_loss, r2_score
-import scipy.stats
+
 
 log = logging.getLogger(__name__)
 
@@ -51,8 +52,8 @@ def _get_data(records_train, records_test, metadata, npoints,
               batch_size, random_seed):
     data_frac = min(npoints / metadata.N, 1.0)
 
-    train_dataset = model.train_data(records_train, batch_size, epochs=1)
-    test_dataset = model.test_data(records_test, batch_size)
+    train_dataset = train_data(records_train, batch_size, epochs=1)
+    test_dataset = test_data(records_test, batch_size)
 
     iterator = tf.data.Iterator.from_structure(
         train_dataset.output_types,
@@ -63,25 +64,26 @@ def _get_data(records_train, records_test, metadata, npoints,
     train_init_op = iterator.make_initializer(train_dataset)
     test_init_op = iterator.make_initializer(test_dataset)
 
-    Xo, Xom, Xc, Xcm, Y = model.decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
 
     with tf.Session() as sess:
         sess.run(train_init_op)
-        ord_array, cat_array, y_array = _extract(Xo, Xom, Xc, Xcm, Y,
-            sess, data_frac, random_seed)
+        ord_array, cat_array, y_array = _extract(Xo, Xom, Xc, Xcm, Y, sess,
+                                                 data_frac, random_seed)
         sess.run(test_init_op)
         ord_array_test, cat_array_test, y_array_test = _extract(Xo, Xom, Xc,
-            Xcm, Y, sess)
+                                                                Xcm, Y, sess)
 
     return (ord_array, cat_array, y_array,
             ord_array_test, cat_array_test, y_array_test)
 
+
 def _query_it(records_query, batch_size, metadata):
 
     total_size = metadata.image_spec.height * metadata.image_spec.width
-    dataset = model.test_data(records_query, batch_size)
+    dataset = test_data(records_query, batch_size)
     iterator = dataset.make_one_shot_iterator()
-    Xo, Xom, Xc, Xcm, Y = model.decode(iterator, metadata)
+    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
 
     with tqdm(total=total_size) as pbar:
         with tf.Session() as sess:
@@ -108,6 +110,7 @@ def _convert_res(res):
     elif y.dtype == np.int64 or y.dtype == np.int32:
         y = y.astype(CategoricalType)
     return y, extra
+
 
 def train_test(config_module, records_train, records_test, metadata, model_dir,
                maxpoints, batchsize, random_seed):
@@ -158,4 +161,3 @@ def predict(modeldir, metadata, query_records, batch_size):
         res = model.predict(xo, xc)
         res = _convert_res(res)
         yield res
-
