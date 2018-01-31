@@ -12,6 +12,8 @@ class SKModel:
                            verbose=0, copy=True)
 
         psize = (2 * metadata.halfwidth + 1)**2
+        # only use the one hot encoder if there are
+        # actually categorical features
         if metadata.ncategories:
             n_values = [k for k in metadata.ncategories for _ in range(psize)]
             self.enc = OneHotEncoder(n_values=n_values,

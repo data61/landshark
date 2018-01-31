@@ -95,6 +95,9 @@ def _query_it(records_query, batch_size, metadata):
     iterator = dataset.make_one_shot_iterator()
     Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
 
+    has_ord = int(Xo.shape[1]) != 0
+    has_cat = int(Xc.shape[1]) != 0
+
     with tqdm(total=total_size) as pbar:
         with tf.Session() as sess:
             while True:
@@ -104,6 +107,8 @@ def _query_it(records_query, batch_size, metadata):
                     ord_array[xom] = np.nan
                     cat_array = xc
                     pbar.update(xo.shape[0])
+                    ord_array = ord_array if has_ord else None
+                    cat_array = cat_array if has_cat else None
                     yield ord_array, cat_array
                 except tf.errors.OutOfRangeError:
                     break
@@ -113,7 +118,10 @@ def _query_it(records_query, batch_size, metadata):
 def _convert_res(res):
     """Make sure Y adheres to our conventions."""
     y, extra = res
-    extra = extra.astype(OrdinalType)
+    if type(extra) is list:
+        extra = [e.astype(OrdinalType) for e in extra]
+    else:
+        extra = extra.astype(OrdinalType)
     if y.ndim == 1:
         y = y[:, np.newaxis]
     if y.dtype == np.float64 or y.dtype == np.float32:

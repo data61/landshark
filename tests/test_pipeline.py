@@ -92,12 +92,14 @@ def test_train_predict(data_loc, whichfeatures, whichtarget, whichalgo):
                                             querydata_folder])
         for line in results.output.split("\n"):
             print(line)
+        if not results.exit_code == 0:
+            import IPython; IPython.embed(); import sys; sys.exit()
         assert results.exit_code == 0
         image_filename = "{}_2of5.tif".format(target_lbl)
         image_path = os.path.join(trained_model_dir, image_filename)
         assert os.path.isfile(image_path)
 
         # outputs
-        images = glob(os.path.join(trained_model_dir, "*.tif"))
-        for im in images:
-            shutil.move(im, result_dir)
+        # images = glob(os.path.join(trained_model_dir, "*.tif"))
+        # for im in images:
+        #     shutil.move(im, result_dir)
