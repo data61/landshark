@@ -2,7 +2,7 @@
 import signal
 import logging
 import os.path
-from typing import List, Any, Generator, Optional
+from typing import List, Any, Generator, Optional, Tuple, Union, Iterable
 from itertools import count
 from collections import namedtuple
 
@@ -215,7 +215,8 @@ def predict(model: str,
                         return
 
 
-def patch_slices(metadata):
+def patch_slices(metadata: TrainingMetadata) -> List[slice]:
+    """Get slices into the covariates corresponding to patches."""
     npatch = (metadata.halfwidth * 2 + 1) ** 2
     dim = npatch * metadata.nfeatures_cat
     begin = range(0, dim, npatch)
@@ -228,7 +229,8 @@ def patch_slices(metadata):
 # Private module utility functions
 #
 
-def _fix_samples(graph, sess, eval_list, feed_dict):
+def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
+                 feed_dict: dict) -> Any:
     """Fix the samples in an Aboleth graph for prediction.
 
     This also requires one evaluation of the graph, so the result is returned.
@@ -262,8 +264,9 @@ def _test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
     return dataset
 
 
-def _decode(iterator, metadata):
-    """Decode tf.record strings."""
+def _decode(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
+        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Decode tf.record strings into Tensors."""
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=FDICT)
     npatch = (2 * metadata.halfwidth + 1) ** 2
@@ -288,24 +291,30 @@ def _decode(iterator, metadata):
 
 
 class _BestScoreSaver:
+    """Saver for only saving the best model based on held out score."""
+
     # TODO - see if we can make the "best score" persist between runs?
 
-    def __init__(self, directory):
+    def __init__(self, directory: str) -> None:
+        """Saver initialiser."""
         self.path = os.path.join(directory, "model_best.ckpt")
         self.best_scores = [-1 * np.inf]
         self.saver = tf.train.Saver()
 
-    def attach_session(self, session):
+    def attach_session(self, session: tf.Session) -> None:
+        """Attach a session to save."""
         self.sess = session
 
-    def save(self, score, *other_scores):
+    def save(self, score: float, *other_scores: float) -> None:
+        """Save the session *only* if the best score is exceeded."""
         if score > self.best_scores[0]:
             self.best_scores = [score] + list(other_scores)
             self.saver.save(self.sess, self.path)
             log.info("New best model saved with score: {}".format(score))
 
 
-def _train_loop(train, global_step, sess):
+def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
+        -> Any:
     """Train using an intialised Dataset iterator."""
     try:
         while not sess.should_stop():
@@ -316,7 +325,11 @@ def _train_loop(train, global_step, sess):
     return step
 
 
-def _classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
+def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
+                        sess: tf.Session, fdict: dict,
+                        metadata: TrainingMetadata, step: int) \
+        -> Tuple[float, float, float]:
+    """Test the trained classifier on held out data."""
     Eys = []
     Ys = []
     Ps = []
@@ -348,7 +361,11 @@ def _classify_test_loop(Y, Ey, prob, sess, fdict, metadata, step):
     return acc, bacc, lp
 
 
-def _regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
+def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
+                       sess: tf.Session, fdict: dict,
+                       metadata: TrainingMetadata, step: int) \
+        -> Tuple[float, float]:
+    """Test the trained regressor on held out data."""
     Ys, EYs, LP = [], [], []
     try:
         while not sess.should_stop():
@@ -369,7 +386,8 @@ def _regress_test_loop(Y, Ey, logprob, sess, fdict, metadata, step):
     return r2, lp
 
 
-def _scalar_summary(scalar, session, tag, step=None):
+def _scalar_summary(scalar: Union[int, bool, float], session: tf.Session,
+                    tag: str, step: Optional[int]=None) -> None:
     """Add and update a summary scalar to TensorBoard."""
     summary_writer = session._hooks[1]._summary_writer
     sum_val = tf.Summary.Value(tag=tag, simple_value=scalar)
@@ -377,7 +395,8 @@ def _scalar_summary(scalar, session, tag, step=None):
     summary_writer.add_summary(score_sum, step)
 
 
-def _vector_summary(vector, session, tag, labels, step=None):
+def _vector_summary(vector: Iterable, session: tf.Session, tag: str,
+                    labels: Iterable, step: Optional[int]=None) -> None:
     """Add and update a summary vector (list of scalars) to TensorBoard."""
     # Get a summary writer for R-square
     summary_writer = session._hooks[1]._summary_writer
