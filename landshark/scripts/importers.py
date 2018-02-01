@@ -17,7 +17,7 @@ from landshark.tifread import shared_image_spec, OrdinalStackArraySource, \
 from landshark.featurewrite import write_imagespec, write_ordinal, \
     write_categorical, write_coordinates
 from landshark.shpread import OrdinalShpArraySource,  \
-    CategoricalShpArraySource, CoordinateShpArraySource
+    StringShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
 # from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
@@ -25,7 +25,7 @@ from landshark.scripts.logger import configure_logging
 from landshark.hread import read_image_spec
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
-from landshark.image import strip_image_spec
+# from landshark.image import strip_image_spec
 
 log = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
         write_coordinates(coord_src, h5file, batchsize)
 
         if categorical:
-            cat_source = CategoricalShpArraySource(shapefile, targets,
+            cat_source = StringShpArraySource(shapefile, targets,
                                                    random_seed)
             write_categorical(cat_source, h5file, batchsize, pool)
         else:

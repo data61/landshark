@@ -27,7 +27,7 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
 
     nfeatures_ord = 0
     nfeatures_cat = 0
-    ncategories = 0
+    ncategories = None
     with tables.open_file(feature_file, "r") as hfile:
         if hasattr(hfile.root, "categorical_data"):
             nfeatures_cat = hfile.root.categorical_data.atom.shape[0]
@@ -44,6 +44,7 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
             target_dtype = CategoricalType
             target_labels = hfile.root.categorical_data.attrs.columns
             target_counts = hfile.root.categorical_data.attrs.counts
+            target_map = hfile.root.categorical_data.attrs.mappings
         elif hasattr(hfile.root, "ordinal_data"):
             target_counts = None
             target_map = None

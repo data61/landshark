@@ -74,6 +74,13 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
     labels = [l + "_" + tag for l in metadata.target_labels]
 
     if classification:
+        _write_classification(y_dash, labels, directory, metadata)
+    else:
+        _write_regression(y_dash, labels, directory, metadata, percentiles)
+
+
+
+def _write_classification(y_dash, labels, directory, metadata):
         assert len(labels) == 1
         label = labels[0]
         ey_writer = _make_writer(directory, label, CategoricalType,
@@ -82,14 +89,15 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
         p_writers = [_make_writer(directory, l, OrdinalType,
                                   metadata.image_spec) for l in p_labels]
         for b, (ey_batch, prob_batch) in enumerate(y_dash):
-            ey_writer.write(ey_batch)
+            ey_writer.write(ey_batch.flatten())
             for d, w in zip(prob_batch.T, p_writers):
                 w.write(d)
         ey_writer.close()
         for w in p_writers:
             w.close()
 
-    else:
+
+def _write_regression(y_dash, labels, directory, metadata, percentiles):
         perc_labels = [[l + "_p{}".format(p) for l in labels]
                        for p in percentiles]
 

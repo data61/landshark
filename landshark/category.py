@@ -98,7 +98,7 @@ def get_categories(array_src: CategoricalArraySource,
     missing = [CategoricalType(0) if k is not None else None
                for k in missing_values]
     count_dicts = [m.counts for m in accums]
-    mappings = [np.array(list(c.keys()), dtype=np.int32) for c in count_dicts]
+    mappings = [np.array(list(c.keys())) for c in count_dicts]
     counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
     result = CategoryInfo(mappings=mappings, counts=counts, missing=missing)
     return result
@@ -138,7 +138,7 @@ class CategoricalOutputTransform:
 
         """
         assert x.shape[-1] == len(self.mappings)
-        new_array = np.zeros_like(x, dtype=x.dtype)
+        new_array = np.zeros_like(x, dtype=CategoricalType)
         for col_idx, m in enumerate(self.mappings):
             old_col = x[..., col_idx]
             new_col = new_array[..., col_idx]

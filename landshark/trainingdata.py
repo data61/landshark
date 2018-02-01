@@ -61,13 +61,21 @@ def _get_rows(patch_reads, source):
     data_slices = [source.slice(start, end) for start, end in slices]
     ord_data = {}
     cat_data = {}
-    for s, d in zip(slices, data_slices):
-        if hasattr(d, "ordinal"):
-            for i, d_i in zip(range(s[0], s[1]), d.ordinal):
-                ord_data[i] = d_i
-        if hasattr(d, "categorical"):
-            for i, d_i in zip(range(s[0], s[1]), d.categorical):
-                cat_data[i] = d_i
+    if source.categorical is None:
+        for s, d in zip(slices, data_slices):
+            for i, d_io in zip(range(s[0], s[1]), d.ordinal):
+                ord_data[i] = d_io
+    elif source.ordinal is None:
+        for s, d in zip(slices, data_slices):
+            for i, d_ic in zip(range(s[0], s[1]), d.categorical):
+                cat_data[i] = d_ic
+    else:
+        for s, d in zip(slices, data_slices):
+            for i, d_io, d_ic in zip(range(s[0], s[1]),
+                                     d.ordinal, d.categorical):
+                ord_data[i] = d_io
+                cat_data[i] = d_ic
+
     if len(ord_data) == 0:
         ord_data = None
     if len(cat_data) == 0:
@@ -88,7 +96,7 @@ class TrainingDataProcessor:
             self.feature_source = H5Features(self.feature_file)
 
         coords_x, coords_y = values.coordinates.T
-        targets = values.ordinal if hasattr(values, "ordinal") \
+        targets = values.ordinal if values.ordinal is not None \
             else values.categorical
         indices_x = image.world_to_image(coords_x,
                                          self.image_spec.x_coordinates)

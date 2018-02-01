@@ -49,6 +49,12 @@ def _get_dtype(labels, all_labels, all_dtypes):
     dtype = dtype_set.pop()
     return dtype
 
+def _largest_string_type(type_list):
+    string_types = [i for i in type_list if type(i) is str]
+    assert [k[0] == 'a' for k in string_types]
+    # this should return the longest string type
+    result = max(string_types)
+    return result
 
 # TODO force this to be abstract. DONT USE!
 class _ShpArraySource(ArraySource):
@@ -58,6 +64,7 @@ class _ShpArraySource(ArraySource):
         all_fields, all_dtypes = _get_record_info(self._sf)
         self._columns = labels
         self._column_indices = _get_indices(self._columns, all_fields)
+        self._original_dtypes = [all_dtypes[i] for i in self._column_indices]
         self._shape = (self._sf.numRecords, len(labels))
         self._missing = [None] * self._shape[1]
         log.info("Shapefile contains {} records "
@@ -79,8 +86,12 @@ class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
     pass
 
 
-class CategoricalShpArraySource(_ShpArraySource, CategoricalArraySource):
-    pass
+class StringShpArraySource(_ShpArraySource):
+
+    def __init__(self, filename: str, labels: List[str],
+                 random_seed: int) -> None:
+        super().__init__(filename, labels, random_seed)
+        self._dtype = _largest_string_type(self._original_dtypes)
 
 
 class CoordinateShpArraySource(CoordinateArraySource):
