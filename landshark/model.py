@@ -140,13 +140,7 @@ def train_test(records_train: List[str],
                 log.info("Training stopped on keyboard input")
                 break
             finally:
-                if classification:
-                    log.info("Final acc: {:.5f}, Final bacc: {:.5f}, Final lp:"
-                             " {:.5f}.".format(scores["acc"], scores["bacc"],
-                                               scores["lp"]))
-                else:
-                    log.info("Final r2: {}, Final mlp: {:.5f}."
-                             .format(scores["r2"], scores["lp"]))
+                _log_scores(scores, "Final ")
 
 
 def predict(model: str,
@@ -238,6 +232,15 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
 #
 # Private module utility functions
 #
+
+
+def _log_scores(scores: dict, initial_message: str="Aboleth ") -> None:
+    """Log testing scores."""
+    logmsg = str(initial_message)
+    for k, v in scores.items():
+        logmsg += "{}: {} ".format(k, v)
+    log.info(logmsg)
+
 
 def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
                  feed_dict: dict) -> Any:
@@ -332,13 +335,13 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     sample_weights = weights[Ys]
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
-    lp = -1 * log_loss(Ys, Ps, labels=labels)
+    lp = float(-1 * log_loss(Ys, Ps, labels=labels))
     _scalar_summary(acc, sess, "accuracy", step)
     _scalar_summary(bacc, sess, "balanced accuracy", step)
     _scalar_summary(lp, sess, "log probability", step)
-    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
-             .format(acc, bacc, lp))
-    return {"acc": acc, "bacc": bacc, "lp": lp}
+    scores = {"acc": acc, "bacc": bacc, "lp": lp}
+    _log_scores(scores)
+    return scores
 
 
 def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
@@ -358,12 +361,13 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
         pass
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
-    lp = np.concatenate(LP, axis=1).mean()
+    lp = float(np.concatenate(LP, axis=1).mean())
     r2 = list(r2_score(Ys, EYs, multioutput="raw_values"))
     _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
-    log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
-    return {"r2": r2, "lp": lp}
+    scores = {"r2": r2, "lp": lp}
+    _log_scores(scores)
+    return scores
 
 
 def _scalar_summary(scalar: Union[int, bool, float], session: tf.Session,
