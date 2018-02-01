@@ -1,8 +1,9 @@
 """Train/test with tfrecords."""
 import signal
 import logging
+import json
 import os.path
-from typing import List, Any, Generator, Optional, Tuple, Union, Iterable
+from typing import List, Any, Generator, Optional, Dict, Union, Iterable
 from itertools import count
 from collections import namedtuple
 
@@ -128,25 +129,24 @@ def train_test(records_train: List[str],
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    *scores, lp = _classify_test_loop(Y, Ey, prob, sess,
-                                                      test_fdict, metadata,
-                                                      step)
+                    scores = _classify_test_loop(Y, Ey, prob, sess, test_fdict,
+                                                 metadata, step)
                 else:
-                    *scores, lp = _regress_test_loop(Y, Ey, logprob, sess,
-                                                     test_fdict, metadata,
-                                                     step)
-                saver.save(lp, *scores)
+                    scores = _regress_test_loop(Y, Ey, logprob, sess,
+                                                test_fdict, metadata, step)
+                saver.save(scores)
 
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
-                if classification:
-                    lp, acc, bacc = saver.best_scores
-                    log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
-                             "Final lp: {:.5f}.".format(acc, bacc, lp))
-                else:
-                    lp, r2 = saver.best_scores
-                    log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
+            finally:
+                if classification:
+                    log.info("Final acc: {:.5f}, Final bacc: {:.5f}, Final lp:"
+                             " {:.5f}.".format(scores["acc"], scores["bacc"],
+                                               scores["lp"]))
+                else:
+                    log.info("Final r2: {}, Final mlp: {:.5f}."
+                             .format(scores["r2"], scores["lp"]))
 
 
 def predict(model: str,
@@ -258,26 +258,39 @@ def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
 
 
 class _BestScoreSaver:
-    """Saver for only saving the best model based on held out score."""
+    """Saver for only saving the best model based on held out score.
 
-    # TODO - see if we can make the "best score" persist between runs?
+    This now persists between runs by keeping a JSON file in the model
+    directory.
+    """
 
-    def __init__(self, directory: str) -> None:
+    def __init__(self, directory: str, score_name: str="lp") -> None:
         """Saver initialiser."""
-        self.path = os.path.join(directory, "model_best.ckpt")
-        self.best_scores = [-1 * np.inf]
+        self.model_path = os.path.join(directory, "model_best.ckpt")
+        self.score_path = os.path.join(directory, "model_best.json")
+        self.score_name = score_name
+        if os.path.exists(self.score_path):
+            with open(self.score_path, "r") as f:
+                self.best_scores = json.load(f)
+        else:
+            self.best_scores = {score_name: -1 * np.inf}
         self.saver = tf.train.Saver()
 
     def attach_session(self, session: tf.Session) -> None:
         """Attach a session to save."""
         self.sess = session
 
-    def save(self, score: float, *other_scores: float) -> None:
+    def save(self, scores: dict) -> None:
         """Save the session *only* if the best score is exceeded."""
-        if score > self.best_scores[0]:
-            self.best_scores = [score] + list(other_scores)
-            self.saver.save(self.sess, self.path)
-            log.info("New best model saved with score: {}".format(score))
+        if self.score_name not in scores:
+            raise ValueError("score_name has to be in dictionary of scores!")
+        if scores[self.score_name] > self.best_scores[self.score_name]:
+            self.best_scores = scores
+            self.saver.save(self.sess, self.model_path)
+            with open(self.score_path, "w") as f:
+                json.dump(self.best_scores, f)
+            log.info("New best model saved with score: {}"
+                     .format(self.best_scores[self.score_name]))
 
 
 def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
@@ -295,7 +308,7 @@ def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
 def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
                         sess: tf.Session, fdict: dict,
                         metadata: TrainingMetadata, step: int) \
-        -> Tuple[float, float, float]:
+        -> Dict[str, Union[List[float], float]]:
     """Test the trained classifier on held out data."""
     Eys = []
     Ys = []
@@ -325,13 +338,13 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     _scalar_summary(lp, sess, "log probability", step)
     log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
              .format(acc, bacc, lp))
-    return acc, bacc, lp
+    return {"acc": acc, "bacc": bacc, "lp": lp}
 
 
 def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
                        sess: tf.Session, fdict: dict,
                        metadata: TrainingMetadata, step: int) \
-        -> Tuple[float, float]:
+        -> Dict[str, Union[List[float], float]]:
     """Test the trained regressor on held out data."""
     Ys, EYs, LP = [], [], []
     try:
@@ -346,11 +359,11 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
     lp = np.concatenate(LP, axis=1).mean()
-    r2 = r2_score(Ys, EYs, multioutput="raw_values")
+    r2 = list(r2_score(Ys, EYs, multioutput="raw_values"))
     _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
     log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
-    return r2, lp
+    return {"r2": r2, "lp": lp}
 
 
 def _scalar_summary(scalar: Union[int, bool, float], session: tf.Session,
