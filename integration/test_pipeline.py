@@ -10,6 +10,8 @@ import tensorflow as tf
 
 from landshark.scripts import importers, cli, skcli
 
+NCPUS = 2
+
 
 model_files = {"regression": {"landshark": "nnr.py",
                               "skshark": "sklearn_rfr.py"},
@@ -57,8 +59,8 @@ def import_tifs(runner, cat_dir, ord_dir, feature_string):
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
         tif_import_args = tif_import_args[:2]
-    _run(runner, importers.cli, ["tifs", "--name", "sirsam"] +
-         tif_import_args)
+    _run(runner, importers.cli, ["tifs", "--nworkers", NCPUS,
+                                 "--name", "sirsam"] + tif_import_args)
     feature_file = "sirsam_features.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
@@ -67,8 +69,9 @@ def import_tifs(runner, cat_dir, ord_dir, feature_string):
 def import_targets(runner, target_dir, target_name, target_flags):
     # Import targets
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(runner, importers.cli, ["targets", "--shapefile",
-                                 target_file, "--name", target_name] +
+    _run(runner, importers.cli, ["targets", "--nworkers", NCPUS,
+                                 "--shapefile", target_file,
+                                 "--name", target_name] +
          target_flags + [target_name])
     target_file = "{}_targets.hdf5".format(target_name)
     assert os.path.isfile(target_file)
@@ -78,7 +81,8 @@ def import_targets(runner, target_dir, target_name, target_flags):
 def import_training_data(runner, target_file, target_name):
     # Import training data
     _run(runner, importers.cli,
-         ["trainingdata", "sirsam_features.hdf5", target_file])
+         ["trainingdata", "--nworkers", NCPUS,
+          "sirsam_features.hdf5", target_file])
     trainingdata_folder = "sirsam-{}_trainingdata".format(target_name)
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
@@ -86,8 +90,8 @@ def import_training_data(runner, target_file, target_name):
 
 def import_query_data(runner, feature_file):
     # Import query data
-    _run(runner, importers.cli, ["querydata", "--features",
-                                 feature_file, "5", "10"])
+    _run(runner, importers.cli, ["querydata", "--nworkers", NCPUS,
+                                 "--features", feature_file, "5", "10"])
     querydata_folder = "sirsam_features_query5of10"
     assert os.path.isdir(querydata_folder)
     return querydata_folder
