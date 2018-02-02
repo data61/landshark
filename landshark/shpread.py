@@ -50,10 +50,15 @@ def _get_dtype(labels, all_labels, all_dtypes):
     return dtype
 
 def _largest_string_type(type_list):
-    string_types = [i for i in type_list if type(i) is str]
-    assert [k[0] == 'a' for k in string_types]
-    # this should return the longest string type
-    result = max(string_types)
+    all_types = set(type_list)
+    if len(all_types) == 1:
+        result = all_types.pop()
+    else:
+        string_type_list = [i for i in type_list if type(i) is str]
+        if len(string_type_list) == len(type_list):
+            result = max(string_type_list)
+        else:
+            raise ValueError("Cannot Find single type for categorical targets")
     return result
 
 # TODO force this to be abstract. DONT USE!
@@ -86,7 +91,7 @@ class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
     pass
 
 
-class StringShpArraySource(_ShpArraySource):
+class GenericShpArraySource(_ShpArraySource):
 
     def __init__(self, filename: str, labels: List[str],
                  random_seed: int) -> None:
