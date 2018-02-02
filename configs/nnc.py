@@ -1,4 +1,4 @@
-"""Generic regression config file."""
+"""Generic classification config file."""
 import tensorflow as tf
 import aboleth as ab
 
