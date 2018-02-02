@@ -25,6 +25,8 @@ def load_model(config_file):
 
 def setup_training(config, directory):
     name = os.path.basename(config).rsplit(".")[0] + "_model"
+    # name = os.path.basename(directory) + "_" + \
+    #     os.path.basename(config).rsplit(".")[0] + "_model"
 
     # Get the data
     test_dir = os.path.join(directory, "testing")
