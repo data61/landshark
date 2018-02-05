@@ -42,6 +42,7 @@ class Normaliser:
         var = self._m2 / self._n
         return var
 
+
 class NormaliserPreprocessor:
 
     def __init__(self, ncols, missing_values):

@@ -24,7 +24,7 @@ def write_imagespec(spec, h5file):
                         obj=spec.y_coordinates)
 
 
-def write_ordinal(array_src, h5file, batchsize, pool):
+def write_ordinal(array_src, h5file, batchsize, pool, normalise=True):
     batchsize = batchsize if batchsize else array_src.native
     shape = array_src.shape[0:-1]
     # The bands will form part of the atom
@@ -37,8 +37,10 @@ def write_ordinal(array_src, h5file, batchsize, pool):
     missing = array_src.missing
     array.attrs.missing = missing
 
-    log.info("Computing statistics for standardisation:")
-    mean, variance = get_stats(array_src, batchsize, pool)
+    mean, variance = 0., 1.
+    if normalise:
+        log.info("Computing statistics for standardisation:")
+        mean, variance = get_stats(array_src, batchsize, pool)
     array.attrs.mean = mean
     array.attrs.variance = variance
 
