@@ -1,14 +1,10 @@
 """Importing routines for tif data."""
-
-import os.path
 import logging
 
-import numpy as np
 import tables
-from typing import List, Union, Callable, Iterator
+# from typing import List, Union, Callable, Iterator
 
 # from landshark.importers.tifread import ImageStack
-from landshark.util import to_masked
 from landshark.category import get_categories, CategoricalOutputTransform
 from landshark.normalise import get_stats, OrdinalOutputTransform
 from landshark.iteration import batch_slices, with_slices
@@ -37,7 +33,7 @@ def write_ordinal(array_src, h5file, batchsize, pool, normalise=True):
     missing = array_src.missing
     array.attrs.missing = missing
 
-    mean, variance = 0., 1.
+    mean, variance = None, None
     if normalise:
         log.info("Computing statistics for standardisation:")
         mean, variance = get_stats(array_src, batchsize, pool)
