@@ -10,8 +10,6 @@ import tensorflow as tf
 
 from landshark.scripts import importers, cli, skcli
 
-NCPUS = 2
-
 
 model_files = {"regression": {"landshark": "nnr.py",
                               "skshark": "sklearn_rfr.py"},
@@ -36,6 +34,11 @@ def whichproblem(request):
     return request.param
 
 
+@pytest.fixture(params=[1, 2])
+def number_of_cpus(request):
+    return request.param
+
+
 @pytest.fixture(params=["landshark", "skshark"])
 def whichalgo(request):
     return request.param
@@ -52,24 +55,24 @@ def _run(runner, cmd, args):
     assert results.exit_code == 0
 
 
-def import_tifs(runner, cat_dir, ord_dir, feature_string):
+def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
     # Import tifs
     tif_import_args = ["--categorical", cat_dir, "--ordinal", ord_dir]
     if feature_string == "ordinal-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
         tif_import_args = tif_import_args[:2]
-    _run(runner, importers.cli, ["tifs", "--nworkers", NCPUS,
+    _run(runner, importers.cli, ["tifs", "--nworkers", ncpus,
                                  "--name", "sirsam"] + tif_import_args)
     feature_file = "sirsam_features.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
 
 
-def import_targets(runner, target_dir, target_name, target_flags):
+def import_targets(runner, target_dir, target_name, target_flags, ncpus):
     # Import targets
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(runner, importers.cli, ["targets", "--nworkers", NCPUS,
+    _run(runner, importers.cli, ["targets", "--nworkers", ncpus,
                                  "--shapefile", target_file,
                                  "--name", target_name] +
          target_flags + [target_name])
@@ -78,19 +81,19 @@ def import_targets(runner, target_dir, target_name, target_flags):
     return target_file
 
 
-def import_training_data(runner, target_file, target_name):
+def import_training_data(runner, target_file, target_name, ncpus):
     # Import training data
     _run(runner, importers.cli,
-         ["trainingdata", "--nworkers", NCPUS,
+         ["trainingdata", "--nworkers", ncpus,
           "sirsam_features.hdf5", target_file])
     trainingdata_folder = "sirsam-{}_trainingdata".format(target_name)
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
 
 
-def import_query_data(runner, feature_file):
+def import_query_data(runner, feature_file, ncpus):
     # Import query data
-    _run(runner, importers.cli, ["querydata", "--nworkers", NCPUS,
+    _run(runner, importers.cli, ["querydata", "--nworkers", ncpus,
                                  "--features", feature_file, "5", "10"])
     querydata_folder = "sirsam_features_query5of10"
     assert os.path.isdir(querydata_folder)
@@ -114,10 +117,13 @@ def predict(runner, module, model_dir, trained_model_dir,
     assert os.path.isfile(image_path)
 
 
-def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo):
+def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
+                       number_of_cpus):
     ord_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
+    ncpus = number_of_cpus
 
-    thisrun = "{}_{}_{}".format(whichalgo, whichproblem, whichfeatures)
+    thisrun = "{}_{}_{}_{}cpus".format(whichalgo, whichproblem, whichfeatures,
+                                       ncpus)
     print("Current run: {}".format(thisrun))
 
     target_name = target_files[whichproblem]["target"]
@@ -130,12 +136,13 @@ def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo):
     runner = CliRunner()
     with runner.isolated_filesystem():
         tf.reset_default_graph()
-        feature_file = import_tifs(runner, cat_dir, ord_dir, whichfeatures)
+        feature_file = import_tifs(runner, cat_dir, ord_dir, whichfeatures,
+                                   ncpus)
         target_file = import_targets(runner, target_dir, target_name,
-                                     target_flags)
+                                     target_flags, ncpus)
         trainingdata_folder = import_training_data(runner, target_file,
-                                                   target_name)
-        querydata_folder = import_query_data(runner, feature_file)
+                                                   target_name, ncpus)
+        querydata_folder = import_query_data(runner, feature_file, ncpus)
         trained_model_dir = train(runner, module, model_dir, model_filename,
                                   trainingdata_folder, train_args)
         predict(runner, module, model_dir, trained_model_dir,
