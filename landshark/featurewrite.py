@@ -1,14 +1,10 @@
 """Importing routines for tif data."""
-
-import os.path
 import logging
 
-import numpy as np
 import tables
-from typing import List, Union, Callable, Iterator
+# from typing import List, Union, Callable, Iterator
 
 # from landshark.importers.tifread import ImageStack
-from landshark.util import to_masked
 from landshark.category import get_categories, CategoricalOutputTransform
 from landshark.normalise import get_stats, OrdinalOutputTransform
 from landshark.iteration import batch_slices, with_slices
@@ -24,7 +20,7 @@ def write_imagespec(spec, h5file):
                         obj=spec.y_coordinates)
 
 
-def write_ordinal(array_src, h5file, batchsize, pool):
+def write_ordinal(array_src, h5file, batchsize, pool, normalise=True):
     batchsize = batchsize if batchsize else array_src.native
     shape = array_src.shape[0:-1]
     # The bands will form part of the atom
@@ -37,8 +33,10 @@ def write_ordinal(array_src, h5file, batchsize, pool):
     missing = array_src.missing
     array.attrs.missing = missing
 
-    log.info("Computing statistics for standardisation:")
-    mean, variance = get_stats(array_src, batchsize, pool)
+    mean, variance = None, None
+    if normalise:
+        log.info("Computing statistics for standardisation:")
+        mean, variance = get_stats(array_src, batchsize, pool)
     array.attrs.mean = mean
     array.attrs.variance = variance
 

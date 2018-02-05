@@ -42,6 +42,7 @@ class Normaliser:
         var = self._m2 / self._n
         return var
 
+
 class NormaliserPreprocessor:
 
     def __init__(self, ncols, missing_values):
@@ -61,6 +62,8 @@ class OrdinalOutputTransform:
         self.missing_values = missing_values
 
     def __call__(self, x):
+        if (self.mean is None) or (self.variance is None):
+            return x
         bm = to_masked(x, self.missing_values)
         bm -= self.mean
         bm /= np.sqrt(self.variance)

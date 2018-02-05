@@ -135,12 +135,10 @@ def train_test(records_train: List[str],
                     scores = _regress_test_loop(Y, Ey, logprob, sess,
                                                 test_fdict, metadata, step)
                 saver.save(scores)
-
+                _log_scores(scores, "Aboleth ")
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
                 break
-            finally:
-                _log_scores(scores, "Final ")
 
 
 def predict(model: str,
@@ -340,7 +338,6 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     _scalar_summary(bacc, sess, "balanced accuracy", step)
     _scalar_summary(lp, sess, "log probability", step)
     scores = {"acc": acc, "bacc": bacc, "lp": lp}
-    _log_scores(scores)
     return scores
 
 
@@ -366,7 +363,6 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
     _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
     scores = {"r2": r2, "lp": lp}
-    _log_scores(scores)
     return scores
 
 

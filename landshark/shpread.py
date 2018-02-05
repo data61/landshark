@@ -49,6 +49,7 @@ def _get_dtype(labels, all_labels, all_dtypes):
     dtype = dtype_set.pop()
     return dtype
 
+
 def _largest_string_type(type_list):
     all_types = set(type_list)
     if len(all_types) == 1:
@@ -60,6 +61,7 @@ def _largest_string_type(type_list):
         else:
             raise ValueError("Cannot Find single type for categorical targets")
     return result
+
 
 # TODO force this to be abstract. DONT USE!
 class _ShpArraySource(ArraySource):
