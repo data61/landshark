@@ -30,6 +30,17 @@ from landshark.metadata import from_files, write_metadata
 log = logging.getLogger(__name__)
 
 
+class DummyPool:
+    def __init__(self):
+        pass
+
+    def imap(self, f, x):
+        return map(f, x)
+
+    def terminate(self):
+        pass
+
+
 # SOME USEFUL PREPROCESSING COMMANDS
 # ----------------------------------
 # gdal_translate -co "COMPRESS=NONE" src dest
@@ -67,7 +78,7 @@ def _tifnames(directory: str) -> List[str]:
 def tifs(categorical: str, ordinal: str,
          name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
-    pool = Pool(nworkers)
+    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
@@ -103,7 +114,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             nworkers: int, random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
-    pool = Pool(nworkers)
+    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
     with tables.open_file(out_filename, mode="w", title=name) as h5file:
@@ -133,7 +144,7 @@ def trainingdata(features: str, targets: str, test_frac: int,
                  halfwidth: int, batchsize: int, nworkers: int,
                  random_seed: int):
     """Get training data."""
-    pool = Pool(nworkers)
+    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
         os.path.basename(targets).rsplit("_targets.")[0]
@@ -157,7 +168,7 @@ def trainingdata(features: str, targets: str, test_frac: int,
 def querydata(features: str, batchsize: int, nworkers: int,
               halfwidth: int, strip: int, totalstrips: int) -> int:
     """Grab a chunk for prediction."""
-    pool = Pool(nworkers)
+    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
@@ -172,4 +183,5 @@ def querydata(features: str, batchsize: int, nworkers: int,
     tag = "query.{}of{}".format(strip, totalstrips)
     write_querydata(features, image_spec, strip, totalstrips,
                     batchsize, halfwidth, pool, directory, tag)
+    pool.terminate()
     return 0

@@ -90,3 +90,4 @@ def _write(source, array, f, batchsize, pool):
     out_it = pool.imap(f, data_it)
     for (start_idx, end_idx), d in with_slices(out_it):
         array[start_idx:end_idx] = d
+        array.flush()
