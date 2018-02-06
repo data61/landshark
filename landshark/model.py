@@ -3,7 +3,7 @@ import signal
 import logging
 import json
 import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, Iterable
+from typing import List, Any, Generator, Optional, Dict, Union, Iterable, Tuple
 from itertools import count
 from collections import namedtuple
 
@@ -90,8 +90,7 @@ def train_test(records_train: List[str],
         test_fdict = {_samples: params.test_samples}
 
         if classification:
-            prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
-            Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+            prob, Ey = _decision(lkhood)
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
             Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
@@ -256,6 +255,19 @@ def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
     feed_dict.update(sample_feed_dict)
 
     return res[0:neval]
+
+
+def _decision(lkhood: tf.distributions.Distribution,
+              binary_threshold: float=0.5) -> Tuple[tf.Tensor, tf.Tensor]:
+    """Get a decision from a binary or multiclass classifier."""
+    prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
+    # Multiclass
+    if prob.shape[1] > 1:
+        Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+    # Binary
+    else:
+        Ey = tf.squeeze(prob > binary_threshold, name="Ey")
+    return prob, Ey
 
 
 class _BestScoreSaver:
