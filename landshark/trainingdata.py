@@ -152,7 +152,7 @@ class QueryDataProcessor:
 
 
 def write_trainingdata(features, targets, image_spec, batchsize,
-                       halfwidth, pool, output_directory, test_frac,
+                       halfwidth, pool, output_directory, testfold, folds,
                        random_seed):
 
     target_source = H5Features(targets)
@@ -163,8 +163,8 @@ def write_trainingdata(features, targets, image_spec, batchsize,
     data_it = ((target_source.slice(start, end)) for start, end in it)
     out_it = pool.imap(f, data_it)
     n_total = len(target_source)
-    n_train = tfwrite.training(out_it, n_total, output_directory, test_frac,
-                               random_seed)
+    n_train = tfwrite.training(out_it, n_total, output_directory, testfold,
+                               folds, random_seed)
     return n_train
 
 
