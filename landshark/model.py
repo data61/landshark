@@ -3,7 +3,7 @@ import signal
 import logging
 import json
 import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, Iterable
+from typing import List, Any, Generator, Optional, Dict, Union, Iterable, Tuple
 from itertools import count
 from collections import namedtuple
 
@@ -90,8 +90,7 @@ def train_test(records_train: List[str],
         test_fdict = {_samples: params.test_samples}
 
         if classification:
-            prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
-            Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+            prob, Ey = _decision(lkhood)
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
             Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
@@ -135,12 +134,10 @@ def train_test(records_train: List[str],
                     scores = _regress_test_loop(Y, Ey, logprob, sess,
                                                 test_fdict, metadata, step)
                 saver.save(scores)
-
+                _log_scores(scores, "Aboleth ")
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
                 break
-            finally:
-                _log_scores(scores, "Final ")
 
 
 def predict(model: str,
@@ -260,6 +257,19 @@ def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
     return res[0:neval]
 
 
+def _decision(lkhood: tf.distributions.Distribution,
+              binary_threshold: float=0.5) -> Tuple[tf.Tensor, tf.Tensor]:
+    """Get a decision from a binary or multiclass classifier."""
+    prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
+    # Multiclass
+    if prob.shape[1] > 1:
+        Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+    # Binary
+    else:
+        Ey = tf.squeeze(prob > binary_threshold, name="Ey")
+    return prob, Ey
+
+
 class _BestScoreSaver:
     """Saver for only saving the best model based on held out score.
 
@@ -340,7 +350,6 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     _scalar_summary(bacc, sess, "balanced accuracy", step)
     _scalar_summary(lp, sess, "log probability", step)
     scores = {"acc": acc, "bacc": bacc, "lp": lp}
-    _log_scores(scores)
     return scores
 
 
@@ -366,7 +375,6 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
     _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
     scores = {"r2": r2, "lp": lp}
-    _log_scores(scores)
     return scores
 
 

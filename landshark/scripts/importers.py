@@ -100,6 +100,7 @@ def tifs(categorical: str, ordinal: str,
 
     return 0
 
+
 @cli.command()
 @click.argument("targets", type=str, nargs=-1)
 @click.option("--shapefile", type=click.Path(exists=True), required=True)
@@ -107,11 +108,12 @@ def tifs(categorical: str, ordinal: str,
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
+@click.option("--normalise", is_flag=True)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
-            every: int, categorical: bool,
-            nworkers: int, random_seed: int) -> int:
+            every: int, categorical: bool, normalise: bool, nworkers: int,
+            random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
     pool = Pool(nworkers) if nworkers > 1 else DummyPool()
@@ -128,7 +130,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             write_categorical(cat_source, h5file, batchsize, pool)
         else:
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
-            write_ordinal(ord_source, h5file, batchsize, pool)
+            write_ordinal(ord_source, h5file, batchsize, pool, normalise)
     return 0
 
 

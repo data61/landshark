@@ -56,13 +56,21 @@ def _make_writer(directory, label, dtype, image_spec):
 
 def _make_classify_labels(label, target_map):
     target_list = target_map[0]
-    labels = [label + "_{}_{}".format(i, s.decode())
+
+    # Binary
+    if len(target_list) <= 2:
+        labels = [label + "_p(y={})".format(target_list[1])]
+        return labels
+
+    # Multiclass
+    labels = [label +
+              "_{}_{}".format(i, s.decode() if isinstance(s, bytes) else s)
               for i, s in enumerate(target_list)]
+
     return labels
 
 
 def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
-
     classification = metadata.target_dtype != OrdinalType
 
     if percentiles is None:
@@ -81,20 +89,20 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
 
 
 def _write_classification(y_dash, labels, directory, metadata):
-        assert len(labels) == 1
-        label = labels[0]
-        ey_writer = _make_writer(directory, label, CategoricalType,
-                                 metadata.image_spec)
-        p_labels = _make_classify_labels(label, metadata.target_map)
-        p_writers = [_make_writer(directory, l, OrdinalType,
-                                  metadata.image_spec) for l in p_labels]
-        for b, (ey_batch, prob_batch) in enumerate(y_dash):
-            ey_writer.write(ey_batch.flatten())
-            for d, w in zip(prob_batch.T, p_writers):
-                w.write(d)
-        ey_writer.close()
-        for w in p_writers:
-            w.close()
+    assert len(labels) == 1
+    label = labels[0]
+    ey_writer = _make_writer(directory, label, CategoricalType,
+                             metadata.image_spec)
+    p_labels = _make_classify_labels(label, metadata.target_map)
+    p_writers = [_make_writer(directory, l, OrdinalType,
+                              metadata.image_spec) for l in p_labels]
+    for b, (ey_batch, prob_batch) in enumerate(y_dash):
+        ey_writer.write(ey_batch.flatten())
+        for d, w in zip(prob_batch.T, p_writers):
+            w.write(d)
+    ey_writer.close()
+    for w in p_writers:
+        w.close()
 
 
 def _write_regression(y_dash, labels, directory, metadata, percentiles):
