@@ -84,9 +84,9 @@ def import_targets(runner, target_dir, target_name, target_flags, ncpus):
 def import_training_data(runner, target_file, target_name, ncpus):
     # Import training data
     _run(runner, importers.cli,
-         ["trainingdata", "--nworkers", ncpus,
+         ["trainingdata", "--nworkers", ncpus, "--testfold", 1, "--folds", 10,
           "sirsam_features.hdf5", target_file])
-    trainingdata_folder = "sirsam-{}_trainingdata".format(target_name)
+    trainingdata_folder = "sirsam-{}_traintest1of10".format(target_name)
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
 

@@ -23,7 +23,7 @@ def query(data, n_total, output_directory, tag):
 
 
 def training(data, n_total: int, output_directory: str,
-             test_frac: float, random_seed: int=666) -> int:
+             testfold: int, folds: int, random_seed: int=666) -> int:
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
         os.makedirs(test_directory)
@@ -34,7 +34,7 @@ def training(data, n_total: int, output_directory: str,
     n_train = 0
     with tqdm(total=n_total) as pbar:
         for d in data:
-            train_batch, test_batch = _split_on_mask(d, rnd, test_frac)
+            train_batch, test_batch = _split_on_mask(d,  rnd, testfold, folds)
             n_train += len(train_batch)
             writer.add(train_batch)
             test_writer.add(test_batch)
@@ -81,10 +81,9 @@ class _MultiFileWriter:
         self._f.close()
 
 
-def _split_on_mask(data, rnd, test_frac):
+def _split_on_mask(data, rnd, testfold, folds):
     n = len(data)
-    mask = rnd.choice([True, False], size=(n,),
-                      p=[1.0 - test_frac, test_frac])
+    mask = rnd.randint(1, folds + 1, size=(n,)) != testfold
     nmask = ~mask
     train_batch = [data[i] for i, m in enumerate(mask) if m]
     test_batch = [data[i] for i, m in enumerate(nmask) if m]

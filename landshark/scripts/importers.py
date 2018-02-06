@@ -135,27 +135,30 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 @cli.command()
 @click.argument("features", type=click.Path(exists=True))
 @click.argument("targets", type=click.Path(exists=True))
-@click.option("--test_frac", type=float, default=0.1)
-@click.option("--halfwidth", type=int, default=1)
-@click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--folds", type=click.IntRange(2, None), default=10)
+@click.option("--testfold", type=click.IntRange(1, None), default=1)
+@click.option("--halfwidth", type=click.IntRange(0, None), default=1)
+@click.option("--nworkers", type=click.IntRange(1, None), default=cpu_count())
+@click.option("--batchsize", type=click.IntRange(1, None), default=1000)
 @click.option("--random_seed", type=int, default=666)
-def trainingdata(features: str, targets: str, test_frac: int,
-                 halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int):
+def trainingdata(features: str, targets: str, testfold: int,
+                 folds: int, halfwidth: int, batchsize: int, nworkers: int,
+                 random_seed: int) -> int:
     """Get training data."""
     pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
         os.path.basename(targets).rsplit("_targets.")[0]
-    directory = os.path.join(os.getcwd(), name + "_trainingdata")
+    directory = os.path.join(os.getcwd(), name +
+                             "_traintest{}of{}".format(testfold, folds))
 
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
                                  halfwidth, pool, directory,
-                                 test_frac, random_seed)
+                                 testfold, folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
+    return 0
 
 
 @cli.command()
