@@ -131,6 +131,9 @@ def _convert_res(res):
         y = y.astype(OrdinalType)
     elif y.dtype == np.int64 or y.dtype == np.int32:
         y = y.astype(CategoricalType)
+        # Make binary classifier output consistent with TensorFlow
+        if extra.shape[1] <= 2:
+            extra = extra[:, 1:]
     return y, extra
 
 
