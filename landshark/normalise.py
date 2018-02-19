@@ -20,12 +20,14 @@ class Normaliser:
 
         new_n = np.ma.count(array, axis=0)
         new_mean = (np.ma.mean(array, axis=0)).data
+        new_mean[new_n == 0] = 0.  # enforce this condition
         new_m2 = (np.ma.var(array, axis=0, ddof=0) * new_n).data
 
-        delta = new_mean - self._mean
         add_n = new_n + self._n
         if any(add_n == 0):  # catch any totally masked images
             add_n[add_n == 0] = 1
+
+        delta = new_mean - self._mean
         delta_mean = delta * (new_n / add_n)
 
         self._mean += delta_mean
