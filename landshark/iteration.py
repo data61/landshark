@@ -19,9 +19,8 @@ def batch_slices(batchsize, total_size):
 
     with tqdm(total=total_size) as pbar:
         for start, end in ret:
-            pbar.update(end)
             yield start, end
-    # return iter(ret)
+            pbar.update(end - start)
 
 def with_slices(it):
     """Needs iterator over ndarrays"""
