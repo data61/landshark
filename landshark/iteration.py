@@ -1,6 +1,8 @@
 import numpy as np
 import itertools
 
+from tqdm import tqdm
+
 def batch(it, batchsize, total_size):
     while True:
         batch = list(itertools.islice(it, batchsize))
@@ -14,7 +16,12 @@ def batch_slices(batchsize, total_size):
     ret = [(i * batchsize, (i + 1) * batchsize) for i in range(n)]
     if total_size % batchsize != 0:
         ret.append((n * batchsize, total_size))
-    return iter(ret)
+
+    with tqdm(total=total_size) as pbar:
+        for start, end in ret:
+            pbar.update(end)
+            yield start, end
+    # return iter(ret)
 
 def with_slices(it):
     """Needs iterator over ndarrays"""
