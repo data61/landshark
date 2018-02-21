@@ -57,13 +57,12 @@ def write_categorical(array_src, h5file, batchsize, pool):
     array.attrs.columns = array_src.columns
     # We always map missing values to zero
     res = get_categories(array_src, batchsize, pool)
-    mappings, counts, missing = res.mappings, res.counts, res.missing
 
-    array.attrs.mappings = mappings
-    array.attrs.counts = counts
-    array.attrs.missing = missing
+    _make_int_vlarray(h5file, "categorical_mappings", res.mappings)
+    _make_int_vlarray(h5file, "categorical_counts", res.counts)
+    array.attrs.missing = res.missing
 
-    f = CategoricalOutputTransform(mappings)
+    f = CategoricalOutputTransform(res.mappings)
     log.info("Writing categorical data to disk:")
     _write(array_src, array, f, batchsize, pool)
 
@@ -89,3 +88,12 @@ def _write(source, array, f, batchsize, pool):
     for (start_idx, end_idx), d in with_slices(out_it):
         array[start_idx:end_idx] = d
         array.flush()
+
+
+def _make_int_vlarray(h5file, name, attribute):
+    filters = tables.Filters(complevel=1, complib="blosc:lz4")
+    vlarray = h5file.create_vlarray(h5file.root, name=name,
+                                    atom=tables.Int32Atom(shape=()),
+                                    filters=filters)
+    for a in attribute:
+        vlarray.append(a)
