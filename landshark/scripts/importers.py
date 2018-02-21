@@ -10,6 +10,7 @@ import click
 # mypy type checking
 from typing import List
 
+from landshark.basetypes import ClassSpec
 from landshark.tifread import shared_image_spec, OrdinalStackArraySource, \
     CategoricalStackArraySource
 
@@ -28,17 +29,6 @@ from landshark.metadata import from_files, write_metadata
 # from landshark.image import strip_image_spec
 
 log = logging.getLogger(__name__)
-
-
-class DummyPool:
-    def __init__(self):
-        pass
-
-    def imap(self, f, x):
-        return map(f, x)
-
-    def terminate(self):
-        pass
 
 
 # SOME USEFUL PREPROCESSING COMMANDS
@@ -78,7 +68,6 @@ def _tifnames(directory: str) -> List[str]:
 def tifs(categorical: str, ordinal: str,
          name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
-    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
@@ -91,12 +80,16 @@ def tifs(categorical: str, ordinal: str,
         write_imagespec(spec, h5file)
 
         if ordinal:
-            ord_source = OrdinalStackArraySource(spec, ord_filenames)
-            write_ordinal(ord_source, h5file, batchsize, pool)
+            ord_source_spec = ClassSpec(OrdinalStackArraySource,
+                                        [spec, ord_filenames])
+            write_ordinal(ord_source_spec, h5file, batchsize,
+                          nworkers)
 
         if categorical:
-            cat_source = CategoricalStackArraySource(spec, cat_filenames)
-            write_categorical(cat_source, h5file, batchsize, pool)
+            cat_source_spec = ClassSpec(CategoricalStackArraySource,
+                                        [spec, cat_filenames])
+            write_categorical(cat_source_spec, h5file,
+                              batchsize, nworkers)
 
     return 0
 

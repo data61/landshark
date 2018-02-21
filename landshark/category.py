@@ -2,32 +2,34 @@
 
 import logging
 from collections import OrderedDict, namedtuple
-from multiprocessing import Pool
 
 import numpy as np
 from typing import Tuple, List
 
 
-from landshark.basetypes import CategoricalArraySource, CategoricalType
+from landshark.basetypes import CategoricalArraySource, CategoricalType, ArraySourceMetadata, ClassSpec
 from landshark import iteration
+from landshark.multiproc import task_list
 
 log = logging.getLogger(__name__)
 
 CategoryInfo = namedtuple("CategoryInfo", ["mappings", "counts", "missing"])
 
 
-def _unique_values(x: np.ndarray) \
-        -> Tuple[List[np.ndarray], List[int]]:
-    """
-    Return unique values and their counts from an array.
+class UniqueValues:
+    """TODO"""
 
-    The last dimension of the values is assumed to be features.
+    def __call__(self, x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
+        """
+        Return unique values and their counts from an array.
 
-    """
-    x = x.reshape((-1), x.shape[-1])
-    unique_vals, counts = zip(*[np.unique(c, return_counts=True)
-                                for c in x.T])
-    return unique_vals, counts
+        The last dimension of the values is assumed to be features.
+
+        """
+        x = x.reshape((-1), x.shape[-1])
+        unique_vals, counts = zip(*[np.unique(c, return_counts=True)
+                                    for c in x.T])
+        return unique_vals, counts
 
 
 class _CategoryAccumulator:
@@ -51,9 +53,10 @@ class _CategoryAccumulator:
                 self.counts[v] = c
 
 
-def get_categories(array_src: CategoricalArraySource,
+def get_categories(array_src_spec: CategoricalArraySource,
+                   meta: ArraySourceMetadata,
                    batchsize: int,
-                   pool: Pool) -> CategoryInfo:
+                   n_workers: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
@@ -76,9 +79,9 @@ def get_categories(array_src: CategoricalArraySource,
     missing : List[Optional[int]]
 
     """
-    n_rows = array_src.shape[0]
-    n_features = array_src.shape[-1]
-    missing_values = array_src.missing
+    n_rows = meta.shape[0]
+    n_features = meta.shape[-1]
+    missing_values = meta.missing
     accums = [_CategoryAccumulator() for _ in range(n_features)]
 
     # Add the missing values initially as zeros
@@ -86,9 +89,8 @@ def get_categories(array_src: CategoricalArraySource,
         if m is not None:
             acc.update(np.array([m]), np.array([0], dtype=int))
 
-    it = iteration.batch_slices(batchsize, n_rows)
-    data_it = ((array_src.slice(start, end)) for start, end in it)
-    out_it = pool.imap(_unique_values, data_it)
+    it = list(iteration.batch_slices(batchsize, n_rows))
+    out_it = task_list(it, array_src_spec, ClassSpec(UniqueValues), n_workers)
 
     log.info("Computing unique values in categorical features:")
     for unique_vals, counts in out_it:

@@ -1,7 +1,8 @@
 import numpy as np
 import itertools
 
-from tqdm import tqdm
+from landshark.basetypes import FixedSlice
+# from tqdm import tqdm
 
 def batch(it, batchsize, total_size):
     while True:
@@ -17,10 +18,10 @@ def batch_slices(batchsize, total_size):
     if total_size % batchsize != 0:
         ret.append((n * batchsize, total_size))
 
-    with tqdm(total=total_size) as pbar:
-        for start, end in ret:
-            yield start, end
-            pbar.update(end - start)
+    # with tqdm(total=total_size) as pbar:
+    for start, stop in ret:
+        yield FixedSlice(start, stop)
+        # pbar.update(stop - start)
 
 def with_slices(it):
     """Needs iterator over ndarrays"""
