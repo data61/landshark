@@ -31,8 +31,7 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
     with tables.open_file(feature_file, "r") as hfile:
         if hasattr(hfile.root, "categorical_data"):
             nfeatures_cat = hfile.root.categorical_data.atom.shape[0]
-            ncategories = [len(k) for k in
-                           hfile.root.categorical_data.attrs.mappings]
+            ncategories = [len(k) for k in hfile.root.categorical_mappings]
 
         if hasattr(hfile.root, "ordinal_data"):
             nfeatures_ord = hfile.root.ordinal_data.atom.shape[0]
