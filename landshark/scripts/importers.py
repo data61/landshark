@@ -109,21 +109,24 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
-    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
     with tables.open_file(out_filename, mode="w", title=name) as h5file:
 
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
         write_coordinates(coord_src, h5file, batchsize)
+        # make sure that only one process uses shapefile at a time
+        del(coord_src)
 
         if categorical:
-            cat_source = GenericShpArraySource(shapefile, targets,
-                                               random_seed)
-            write_categorical(cat_source, h5file, batchsize, pool)
+            cat_source_spec = ClassSpec(GenericShpArraySource,
+                                        [shapefile, targets, random_seed])
+            write_categorical(cat_source_spec, h5file, batchsize, nworkers)
         else:
-            ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
-            write_ordinal(ord_source, h5file, batchsize, pool, normalise)
+            ord_source_spec = ClassSpec(OrdinalShpArraySource,
+                                        [shapefile, targets, random_seed])
+            write_ordinal(ord_source_spec, h5file, batchsize,
+                          nworkers, normalise)
     return 0
 
 
@@ -140,7 +143,6 @@ def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
                  random_seed: int) -> int:
     """Get training data."""
-    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
         os.path.basename(targets).rsplit("_targets.")[0]
@@ -149,7 +151,7 @@ def trainingdata(features: str, targets: str, testfold: int,
 
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
-                                 halfwidth, pool, directory,
+                                 halfwidth, nworkers, directory,
                                  testfold, folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
@@ -166,7 +168,6 @@ def trainingdata(features: str, targets: str, testfold: int,
 def querydata(features: str, batchsize: int, nworkers: int,
               halfwidth: int, strip: int, totalstrips: int) -> int:
     """Grab a chunk for prediction."""
-    pool = Pool(nworkers) if nworkers > 1 else DummyPool()
     log.info("Using {} worker processes".format(nworkers))
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
@@ -180,6 +181,5 @@ def querydata(features: str, batchsize: int, nworkers: int,
     image_spec = read_image_spec(features)
     tag = "query.{}of{}".format(strip, totalstrips)
     write_querydata(features, image_spec, strip, totalstrips,
-                    batchsize, halfwidth, pool, directory, tag)
-    pool.terminate()
+                    batchsize, halfwidth, nworkers, directory, tag)
     return 0

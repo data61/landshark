@@ -71,22 +71,13 @@ class _ImageStackSource(ArraySource):
         return array
 
 
+
 class OrdinalStackArraySource(_ImageStackSource, OrdinalArraySource):
     pass
 
+
 class CategoricalStackArraySource(_ImageStackSource, CategoricalArraySource):
     pass
-
-# class OrdinalStackSource(OrdinalDataSource):
-#     def __init__(self, spec: ImageSpec, filenames: str):
-#         source = OrdinalStackArraySource(spec, filenames)
-#         super().__init__(source)
-
-# class CategoricalStackSource(CategoricalDataSource):
-#     def __init__(self, spec: ImageSpec, filenames: str):
-#         source = CategoricalStackArraySource(spec, filenames)
-#         super().__init__(source)
-
 
 
 def _match(f: Callable[[Any], Any],

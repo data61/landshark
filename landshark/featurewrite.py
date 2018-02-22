@@ -4,7 +4,7 @@ import logging
 import tables
 # from typing import List, Union, Callable, Iterator
 
-from landshark.basetypes import get_metadata, ClassSpec
+from landshark.basetypes import get_metadata, ClassSpec, FixedSlice
 from landshark.category import get_categories, CategoricalOutputTransform
 from landshark.normalise import get_stats, OrdinalOutputTransform
 from landshark.iteration import batch_slices, with_slices
@@ -77,8 +77,8 @@ def write_coordinates(array_src, h5file, batchsize):
     array.attrs.columns = array_src.columns
     array.attrs.missing = array_src.missing
     it = batch_slices(batchsize, array_src.shape[0])
-    for start_idx, end_idx in it:
-        array[start_idx: end_idx] = array_src.slice(start_idx, end_idx)
+    for start_idx, stop_idx in it:
+        array[start_idx: stop_idx] = array_src(FixedSlice(start_idx, stop_idx))
 
 
 def _write(source_spec, meta, array, worker_spec, batchsize, n_workers):
