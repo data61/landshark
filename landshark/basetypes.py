@@ -4,7 +4,7 @@ import logging
 from collections import namedtuple
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized
+from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Any, Dict
 
 log = logging.getLogger(__name__)
 
@@ -14,39 +14,85 @@ CategoricalType = np.int32
 NumericalType = Union[np.float32, np.int32]
 MissingType = Optional[NumericalType]
 CoordinateType = np.float64
+DataType = Union[OrdinalType, CategoricalType, CoordinateType]
 
 FeatureValues = namedtuple("FeatureValues",
                            ["ordinal", "categorical", "coordinates"])
 
 
-class FixedSlice:
-    """
-    Slice object that requires a start and end point.
+class FixedSlice(NamedTuple):
+    """simpler slice."""
 
-    This is mainly for typing reasons, in a normal slice start and stop
-    can be None. This is not allowed in this class.
+    start: int
+    stop: int
 
-    Parameters
-    ----------
-    start : int
-        Start of the slice (inclusive).
-    stop : int
-        End of the slice (exclusive).
+# class FixedSlice:
+#     """
+#     Slice object that requires a start and end point.
 
-    """
+#     This is mainly for typing reasons, in a normal slice start and stop
+#     can be None. This is not allowed in this class.
 
-    def __init__(self, start: int, stop: int) -> None:
-        """Initialise the object."""
-        assert start >= 0
-        assert stop >= start
-        self.start = start
-        self.stop = stop
+#     Parameters
+#     ----------
+#     start : int
+#         Start of the slice (inclusive).
+#     stop : int
+#         End of the slice (exclusive).
 
-    @property
-    def as_slice(self) -> slice:
-        """Convert to a python native slice."""
-        s = slice(self.start, self.stop)
-        return s
+#     """
+
+#     def __init__(self, start: int, stop: int) -> None:
+#         """Initialise the object."""
+#         assert start >= 0
+#         assert stop >= start
+#         self.start = start
+#         self.stop = stop
+
+#     @property
+#     def as_slice(self) -> slice:
+#         """Convert to a python native slice."""
+#         s = slice(self.start, self.stop)
+#         return s
+
+
+class ClassSpec(NamedTuple):
+    """Provides the parameters to make an object without actually doing so."""
+
+    dtype: type
+    args: List[Any] = []
+    kwargs: Dict[str, Any] = {}
+
+    def instantiate(self) -> Any:
+        """
+        Instantiate the specified object.
+
+        Returns
+        -------
+        obj : Any
+            An instantiation of the object with given arguments
+
+        """
+        obj = self.dtype(*self.args, **self.kwargs)
+        return obj
+
+
+class ArraySourceMetadata(NamedTuple):
+    """Useful struct for information about ArraySources."""
+
+    shape: Tuple[int, ...]
+    native: int
+    dtype: DataType
+    missing: List[MissingType]
+    columns: List[str]
+
+
+def get_metadata(array_source_spec: ClassSpec) -> ArraySourceMetadata:
+    # TODO assert the class is an array source
+    obj = array_source_spec.instantiate()
+    m = obj.metadata
+    del(obj)
+    return m
 
 
 class ArraySource(Sized):
@@ -59,6 +105,15 @@ class ArraySource(Sized):
         self._dtype = OrdinalType
         self._missing: List[MissingType] = []
         self._columns: List[str] = []
+
+    @property
+    def metadata(self) -> ArraySourceMetadata:
+        m = ArraySourceMetadata(shape=self._shape,
+                                native=self._native,
+                                dtype=self._dtype,
+                                missing=self._missing,
+                                columns=self._columns)
+        return m
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -124,27 +179,19 @@ class ArraySource(Sized):
         """
         return self._columns
 
-    def slice(self, start: int, end: int) -> np.ndarray:
+    def __call__(self, s: FixedSlice) -> np.ndarray:
         """
         Get a slice from the array along the first dimension.
 
         Parameters
         ----------
-        start : int
-            The start of the slice (inclusive)
-        end : int
-            The end of the slice (exclusive)
-
-        Returns
-        -------
-        array : np.ndarray
-            The values of the slice. First dimension will have length
-            end - start.
+        s : FixedSlice
+            The section of the array to get
 
         """
-        return self._arrayslice(start, end)
+        return self._arrayslice(s.start, s.stop)
 
-    def _arrayslice(self, start: int, end: int) -> np.ndarray:
+    def _arrayslice(self, start: int, stop: int) -> np.ndarray:
         """Perform the array slice. This gets overridden by children."""
         raise NotImplementedError
 

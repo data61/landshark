@@ -5,7 +5,7 @@ import tables
 
 from landshark.image import ImageSpec
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, CoordinateArraySource, FeatureValues
+    CategoricalArraySource, CoordinateArraySource, FeatureValues, FixedSlice
 
 
 class H5ArraySource(ArraySource):
@@ -65,16 +65,16 @@ class H5Features:
     def __len__(self):
         return self._n
 
-    def slice(self, start: int, end: int):
+    def __call__(self, s: FixedSlice):
         ord_data = None
         cat_data = None
         coord_data = None
         if self.ordinal:
-            ord_data = self.ordinal.slice(start, end)
+            ord_data = self.ordinal(s)
         if self.categorical:
-            cat_data = self.categorical.slice(start, end)
+            cat_data = self.categorical(s)
         if self.coordinates:
-            coord_data = self.coordinates.slice(start, end)
+            coord_data = self.coordinates(s)
         return FeatureValues(ord_data, cat_data, coord_data)
 
     def __del__(self):

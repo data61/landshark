@@ -6,6 +6,8 @@ import numpy as np
 from typing import List, Union, Tuple
 
 from landshark import patch
+from landshark.multiproc import task_list
+from landshark.basetypes import ClassSpec, FixedSlice
 from landshark.patch import PatchRowRW, PatchMaskRowRW
 from landshark.iteration import batch_slices
 from landshark import image
@@ -47,18 +49,18 @@ def _read(row_dict,
 
 
 def _as_range(iterable):
-    l = list(iterable)
-    if len(l) > 1:
-        return (l[0], l[-1] + 1)
+    lst = list(iterable)
+    if len(lst) > 1:
+        return FixedSlice(start=lst[0], stop=(lst[-1] + 1))
     else:
-        return (l[0], l[0] + 1)
+        return FixedSlice(start=lst[0], stop=(lst[0] + 1))
 
 def _get_rows(patch_reads, source):
     # TODO make faster
     rowlist = sorted(list(set((k.y for k in patch_reads))))
     slices = [_as_range(g) for _, g in
               groupby(rowlist, key=lambda n, c=count(): n - next(c))]
-    data_slices = [source.slice(start, end) for start, end in slices]
+    data_slices = [source(s) for s in slices]
     ord_data = {}
     cat_data = {}
     if source.categorical is None:
@@ -152,27 +154,35 @@ class QueryDataProcessor:
 
 
 def write_trainingdata(features, targets, image_spec, batchsize,
-                       halfwidth, pool, output_directory, testfold, folds,
+                       halfwidth, n_workers, output_directory, testfold, folds,
                        random_seed):
 
-    target_source = H5Features(targets)
-
-    f = TrainingDataProcessor(image_spec, features, halfwidth)
-    n_rows = len(target_source)
-    it = batch_slices(batchsize, n_rows)
-    data_it = ((target_source.slice(start, end)) for start, end in it)
-    out_it = pool.imap(f, data_it)
-    n_total = len(target_source)
-    n_train = tfwrite.training(out_it, n_total, output_directory, testfold,
+    target_source_spec = ClassSpec(H5Features, [targets])
+    src = target_source_spec.instantiate()
+    n_rows = len(src)
+    del(src)
+    worker_spec = ClassSpec(TrainingDataProcessor,
+                            [image_spec, features, halfwidth])
+    tasks = list(batch_slices(batchsize, n_rows))
+    out_it = task_list(tasks, target_source_spec, worker_spec, n_workers)
+    n_train = tfwrite.training(out_it, n_rows, output_directory, testfold,
                                folds, random_seed)
     return n_train
 
 
+class _DummyReader:
+    def __call__(self, x):
+        return x
+
+
 def write_querydata(features, image_spec, strip, total_strips, batchsize,
-                    halfwidth, pool, output_directory, tag):
+                    halfwidth, n_workers, output_directory, tag):
 
     it, n_total = indices_strip(image_spec, strip, total_strips, batchsize)
 
-    f = QueryDataProcessor(image_spec, features, halfwidth)
-    out_it = pool.imap(f, it)
+    reader_spec = ClassSpec(_DummyReader)
+    worker_spec = ClassSpec(QueryDataProcessor,
+                            [image_spec, features, halfwidth])
+    tasks = list(it)
+    out_it = task_list(tasks, reader_spec, worker_spec, n_workers)
     tfwrite.query(out_it, n_total, output_directory, tag)

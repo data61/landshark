@@ -1,5 +1,7 @@
 import numpy as np
 
+from landshark.basetypes import ClassSpec
+from landshark.multiproc import task_list
 from landshark import iteration
 from landshark.util import to_masked
 
@@ -76,15 +78,15 @@ class OrdinalOutputTransform:
         return out
 
 
-def get_stats(array_src, batchsize, pool):
-    n_rows = array_src.shape[0]
-    n_features = array_src.shape[-1]
-    missing_values = array_src.missing
+def get_stats(array_src_spec, meta, batchsize, n_workers):
+    n_rows = meta.shape[0]
+    n_features = meta.shape[-1]
+    missing_values = meta.missing
     norm = Normaliser(n_features)
-    it = iteration.batch_slices(batchsize, n_rows)
-    f = NormaliserPreprocessor(n_features, missing_values)
-    data_it = ((array_src.slice(start, end)) for start, end in it)
-    out_it = pool.imap(f, data_it)
+    it = list(iteration.batch_slices(batchsize, n_rows))
+    worker_spec = ClassSpec(NormaliserPreprocessor,
+                            [n_features, missing_values])
+    out_it = task_list(it, array_src_spec, worker_spec, n_workers)
     for ma in out_it:
         norm.update(ma)
     return norm.mean, norm.variance
