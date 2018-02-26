@@ -10,24 +10,39 @@ from landshark.basetypes import ArraySource, OrdinalArraySource, \
 
 class H5ArraySource(ArraySource):
 
-    def __init__(self, carray) -> None:
-        self._shape = tuple(list(carray.shape) + [carray.atom.shape[0]])
-        self._carray = carray
-        self._missing = carray.attrs.missing
-        self._columns = carray.attrs.columns
-        self._native = carray.chunkshape[0]
-        self._dtype = self._carray.atom.dtype.base
+    _array_name = ""
+
+    def __init__(self, path) -> None:
+        self._path = path
+        with tables.open_file(self._path, "r") as hfile:
+            carray = hfile.get_node("/" + self._array_name)
+            self._shape = carray.shape
+            self._missing = carray.attrs.missing
+            self._columns = carray.attrs.columns
+            self._native = carray.chunkshape[0]
+            self._dtype = carray.atom.dtype.base
+
+    def __enter__(self):
+        self._hfile = tables.open_file(self._path, "r")
+        self._carray = self._hfile.get_node("/" + self._array_name)
+        super().__enter__()
+
+    def __exit__(self, *args):
+        self._hfile.close()
+        del(self._carray)
+        del(self._hfile)
+        super().__exit__()
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
         return self._carray[start:end]
 
 
 class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
-    pass
+    _array_name = "ordinal_data"
 
 
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
-    pass
+    _array_name = "categorical_data"
 
 class CoordinateH5ArraySource(H5ArraySource, CoordinateArraySource):
     pass

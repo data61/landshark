@@ -26,75 +26,6 @@ class FixedSlice(NamedTuple):
     start: int
     stop: int
 
-# class FixedSlice:
-#     """
-#     Slice object that requires a start and end point.
-
-#     This is mainly for typing reasons, in a normal slice start and stop
-#     can be None. This is not allowed in this class.
-
-#     Parameters
-#     ----------
-#     start : int
-#         Start of the slice (inclusive).
-#     stop : int
-#         End of the slice (exclusive).
-
-#     """
-
-#     def __init__(self, start: int, stop: int) -> None:
-#         """Initialise the object."""
-#         assert start >= 0
-#         assert stop >= start
-#         self.start = start
-#         self.stop = stop
-
-#     @property
-#     def as_slice(self) -> slice:
-#         """Convert to a python native slice."""
-#         s = slice(self.start, self.stop)
-#         return s
-
-
-class ClassSpec(NamedTuple):
-    """Provides the parameters to make an object without actually doing so."""
-
-    dtype: type
-    args: List[Any] = []
-    kwargs: Dict[str, Any] = {}
-
-    def instantiate(self) -> Any:
-        """
-        Instantiate the specified object.
-
-        Returns
-        -------
-        obj : Any
-            An instantiation of the object with given arguments
-
-        """
-        obj = self.dtype(*self.args, **self.kwargs)
-        return obj
-
-
-class ArraySourceMetadata(NamedTuple):
-    """Useful struct for information about ArraySources."""
-
-    shape: Tuple[int, ...]
-    native: int
-    dtype: DataType
-    missing: List[MissingType]
-    columns: List[str]
-
-
-def get_metadata(array_source_spec: ClassSpec) -> ArraySourceMetadata:
-    # TODO assert the class is an array source
-    obj = array_source_spec.instantiate()
-    m = obj.metadata
-    del(obj)
-    return m
-
-
 class ArraySource(Sized):
     """Abstract UniData interface."""
 
@@ -103,17 +34,9 @@ class ArraySource(Sized):
         self._shape = (0, 0)
         self._native = 0
         self._dtype = OrdinalType
-        self._missing: List[MissingType] = []
+        self._missing: MissingType = None
         self._columns: List[str] = []
-
-    @property
-    def metadata(self) -> ArraySourceMetadata:
-        m = ArraySourceMetadata(shape=self._shape,
-                                native=self._native,
-                                dtype=self._dtype,
-                                missing=self._missing,
-                                columns=self._columns)
-        return m
+        self._open = False
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -150,18 +73,15 @@ class ArraySource(Sized):
         return self._native
 
     @property
-    def missing(self) -> List[MissingType]:
+    def missing(self) -> MissingType:
         """
-        Get the special values that show missing data for each feature.
-
-        Features are indexed by the LAST axis.
+        Get the special value that show missing data for the features.
 
         Returns
         -------
-        m : List[MissingType]
-            A list entry for each feature, with either the missing value
-            or None to indicate there is no missing value defined.
-
+        m : MissingType
+            The value to indicate missingness or none if there is no
+            missing values
         """
         return self._missing
 
@@ -189,7 +109,27 @@ class ArraySource(Sized):
             The section of the array to get
 
         """
-        return self._arrayslice(s.start, s.stop)
+        if not self._open:
+            raise RuntimeError("Array access must be within context manager")
+        else:
+            return self._arrayslice(s.start, s.stop)
+
+    def __enter__(self) -> None:
+        """
+        Enter the context.
+
+        TODO
+        """
+        self._open = True
+
+
+    def __exit__(self, *args) -> None:
+        """
+        Exit the context.
+
+        TODO
+        """
+        self._open = False
 
     def _arrayslice(self, start: int, stop: int) -> np.ndarray:
         """Perform the array slice. This gets overridden by children."""

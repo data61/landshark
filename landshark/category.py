@@ -7,7 +7,7 @@ import numpy as np
 from typing import Tuple, List
 
 
-from landshark.basetypes import CategoricalArraySource, CategoricalType, ArraySourceMetadata, ClassSpec
+from landshark.basetypes import CategoricalArraySource, CategoricalType
 from landshark import iteration
 from landshark.multiproc import task_list
 
@@ -53,10 +53,9 @@ class _CategoryAccumulator:
                 self.counts[v] = c
 
 
-def get_categories(array_src_spec: CategoricalArraySource,
-                   meta: ArraySourceMetadata,
-                   batchsize: int,
-                   n_workers: int) -> CategoryInfo:
+
+
+def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
@@ -79,26 +78,24 @@ def get_categories(array_src_spec: CategoricalArraySource,
     missing : List[Optional[int]]
 
     """
-    n_rows = meta.shape[0]
-    n_features = meta.shape[-1]
-    missing_values = meta.missing
+    n_rows = src.shape[0]
+    n_features = src.shape[-1]
+    missing_value = src.missing
     accums = [_CategoryAccumulator() for _ in range(n_features)]
-
     # Add the missing values initially as zeros
-    for acc, m in zip(accums, missing_values):
-        if m is not None:
-            acc.update(np.array([m]), np.array([0], dtype=int))
+    if missing_value is not None:
+        for a in accums:
+            a.update(np.array([missing_value]), np.array([0], dtype=int))
 
     it = list(iteration.batch_slices(batchsize, n_rows))
-    out_it = task_list(it, array_src_spec, ClassSpec(UniqueValues), n_workers)
+    out_it = task_list(it, src, UniqueValues(), n_workers)
 
     log.info("Computing unique values in categorical features:")
     for unique_vals, counts in out_it:
         for a, u, c in zip(accums, unique_vals, counts):
             a.update(u, c)
 
-    missing = [CategoricalType(0) if k is not None else None
-               for k in missing_values]
+    missing = CategoricalType(0) if missing_value is not None else None
     count_dicts = [m.counts for m in accums]
     mappings = [np.array(list(c.keys())) for c in count_dicts]
     counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
@@ -148,3 +145,4 @@ class CategoricalOutputTransform:
                 indices = old_col == v
                 new_col[indices] = i
         return new_array
+

@@ -7,7 +7,7 @@ from typing import List, Union, Tuple
 
 from landshark import patch
 from landshark.multiproc import task_list
-from landshark.basetypes import ClassSpec, FixedSlice
+from landshark.basetypes import FixedSlice
 from landshark.patch import PatchRowRW, PatchMaskRowRW
 from landshark.iteration import batch_slices
 from landshark import image

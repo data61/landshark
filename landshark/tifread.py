@@ -2,7 +2,6 @@
 
 import os.path
 import logging
-from collections import namedtuple
 
 import rasterio
 from rasterio.io import DatasetReader
@@ -12,17 +11,13 @@ from mypy_extensions import NoReturn
 
 from landshark.image import pixel_coordinates, ImageSpec
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource
-
+    CategoricalArraySource, OrdinalType, CategoricalType
 
 log = logging.getLogger(__name__)
 
 # Typechecking aliases
 ShpFieldsType = List[Tuple[str, str, int, int]]
 WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
-
-# Convenience types
-Band = namedtuple("Band", ["image", "index"])
 
 
 def shared_image_spec(path_list: List[str]) -> ImageSpec:
@@ -37,48 +32,52 @@ def shared_image_spec(path_list: List[str]) -> ImageSpec:
     return imspec
 
 
-class _ImageStackSource(ArraySource):
-    """A stack of registered images with the same res and bbox.
+class _ImageSource(ArraySource):
+    def __init__(self, spec: ImageSpec, path: str,
+                 missing: int=-2147483648) -> None:
+        self._path = path
+        self._missing = self._dtype(missing)
+        with rasterio.open(self._path, "r") as rfile:
+            nbands = rfile.count
+            self._shape = (rfile.height, rfile.width, nbands)
+            self._orig_missing = _missing(rfile, dtype=self.dtype)
+            if len(set(self._orig_missing)) == 1 and \
+                    self._orig_missing[0] is None:
+                self._missing = None
+            self._columns = _names(self._path, nbands)
+            self._native = _block_rows(rfile)
+            assert len(self._columns) == nbands
+        self.name = os.path.basename(path)
+        log.info("{} has {} {} bands, {} row blocks, missing values {}".format(
+            self.name, nbands, self._type_str,
+            self._native, self._orig_missing))
 
-    This class simplifies the handling of multiple geotiff files
-    in order to emulate the behaviour of a single many-banded image.
+    def __enter__(self):
+        self._rfile = rasterio.open(self._path, "r")
+        super().__enter__()
 
-    Parameters
-    ----------
-    path_list : List[str]
-        The list of images to stack.
-    block_rows : Union[None, int]
-        Optional integer > 0 that specifies the number of rows read at a time.
-        If not provided then a semi-sensible value is computed.
-
-    """
-    def __init__(self, spec: ImageSpec, path_list: List[str]) -> None:
-        """Construct an instance of ImageStack."""
-        all_images = [rasterio.open(k, "r") for k in path_list]
-        self._bands = _bands(all_images)
-        nbands = len(self._bands)
-        self._shape = (spec.height, spec.width, nbands)
-        self._missing = _missing(self._bands, dtype=self.dtype)
-        self._columns = _names(self._bands)
-        self._native = _block_rows(self._bands)
-
-        log.info("Found {} {} bands".format(nbands, self.dtype))
-        log.info("Using tif block size of {} rows".format(self._native))
+    def __exit__(self, *args):
+        self._rfile.close()
+        del(self._rfile)
+        super().__exit__(*args)
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
-        array = _read_slice(self._bands, start, end, self._shape[1],
-                            self.dtype)
-        return array
+        w = ((start, end), (0, self.shape[1]))
+        marray = self._rfile.read(window=w, masked=True).astype(self.dtype)
+        if self._missing is not None:
+            if np.sum(marray.data == self._missing) > 0:
+                raise ValueError("Mask value detected in dataset")
+            marray.data[marray.mask] = self._missing
+        data = marray.data
+        data = np.moveaxis(data, 0, -1)
+        return data
 
 
+class OrdinalImageSource(_ImageSource, OrdinalArraySource):
+    _type_str = "ordinal"
 
-class OrdinalStackArraySource(_ImageStackSource, OrdinalArraySource):
-    pass
-
-
-class CategoricalStackArraySource(_ImageStackSource, CategoricalArraySource):
-    pass
-
+class CategoricalImageSource(_ImageSource, CategoricalArraySource):
+    _type_str = "categorical"
 
 def _match(f: Callable[[Any], Any],
            images: List[DatasetReader],
@@ -120,26 +119,23 @@ def _fatal_mismatch(property_list: List[Any],
     raise ValueError("No match for input image property {}".format(name))
 
 
-def _names(band_list: List[Band]) -> List[str]:
+def _names(path, nbands) -> List[str]:
     """Generate a list of band names."""
-    band_names = []
-    for im, band_idx in band_list:
-        basename = os.path.basename(im.name)
-        if im.count > 1:
-            name = basename + "_{}".format(band_idx)
-        else:
-            name = basename
-        band_names.append(name)
+    basename = os.path.basename(path)
+    if nbands == 1:
+        band_names = [basename]
+    else:
+        band_names = [basename + "_{}".format(i + 1) for i in range(nbands)]
     return band_names
 
 
-def _missing(bands: List[Band], dtype: np.dtype) -> List[Any]:
+def _missing(image, dtype: np.dtype) -> List[Any]:
     """
     Convert missing data values to a given dtype (rasterio workaround).
 
     Note that the list may contain 'None' where there are no missing values.
     """
-    lst = [b.image.nodatavals[b.index - 1] for b in bands]
+    lst = image.nodatavals
 
     def convert(x: Union[None, float]) -> Any:
         return dtype(x) if x is not None else x
@@ -147,37 +143,13 @@ def _missing(bands: List[Band], dtype: np.dtype) -> List[Any]:
     return r
 
 
-def _bands(images: List[DatasetReader]) -> List[Band]:
-    """Get bands from list of images."""
-    bandlist = []
-    for im in images:
-        for i, _ in enumerate(im.dtypes):
-            band = Band(image=im, index=(i + 1))   # bands start from 1
-            bandlist.append(band)
-    return bandlist
-
-
-def _block_rows(bands: List[Band]) -> int:
+def _block_rows(image) -> int:
     """Choose a sensible (global) blocksize based on input images' blocks."""
     block_list = []
-    for b in bands:
-        block = b.image.block_shapes[b.index - 1]
+    for b in range(image.count):
+        block = image.block_shapes[b]
         if not block[0] <= block[1]:
             raise ValueError("No support for column-wise blocks")
         block_list.append(block[0])
     blockrows = int(np.amax(block_list))  # LCM would be more efficient but meh
     return blockrows
-
-
-def _read_slice(band_list: List[Band], start_row: int, end_row: int,
-                width: int, dtype: np.dtype) -> np.ndarray:
-    """Create a generator that yields blocks of the image stack."""
-    assert width > 0
-    assert start_row < end_row
-    w = ((start_row, end_row), (0, width))
-    shape = (end_row - start_row, width, len(band_list))
-    out_array = np.empty(shape, dtype=dtype)
-    for i, b in enumerate(band_list):
-        a = b.image.read(b.index, window=w)
-        out_array[:, :, i] = a.astype(dtype)
-    return out_array

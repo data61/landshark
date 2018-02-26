@@ -10,23 +10,26 @@ import click
 # mypy type checking
 from typing import List
 
-from landshark.basetypes import ClassSpec
-from landshark.tifread import shared_image_spec, OrdinalStackArraySource, \
-    CategoricalStackArraySource
+# from landshark.basetypes import ClassSpec
+from landshark.tifread import shared_image_spec, OrdinalImageSource, \
+    CategoricalImageSource
 
 # from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
-    write_categorical, write_coordinates
+    write_categorical, write_stats, write_maps
 from landshark.shpread import OrdinalShpArraySource,  \
     GenericShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
 # from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
 # from landshark import feed
-from landshark.hread import read_image_spec
+from landshark.hread import read_image_spec, OrdinalH5ArraySource, CategoricalH5ArraySource
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
 # from landshark.image import strip_image_spec
+
+from landshark.normalise import get_stats
+from landshark.category import get_maps
 
 log = logging.getLogger(__name__)
 
@@ -80,16 +83,30 @@ def tifs(categorical: str, ordinal: str,
         write_imagespec(spec, h5file)
 
         if ordinal:
-            ord_source_spec = ClassSpec(OrdinalStackArraySource,
-                                        [spec, ord_filenames])
-            write_ordinal(ord_source_spec, h5file, batchsize,
-                          nworkers)
+            ord_sources = [OrdinalImageSource(spec, fname)
+                           for fname in ord_filenames]
+            write_ordinal(ord_sources, h5file, batchsize)
 
         if categorical:
-            cat_source_spec = ClassSpec(CategoricalStackArraySource,
-                                        [spec, cat_filenames])
-            write_categorical(cat_source_spec, h5file,
-                              batchsize, nworkers)
+            cat_sources = [CategoricalImageSource(spec, fname)
+                           for fname in cat_filenames]
+            write_categorical(cat_sources, h5file,
+                              batchsize)
+    stats, maps = None, None
+    if ordinal:
+        src = OrdinalH5ArraySource(out_filename)
+        stats = get_stats(src, batchsize, nworkers)
+    if categorical:
+        src = CategoricalH5ArraySource(out_filename)
+        maps = get_maps(src, batchsize, nworkers)
+
+    with tables.open_file(out_filename, mode="r+") as h5file:
+        if ordinal:
+            write_stats(h5file, stats)
+        if categorical:
+            write_maps(h5file, maps)
+
+    log.info("GTiff import complete")
 
     return 0
 
@@ -118,16 +135,16 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
         # make sure that only one process uses shapefile at a time
         del(coord_src)
 
-        if categorical:
-            cat_source_spec = ClassSpec(GenericShpArraySource,
-                                        [shapefile, targets, random_seed])
-            write_categorical(cat_source_spec, h5file, batchsize, nworkers)
-        else:
-            ord_source_spec = ClassSpec(OrdinalShpArraySource,
-                                        [shapefile, targets, random_seed])
-            write_ordinal(ord_source_spec, h5file, batchsize,
-                          nworkers, normalise)
-    return 0
+        # if categorical:
+            # cat_source_spec = ClassSpec(GenericShpArraySource,
+            #                             [shapefile, targets, random_seed])
+            # write_categorical(cat_source_spec, h5file, batchsize, nworkers)
+        # else:
+            # ord_source_spec = ClassSpec(OrdinalShpArraySource,
+            #                             [shapefile, targets, random_seed])
+            # write_ordinal(ord_source_spec, h5file, batchsize,
+            #               nworkers, normalise)
+    # return 0
 
 
 @cli.command()
