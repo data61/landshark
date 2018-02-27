@@ -11,8 +11,8 @@ import click
 from typing import List
 
 # from landshark.basetypes import ClassSpec
-from landshark.tifread import shared_image_spec, OrdinalImageSource, \
-    CategoricalImageSource
+from landshark.tifread import shared_image_spec, OrdinalStackSource, \
+    CategoricalStackSource
 
 # from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
@@ -83,15 +83,12 @@ def tifs(categorical: str, ordinal: str,
         write_imagespec(spec, h5file)
 
         if ordinal:
-            ord_sources = [OrdinalImageSource(spec, fname)
-                           for fname in ord_filenames]
-            write_ordinal(ord_sources, h5file, batchsize)
+            ord_source = OrdinalStackSource(spec, ord_filenames)
+            write_ordinal(ord_source, h5file, batchsize)
 
         if categorical:
-            cat_sources = [CategoricalImageSource(spec, fname)
-                           for fname in cat_filenames]
-            write_categorical(cat_sources, h5file,
-                              batchsize)
+            cat_source = CategoricalStackSource(spec, cat_filenames)
+            write_categorical(cat_source, h5file, batchsize)
     stats, maps = None, None
     if ordinal:
         src = OrdinalH5ArraySource(out_filename)
