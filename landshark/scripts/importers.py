@@ -131,42 +131,56 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
+@click.option("--normalise", is_flag=True)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
-            every: int, categorical: bool, nworkers: int,
+            every: int, categorical: bool, nworkers: int, normalise: bool,
             random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
-    with tables.open_file(out_filename, mode="w", title=name) as h5file:
+    tmp_filename = os.path.join(os.getcwd(), name + "_targets_RAW.hdf5")
 
+    with tables.open_file(out_filename, mode="w", title=name) as h5file:
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
         write_coordinates(coord_src, h5file, batchsize)
 
-        if categorical:
-            cat_source = CategoricalShpArraySource(
-                shapefile, targets, random_seed)
-            write_categorical(cat_source, h5file, batchsize)
-        else:
+        if not categorical and not normalise:
+            log.info("Writing unnormalised ordinal targets to output file")
             ord_source = OrdinalShpArraySource(
                 shapefile, targets, random_seed)
             write_ordinal(ord_source, h5file, batchsize)
 
-    stats, maps = None, None
     if categorical:
-        src = CategoricalH5ArraySource(out_filename)
-        maps = get_maps(src, batchsize, nworkers)
-    else:
-        src = OrdinalH5ArraySource(out_filename)
-        stats = get_stats(src, batchsize, nworkers)
+        with tables.open_file(tmp_filename, mode="w", title=name) as tmpfile:
+            cat_source = CategoricalShpArraySource(
+                shapefile, targets, random_seed)
+            write_categorical(cat_source, tmpfile, batchsize)
+        tmp_src = CategoricalH5ArraySource(tmp_filename)
+        maps = get_maps(tmp_src, batchsize, nworkers)
+        with tables.open_file(out_filename, mode="r+") as outfile:
+            log.info("Writing mapped categorical targets to output file")
+            write_categorical(tmp_src, outfile, nworkers, batchsize, maps)
+        # Delete temp file!
+        os.remove(tmp_filename)
 
-    with tables.open_file(out_filename, mode="r+") as h5file:
-        if categorical:
-            write_maps(h5file, maps)
-        else:
-            write_stats(h5file, stats)
+    elif normalise:
+        with tables.open_file(tmp_filename, mode="w", title=name) as tmpfile:
+            ord_source = OrdinalShpArraySource(
+                shapefile, targets, random_seed)
+            write_ordinal(ord_source, tmpfile, batchsize)
+        tmp_src = OrdinalH5ArraySource(tmp_filename)
+        stats = get_stats(tmp_src, batchsize, nworkers)
+        with tables.open_file(out_filename, mode="r+") as outfile:
+            log.info("Writing normalised ordinal targets to output file")
+            write_ordinal(tmp_src, outfile, nworkers, batchsize, stats)
+        # Delete temp file!
+        os.remove(tmp_filename)
+
+    log.info("Target import complete")
+
     return 0
 
 
