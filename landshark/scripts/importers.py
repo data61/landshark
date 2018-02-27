@@ -16,7 +16,7 @@ from landshark.tifread import shared_image_spec, OrdinalStackSource, \
 
 # from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
-    write_categorical, write_stats, write_maps, write_coordinates
+    write_categorical, write_coordinates
 from landshark.shpread import OrdinalShpArraySource, \
     CategoricalShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
@@ -65,43 +65,59 @@ def _tifnames(directory: str) -> List[str]:
 @click.option("--batchsize", type=int, default=1000)
 @click.option("--categorical", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
+@click.option("--normalise", is_flag=True)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
-def tifs(categorical: str, ordinal: str,
+def tifs(categorical: str, ordinal: str, normalise: bool,
          name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
+    otmp_filename = os.path.join(os.getcwd(), name + "_features_ORAW.hdf5")
+    ctmp_filename = os.path.join(os.getcwd(), name + "_features_CRAW.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames)
 
-    with tables.open_file(out_filename, mode="w", title=name) as h5file:
+    with tables.open_file(out_filename, mode="w", title=name) as outfile:
+        write_imagespec(spec, outfile)
 
-        write_imagespec(spec, h5file)
-
-        if ordinal:
+    if ordinal and not normalise:
+        log.info("Writing unnormalised ordinal data to output file")
+        with tables.open_file(out_filename, mode="r+", title=name) as outfile:
+            write_imagespec(spec, outfile)
             ord_source = OrdinalStackSource(spec, ord_filenames)
-            write_ordinal(ord_source, h5file, batchsize)
+            write_ordinal(ord_source, outfile, nworkers, batchsize)
 
-        if categorical:
-            cat_source = CategoricalStackSource(spec, cat_filenames)
-            write_categorical(cat_source, h5file, batchsize)
-    stats, maps = None, None
-    if ordinal:
-        src = OrdinalH5ArraySource(out_filename)
-        stats = get_stats(src, batchsize, nworkers)
+    elif ordinal and normalise:
+        log.info("Writing unnormalised ordinal data to temporary file")
+        with tables.open_file(otmp_filename, mode="w", title=name) as tmpfile:
+            ord_source = OrdinalStackSource(spec, ord_filenames)
+            write_ordinal(ord_source, tmpfile, nworkers, batchsize)
+        # Compute stats with temp file
+        tmp_src = OrdinalH5ArraySource(otmp_filename)
+        stats = get_stats(tmp_src, batchsize, nworkers)
+        with tables.open_file(out_filename, mode="r+") as outfile:
+            log.info("Writing normalised ordinal data to output file")
+            write_ordinal(tmp_src, outfile, nworkers, batchsize, stats)
+        # Delete temp file!
+        os.remove(otmp_filename)
+
     if categorical:
-        src = CategoricalH5ArraySource(out_filename)
-        maps = get_maps(src, batchsize, nworkers)
-
-    with tables.open_file(out_filename, mode="r+") as h5file:
-        if ordinal:
-            write_stats(h5file, stats)
-        if categorical:
-            write_maps(h5file, maps)
+        with tables.open_file(ctmp_filename, mode="w", title=name) as tmpfile:
+            log.info("Writing unmapped categorical data to temporary file")
+            cat_source = CategoricalStackSource(spec, cat_filenames)
+            write_categorical(cat_source, tmpfile, nworkers, batchsize)
+        # Compute mapping with temp file
+        tmp_src = CategoricalH5ArraySource(ctmp_filename)
+        maps = get_maps(tmp_src, batchsize, nworkers)
+        with tables.open_file(out_filename, mode="r+") as outfile:
+            log.info("Writing mapped categorical data to output file")
+            write_categorical(tmp_src, outfile, nworkers, batchsize, maps)
+        # Delete temp file!
+        os.remove(ctmp_filename)
 
     log.info("GTiff import complete")
 
@@ -115,11 +131,10 @@ def tifs(categorical: str, ordinal: str,
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
-@click.option("--normalise", is_flag=True)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
-            every: int, categorical: bool, normalise: bool, nworkers: int,
+            every: int, categorical: bool, nworkers: int,
             random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
@@ -161,12 +176,15 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 @click.option("--folds", type=click.IntRange(2, None), default=10)
 @click.option("--testfold", type=click.IntRange(1, None), default=1)
 @click.option("--halfwidth", type=click.IntRange(0, None), default=1)
-@click.option("--nworkers", type=click.IntRange(1, None), default=cpu_count())
+@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
 @click.option("--batchsize", type=click.IntRange(1, None), default=1000)
 @click.option("--random_seed", type=int, default=666)
+@click.option("--normalise_x", is_flag=True)
+@click.option("--normalise_y", is_flag=True)
 def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int) -> int:
+                 random_seed: int, normalise_x: bool,
+                 normalise_y: bool) -> int:
     """Get training data."""
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
@@ -177,7 +195,8 @@ def trainingdata(features: str, targets: str, testfold: int,
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
                                  halfwidth, nworkers, directory,
-                                 testfold, folds, random_seed)
+                                 testfold, folds, random_seed,
+                                 normalise_x, normalise_y)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
     return 0

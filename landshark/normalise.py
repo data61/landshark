@@ -35,6 +35,18 @@ class VarPreprocessor:
         return dsum
 
 
+class Normaliser:
+
+    def __init__(self, mean, var):
+        self._mean = mean
+        self._var = var
+
+    def __call__(self, x):
+        x0 = x - self._mean
+        xw = x0 / self._var
+        return xw
+
+
 def get_stats(src, batchsize, n_workers):
     log.info("Computing feature means")
     n_rows = src.shape[0]

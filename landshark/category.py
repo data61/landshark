@@ -6,7 +6,6 @@ from collections import OrderedDict, namedtuple
 import numpy as np
 from typing import Tuple, List
 
-
 from landshark.basetypes import CategoricalArraySource, CategoricalType
 from landshark import iteration
 from landshark.multiproc import task_list
@@ -103,46 +102,15 @@ def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
     return result
 
 
-class CategoricalOutputTransform:
-    """
-    Callable object that maps n categorical values to 0..n-1.
 
-    Parameters
-    ----------
-    mappings : List[np.ndarray]
-        A list of ndarrays, one for each feature (corresponding to the
-        final dimension of input). A value of v at position i in the ndarray
-        implies a mapping from v to i.
-
-    """
-
+class CategoryMapper:
     def __init__(self, mappings: List[np.ndarray]) -> None:
-        """Initialise the object with a set of mappings."""
-        self.mappings = mappings
+        self._mappings = mappings
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
-        """
-        Transform the values by the mapping given at initialisation.
-
-        Parameters
-        ----------
-        x : np.ndarray
-            The categorical to transform.
-
-        Returns
-        -------
-        new_array : np.ndarray
-            An array of the same shape as CategoricalValues.categorical
-            but with the mapping applied so values are 0..n-1.
-
-        """
-        assert x.shape[-1] == len(self.mappings)
-        new_array = np.zeros_like(x, dtype=CategoricalType)
-        for col_idx, m in enumerate(self.mappings):
-            old_col = x[..., col_idx]
-            new_col = new_array[..., col_idx]
-            for i, v in enumerate(m):
-                indices = old_col == v
-                new_col[indices] = i
-        return new_array
-
+        buf = np.empty_like(x)
+        for ch, cat in enumerate(self._mappings):
+            flat = np.hstack((cat, x[..., ch].ravel()))
+            _, remap = np.unique(flat, return_inverse=True)
+            buf[..., ch] = remap[len(cat):].reshape(x.shape[:-1])
+        return buf

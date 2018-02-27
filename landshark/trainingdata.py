@@ -87,19 +87,21 @@ def _get_rows(patch_reads, source):
 
 class TrainingDataProcessor:
 
-    def __init__(self, image_spec, feature_file, halfwidth):
-        self.feature_file = feature_file
+    def __init__(self, image_spec, feature_path, halfwidth,
+                 normalise_features):
+        self.feature_path = feature_path
         self.halfwidth = halfwidth
         self.image_spec = image_spec
         self.feature_source = None
+        self.normalise = normalise_features
 
     def __call__(self, values):
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_file)
-
+            self.feature_source = H5Features(self.feature_path, self.normalise)
         coords_x, coords_y = values.coordinates.T
         targets = values.ordinal if values.ordinal is not None \
             else values.categorical
+
         indices_x = image.world_to_image(coords_x,
                                          self.image_spec.x_coordinates)
         indices_y = image.world_to_image(coords_y,
@@ -153,18 +155,17 @@ class QueryDataProcessor:
         return strings
 
 
-def write_trainingdata(features, targets, image_spec, batchsize,
+def write_trainingdata(feature_path, targets, image_spec, batchsize,
                        halfwidth, n_workers, output_directory, testfold, folds,
-                       random_seed):
+                       random_seed, normalise_x, normalise_y):
 
-    target_source_spec = ClassSpec(H5Features, [targets])
-    src = target_source_spec.instantiate()
-    n_rows = len(src)
-    del(src)
-    worker_spec = ClassSpec(TrainingDataProcessor,
-                            [image_spec, features, halfwidth])
+    target_src = H5Features(targets, normalise_y)
+    n_rows = len(target_src)
+    worker = TrainingDataProcessor(image_spec, feature_path, halfwidth,
+                                   normalise_x)
     tasks = list(batch_slices(batchsize, n_rows))
-    out_it = task_list(tasks, target_source_spec, worker_spec, n_workers)
+    out_it = task_list(tasks, target_src, worker, n_workers)
+    next(out_it)
     n_train = tfwrite.training(out_it, n_rows, output_directory, testfold,
                                folds, random_seed)
     return n_train

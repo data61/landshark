@@ -16,7 +16,8 @@ class H5ArraySource(ArraySource):
         self._path = path
         with tables.open_file(self._path, "r") as hfile:
             carray = hfile.get_node("/" + self._array_name)
-            self._shape = carray.shape
+            self._shape = tuple(list(carray.shape) +
+                                [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
             self._columns = carray.attrs.columns
             self._native = carray.chunkshape[0]
@@ -34,7 +35,8 @@ class H5ArraySource(ArraySource):
         super().__exit__()
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
-        return self._carray[start:end]
+        data = self._carray[start:end]
+        return data
 
 
 class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
@@ -44,28 +46,33 @@ class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
     _array_name = "categorical_data"
 
+
 class CoordinateH5ArraySource(H5ArraySource, CoordinateArraySource):
     pass
 
 
 class H5Features:
+    """
+    Note unlike the array classes this isn't picklable.
+    """
+    def __init__(self, h5file, normalise):
 
-    def __init__(self, h5file):
+        self.normalised = normalise
+        self.ordinal, self.categorical, self.coordinates = None, None, None
         self._hfile = tables.open_file(h5file, "r")
-        self.ordinal = None
-        self.categorical = None
-        self.coordinates = None
-
         if hasattr(self._hfile.root, "ordinal_data"):
-            self.ordinal = OrdinalH5ArraySource(
-                self._hfile.root.ordinal_data)
+            self.ordinal = self._hfile.root.ordinal_data
+            self.ordinal.mean = self._hfile.root.ordinal_data.attrs.mean
+            self.ordinal.variance = \
+                self._hfile.root.ordinal_data.attrs.variance
         if hasattr(self._hfile.root, "categorical_data"):
-            self.categorical = CategoricalH5ArraySource(
-                self._hfile.root.categorical_data)
+            self.categorical = self._hfile.root.categorical_data
+            maps = self._hfile.root.categorical_mappings.read()
+            counts = self._hfile.root.categorical_counts.read()
+            missing = self._hfile.root.categorical_data.attrs.missing
+            self.categorical.maps = CategoryInfo(maps, counts, missing)
         if hasattr(self._hfile.root, "coordinates"):
-            self.coordinates = CoordinateH5ArraySource(
-                self._hfile.root.coordinates)
-        assert not (self.ordinal is None and self.categorical is None)
+            self.coordinates = self._hfile.root.coordinates
         if self.ordinal:
             self._n = len(self.ordinal)
         if self.categorical:
@@ -94,7 +101,6 @@ class H5Features:
 
     def __del__(self):
         self._hfile.close()
-
 
 def read_image_spec(filename):
     with tables.open_file(filename, mode="r") as h5file:
