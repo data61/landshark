@@ -72,16 +72,17 @@ def _write(source, array, batchsize):
                 pbar.update()
 
 def write_coordinates(array_src, h5file, batchsize):
-    shape = array_src.shape[0:1]
-    atom = tables.Float64Atom(shape=(array_src.shape[1],))
-    filters = tables.Filters(complevel=1, complib="blosc:lz4")
-    array = h5file.create_carray(h5file.root, name="coordinates",
-                                 atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = array_src.columns
-    array.attrs.missing = array_src.missing
-    it = batch_slices(batchsize, array_src.shape[0])
-    for start_idx, stop_idx in it:
-        array[start_idx: stop_idx] = array_src(FixedSlice(start_idx, stop_idx))
+    with array_src:
+        shape = array_src.shape[0:1]
+        atom = tables.Float64Atom(shape=(array_src.shape[1],))
+        filters = tables.Filters(complevel=1, complib="blosc:lz4")
+        array = h5file.create_carray(h5file.root, name="coordinates",
+                                     atom=atom, shape=shape, filters=filters)
+        array.attrs.columns = array_src.columns
+        array.attrs.missing = array_src.missing
+        for s in batch_slices(batchsize, array_src.shape[0]):
+            array[s.start:s.stop] = array_src(s)
+
 
 def _make_int_vlarray(h5file, name, attribute):
     vlarray = h5file.create_vlarray(h5file.root, name=name,

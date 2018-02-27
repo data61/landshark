@@ -16,9 +16,9 @@ from landshark.tifread import shared_image_spec, OrdinalStackSource, \
 
 # from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
-    write_categorical, write_stats, write_maps
-from landshark.shpread import OrdinalShpArraySource,  \
-    GenericShpArraySource, CoordinateShpArraySource
+    write_categorical, write_stats, write_maps, write_coordinates
+from landshark.shpread import OrdinalShpArraySource, \
+    CategoricalShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
 # from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
@@ -129,19 +129,30 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
         write_coordinates(coord_src, h5file, batchsize)
-        # make sure that only one process uses shapefile at a time
-        del(coord_src)
 
-        # if categorical:
-            # cat_source_spec = ClassSpec(GenericShpArraySource,
-            #                             [shapefile, targets, random_seed])
-            # write_categorical(cat_source_spec, h5file, batchsize, nworkers)
-        # else:
-            # ord_source_spec = ClassSpec(OrdinalShpArraySource,
-            #                             [shapefile, targets, random_seed])
-            # write_ordinal(ord_source_spec, h5file, batchsize,
-            #               nworkers, normalise)
-    # return 0
+        if categorical:
+            cat_source = CategoricalShpArraySource(
+                shapefile, targets, random_seed)
+            write_categorical(cat_source, h5file, batchsize)
+        else:
+            ord_source = OrdinalShpArraySource(
+                shapefile, targets, random_seed)
+            write_ordinal(ord_source, h5file, batchsize)
+
+    stats, maps = None, None
+    if categorical:
+        src = CategoricalH5ArraySource(out_filename)
+        maps = get_maps(src, batchsize, nworkers)
+    else:
+        src = OrdinalH5ArraySource(out_filename)
+        stats = get_stats(src, batchsize, nworkers)
+
+    with tables.open_file(out_filename, mode="r+") as h5file:
+        if categorical:
+            write_maps(h5file, maps)
+        else:
+            write_stats(h5file, stats)
+    return 0
 
 
 @cli.command()

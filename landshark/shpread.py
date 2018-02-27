@@ -50,19 +50,6 @@ def _get_dtype(labels, all_labels, all_dtypes):
     return dtype
 
 
-def _largest_string_type(type_list):
-    all_types = set(type_list)
-    if len(all_types) == 1:
-        result = all_types.pop()
-    else:
-        string_type_list = [i for i in type_list if type(i) is str]
-        if len(string_type_list) == len(type_list):
-            result = max(string_type_list)
-        else:
-            raise ValueError("Cannot Find single type for categorical targets")
-    return result
-
-
 # TODO force this to be abstract. DONT USE!
 class _ShpArraySource(ArraySource):
     def __init__(self, filename: str, labels: List[str],
@@ -73,7 +60,7 @@ class _ShpArraySource(ArraySource):
         self._column_indices = _get_indices(self._columns, all_fields)
         self._original_dtypes = [all_dtypes[i] for i in self._column_indices]
         self._shape = (self._sf.numRecords, len(labels))
-        self._missing = [None] * self._shape[1]
+        self._missing = None
         log.info("Shapefile contains {} records "
                  "of {} requested columns.".format(
                      self._shape[0], self._shape[1]))
@@ -89,16 +76,13 @@ class _ShpArraySource(ArraySource):
         return array
 
 
+
 class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
     pass
 
 
-class GenericShpArraySource(_ShpArraySource):
-
-    def __init__(self, filename: str, labels: List[str],
-                 random_seed: int) -> None:
-        super().__init__(filename, labels, random_seed)
-        self._dtype = _largest_string_type(self._original_dtypes)
+class CategoricalShpArraySource(_ShpArraySource, CategoricalArraySource):
+    pass
 
 
 class CoordinateShpArraySource(CoordinateArraySource):
@@ -107,7 +91,7 @@ class CoordinateShpArraySource(CoordinateArraySource):
         self._sf = shapefile.Reader(filename)
         self._shape = (self._sf.numRecords, 2)
         self._native = 1
-        self._missing = [None, None]
+        self._missing = None
         self._columns = ["X", "Y"]
         rnd = np.random.RandomState(random_seed)
         self._perm = rnd.permutation(self._shape[0])
@@ -116,5 +100,7 @@ class CoordinateShpArraySource(CoordinateArraySource):
         indices = self._perm[start: end]
         coords = [self._sf.shape(r).__geo_interface__["coordinates"]
                   for r in indices]
-        array = np.array(coords, dtype=self.dtype)
+        array = np.array(coords, dtype=self.dtype).squeeze()
+        if array.ndim == 1:
+            array == array[:, np.newaxis]
         return array
