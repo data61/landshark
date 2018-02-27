@@ -78,7 +78,9 @@ def write_coordinates(array_src, h5file, batchsize):
     array.attrs.missing = array_src.missing
     it = batch_slices(batchsize, array_src.shape[0])
     for start_idx, stop_idx in it:
-        array[start_idx: stop_idx] = array_src(FixedSlice(start_idx, stop_idx))
+        # TODO: why do we need this squeeze??
+        array[start_idx: stop_idx] = \
+            array_src(FixedSlice(start_idx, stop_idx)).squeeze()
 
 
 def _write(source_spec, meta, array, worker_spec, batchsize, n_workers):

@@ -2,7 +2,6 @@
 
 import logging
 import os.path
-from itertools import repeat
 
 import numpy as np
 import tensorflow as tf
