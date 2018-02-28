@@ -193,12 +193,9 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 @click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
 @click.option("--batchsize", type=click.IntRange(1, None), default=1000)
 @click.option("--random_seed", type=int, default=666)
-@click.option("--normalise_x", is_flag=True)
-@click.option("--normalise_y", is_flag=True)
 def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int, normalise_x: bool,
-                 normalise_y: bool) -> int:
+                 random_seed: int) -> int:
     """Get training data."""
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
@@ -209,8 +206,7 @@ def trainingdata(features: str, targets: str, testfold: int,
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
                                  halfwidth, nworkers, directory,
-                                 testfold, folds, random_seed,
-                                 normalise_x, normalise_y)
+                                 testfold, folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
     return 0

@@ -17,7 +17,7 @@ CoordinateType = np.float64
 DataType = Union[OrdinalType, CategoricalType, CoordinateType]
 
 FeatureValues = namedtuple("FeatureValues",
-                           ["ordinal", "categorical", "coordinates"])
+                           ["ordinal", "categorical"])
 
 
 class FixedSlice(NamedTuple):
