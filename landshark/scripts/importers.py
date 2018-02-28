@@ -62,7 +62,7 @@ def _tifnames(directory: str) -> List[str]:
 
 
 @cli.command()
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=100)
 @click.option("--categorical", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
 @click.option("--normalise", is_flag=True)
@@ -87,7 +87,6 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
     if ordinal and not normalise:
         log.info("Writing unnormalised ordinal data to output file")
         with tables.open_file(out_filename, mode="r+", title=name) as outfile:
-            write_imagespec(spec, outfile)
             ord_source = OrdinalStackSource(spec, ord_filenames)
             write_ordinal(ord_source, outfile, nworkers, batchsize)
 
@@ -127,7 +126,7 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
 @cli.command()
 @click.argument("targets", type=str, nargs=-1)
 @click.option("--shapefile", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=100)
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
@@ -191,7 +190,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 @click.option("--testfold", type=click.IntRange(1, None), default=1)
 @click.option("--halfwidth", type=click.IntRange(0, None), default=1)
 @click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
-@click.option("--batchsize", type=click.IntRange(1, None), default=1000)
+@click.option("--batchsize", type=click.IntRange(1, None), default=100)
 @click.option("--random_seed", type=int, default=666)
 def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
@@ -209,12 +208,13 @@ def trainingdata(features: str, targets: str, testfold: int,
                                  testfold, folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
+    log.info("Training import complete")
     return 0
 
 
 @cli.command()
 @click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=1)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=1)
 @click.argument("strip", type=int)
@@ -236,4 +236,5 @@ def querydata(features: str, batchsize: int, nworkers: int,
     tag = "query.{}of{}".format(strip, totalstrips)
     write_querydata(features, image_spec, strip, totalstrips,
                     batchsize, halfwidth, nworkers, directory, tag)
+    log.info("Query import complete")
     return 0

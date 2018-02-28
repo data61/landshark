@@ -22,7 +22,6 @@ from landshark.serialise import serialise
 log = logging.getLogger(__name__)
 
 def _direct_read(array,
-                 missing,
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
@@ -42,12 +41,39 @@ def _direct_read(array,
     for m in mask_reads:
         patch_mask[m.idx, :, m.yp, m.xp] = True
 
-    if missing is not None:
-        patch_mask |= patch_data == missing
+    if array.missing is not None:
+        patch_mask |= patch_data == array.missing
 
     marray = np.ma.MaskedArray(data=patch_data, mask=patch_mask)
     return marray
 
+def _cached_read(row_dict,
+                 array,
+                 patch_reads: List[PatchRowRW],
+                 mask_reads: List[PatchMaskRowRW],
+                 npatches: int,
+                 patchwidth: int,
+                 fill: Union[int, float, None]=0) -> np.ma.MaskedArray:
+    """Build patches from a data source given the read/write operations."""
+    assert npatches > 0
+    assert patchwidth > 0
+    nfeatures = array.atom.shape[0]
+    dtype = array.atom.dtype.base
+    patch_data = np.zeros((npatches, nfeatures, patchwidth, patchwidth),
+                          dtype=dtype)
+    patch_mask = np.zeros_like(patch_data, dtype=bool)
+
+    for r in patch_reads:
+        patch_data[r.idx, :, r.yp, r.xp] = row_dict[r.y][r.x].T
+
+    for m in mask_reads:
+        patch_mask[m.idx, :, m.yp, m.xp] = True
+
+    if array.missing is not None:
+        patch_mask |= patch_data == array.missing
+
+    marray = np.ma.MaskedArray(data=patch_data, mask=patch_mask)
+    return marray
 
 def _as_range(iterable):
     lst = list(iterable)
@@ -56,34 +82,20 @@ def _as_range(iterable):
     else:
         return FixedSlice(start=lst[0], stop=(lst[0] + 1))
 
-def _get_rows(patch_reads, source):
-    # TODO make faster
+def _slices_from_patches(patch_reads):
     rowlist = sorted(list(set((k.y for k in patch_reads))))
     slices = [_as_range(g) for _, g in
               groupby(rowlist, key=lambda n, c=count(): n - next(c))]
-    data_slices = [source(s) for s in slices]
-    ord_data = {}
-    cat_data = {}
-    if source.categorical is None:
-        for s, d in zip(slices, data_slices):
-            for i, d_io in zip(range(s[0], s[1]), d.ordinal):
-                ord_data[i] = d_io
-    elif source.ordinal is None:
-        for s, d in zip(slices, data_slices):
-            for i, d_ic in zip(range(s[0], s[1]), d.categorical):
-                cat_data[i] = d_ic
-    else:
-        for s, d in zip(slices, data_slices):
-            for i, d_io, d_ic in zip(range(s[0], s[1]),
-                                     d.ordinal, d.categorical):
-                ord_data[i] = d_io
-                cat_data[i] = d_ic
+    return slices
 
-    if len(ord_data) == 0:
-        ord_data = None
-    if len(cat_data) == 0:
-        cat_data = None
-    return ord_data, cat_data
+def _get_rows(slices, patch_reads, array):
+    # TODO make faster
+    data_slices = [array[s.start:s.stop] for s in slices]
+    data = {}
+    for s, d in zip(slices, data_slices):
+        for i, d_io in zip(range(s[0], s[1]), d):
+            data[i] = d_io
+    return data
 
 
 class TrainingDataProcessor:
@@ -112,12 +124,10 @@ class TrainingDataProcessor:
         ord_marray, cat_marray = None, None
         if self.feature_source.ordinal:
             ord_marray = _direct_read(self.feature_source.ordinal,
-                                      self.feature_source.ordinal.missing,
                                       patch_reads, mask_reads,
                                       npatches, patchwidth)
         if self.feature_source.categorical:
             cat_marray = _direct_read(self.feature_source.categorical,
-                                      self.feature_source.categorical.missing,
                                       patch_reads, mask_reads,
                                       npatches, patchwidth)
         strings = serialise(ord_marray, cat_marray, targets)
@@ -126,31 +136,38 @@ class TrainingDataProcessor:
 
 class QueryDataProcessor:
 
-    def __init__(self, image_spec, feature_file, halfwidth):
-        self.feature_file = feature_file
+    def __init__(self, image_spec, feature_path, halfwidth):
+        self.feature_path = feature_path
         self.halfwidth = halfwidth
         self.image_spec = image_spec
         self.feature_source = None
 
     def __call__(self, indices):
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_file)
-
+            self.feature_source = H5Features(self.feature_path)
         indices_x, indices_y = indices
         patch_reads, mask_reads = patch.patches(indices_x, indices_y,
                                                 self.halfwidth,
                                                 self.image_spec.width,
                                                 self.image_spec.height)
-        ord_data, cat_data = _get_rows(patch_reads, self.feature_source)
+        patch_data_slices = _slices_from_patches(patch_reads)
         npatches = indices_x.shape[0]
         patchwidth = 2 * self.halfwidth + 1
         ord_marray, cat_marray = None, None
-        if ord_data is not None:
-            ord_marray = _read(ord_data, self.feature_source.ordinal,
-                               patch_reads, mask_reads, npatches, patchwidth)
-        if cat_data is not None:
-            cat_marray = _read(cat_data, self.feature_source.categorical,
-                               patch_reads, mask_reads, npatches, patchwidth)
+        if self.feature_source.ordinal:
+            ord_data_cache = _get_rows(patch_data_slices, patch_reads,
+                                       self.feature_source.ordinal)
+            ord_marray = _cached_read(ord_data_cache,
+                                      self.feature_source.ordinal,
+                                      patch_reads, mask_reads, npatches,
+                                      patchwidth)
+        if self.feature_source.categorical:
+            cat_data_cache = _get_rows(patch_data_slices, patch_reads,
+                                       self.feature_source.categorical)
+            cat_marray = _cached_read(cat_data_cache,
+                                      self.feature_source.categorical,
+                                      patch_reads, mask_reads, npatches,
+                                      patchwidth)
         strings = serialise(ord_marray, cat_marray, None)
         return strings
 
@@ -178,15 +195,22 @@ class _DummyReader:
     def __call__(self, x):
         return x
 
+    def __enter__(self):
+        pass
 
-def write_querydata(features, image_spec, strip, total_strips, batchsize,
+    def __exit__(self, *args):
+        pass
+
+
+def write_querydata(feature_path, image_spec, strip, total_strips, batchsize,
                     halfwidth, n_workers, output_directory, tag):
-
-    it, n_total = indices_strip(image_spec, strip, total_strips, batchsize)
-
-    reader_spec = ClassSpec(_DummyReader)
-    worker_spec = ClassSpec(QueryDataProcessor,
-                            [image_spec, features, halfwidth])
+    true_batchsize = batchsize * image_spec.width
+    log.info("Writing query data to tfrecord in {}-row batches".format(
+        true_batchsize))
+    reader_src = _DummyReader()
+    it, n_total = indices_strip(image_spec, strip, total_strips,
+                                true_batchsize)
+    worker = QueryDataProcessor(image_spec, feature_path, halfwidth)
     tasks = list(it)
-    out_it = task_list(tasks, reader_spec, worker_spec, n_workers)
+    out_it = task_list(tasks, reader_src, worker, n_workers)
     tfwrite.query(out_it, n_total, output_directory, tag)

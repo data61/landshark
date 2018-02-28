@@ -34,7 +34,8 @@ class H5ArraySource(ArraySource):
     def __exit__(self, *args):
         self._hfile.close()
         del(self._carray)
-        del(self._coords)
+        if hasattr(self, "_coords"):
+            del(self._coords)
         del(self._hfile)
         super().__exit__()
 
