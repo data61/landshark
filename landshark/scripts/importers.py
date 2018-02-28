@@ -3,7 +3,7 @@
 import logging
 import os.path
 from glob import glob
-from multiprocessing import cpu_count, Pool
+from multiprocessing import cpu_count
 
 import tables
 import click

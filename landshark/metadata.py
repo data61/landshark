@@ -42,8 +42,8 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
             ntargets = hfile.root.categorical_data.atom.shape[0]
             target_dtype = CategoricalType
             target_labels = hfile.root.categorical_data.attrs.columns
-            target_counts = hfile.root.categorical_data.attrs.counts
-            target_map = hfile.root.categorical_data.attrs.mappings
+            target_counts = list(hfile.root.categorical_counts)
+            target_map = list(hfile.root.categorical_mappings)
         elif hasattr(hfile.root, "ordinal_data"):
             target_counts = None
             target_map = None
