@@ -109,7 +109,7 @@ class ArraySource(Sized):
             The section of the array to get
 
         """
-        if not self._open:
+        if not hasattr(self, "_open") or not self._open:
             raise RuntimeError("Array access must be within context manager")
         else:
             return self._arrayslice(s.start, s.stop)

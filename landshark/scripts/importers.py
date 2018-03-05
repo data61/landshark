@@ -75,8 +75,6 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     normalise = not nonormalise
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
-    otmp_filename = os.path.join(os.getcwd(), name + "_features_ORAW.hdf5")
-    ctmp_filename = os.path.join(os.getcwd(), name + "_features_CRAW.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
@@ -85,39 +83,18 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
         write_imagespec(spec, outfile)
 
-    if ordinal and not normalise:
-        log.info("Writing unnormalised ordinal data to output file")
-        with tables.open_file(out_filename, mode="r+", title=name) as outfile:
+        if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
-            write_ordinal(ord_source, outfile, nworkers, batchsize)
-
-    elif ordinal and normalise:
-        log.info("Writing unnormalised ordinal data to temporary file")
-        with tables.open_file(otmp_filename, mode="w", title=name) as tmpfile:
-            ord_source = OrdinalStackSource(spec, ord_filenames)
-            write_ordinal(ord_source, tmpfile, nworkers, batchsize)
-        # Compute stats with temp file
-        tmp_src = OrdinalH5ArraySource(otmp_filename)
-        stats = get_stats(tmp_src, batchsize, nworkers)
-        with tables.open_file(out_filename, mode="r+") as outfile:
+            stats = get_stats(ord_source, batchsize, nworkers) \
+                if normalise else None
             log.info("Writing normalised ordinal data to output file")
-            write_ordinal(tmp_src, outfile, nworkers, batchsize, stats)
-        # Delete temp file!
-        os.remove(otmp_filename)
+            write_ordinal(ord_source, outfile, nworkers, batchsize, stats)
 
-    if categorical:
-        with tables.open_file(ctmp_filename, mode="w", title=name) as tmpfile:
-            log.info("Writing unmapped categorical data to temporary file")
+        if categorical:
             cat_source = CategoricalStackSource(spec, cat_filenames)
-            write_categorical(cat_source, tmpfile, nworkers, batchsize)
-        # Compute mapping with temp file
-        tmp_src = CategoricalH5ArraySource(ctmp_filename)
-        maps = get_maps(tmp_src, batchsize, nworkers)
-        with tables.open_file(out_filename, mode="r+") as outfile:
+            maps = get_maps(cat_source, batchsize, nworkers)
             log.info("Writing mapped categorical data to output file")
-            write_categorical(tmp_src, outfile, nworkers, batchsize, maps)
-        # Delete temp file!
-        os.remove(ctmp_filename)
+            write_categorical(cat_source, outfile, nworkers, batchsize, maps)
 
     log.info("GTiff import complete")
 
