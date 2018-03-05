@@ -3,6 +3,7 @@
 import os.path
 import logging
 from collections import namedtuple
+from contextlib import ExitStack
 
 import rasterio
 from rasterio.io import DatasetReader
@@ -25,14 +26,16 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 Band = namedtuple("Band", ["image", "index"])
 
 
-def shared_image_spec(path_list: List[str]) -> ImageSpec:
+def shared_image_spec(path_list) -> ImageSpec:
     """Get the (hopefully matching) image spec from a list of images"""
-    all_images = [rasterio.open(k, "r") for k in path_list]
-    width = _match(lambda x: x.width, all_images, "width")
-    height = _match(lambda x: x.height, all_images, "height")
-    affine = _match_transforms([x.transform for x in all_images], all_images)
-    coords_x, coords_y = pixel_coordinates(width, height, affine)
-    crs = _match(lambda x: str(x.crs.data), all_images, "crs", anyof=True)
+    with ExitStack() as stack:
+        all_images = [stack.enter_context(rasterio.open(k, "r"))
+                      for k in path_list]
+        width = _match(lambda x: x.width, all_images, "width")
+        height = _match(lambda x: x.height, all_images, "height")
+        affine = _match_transforms([x.transform for x in all_images], all_images)
+        coords_x, coords_y = pixel_coordinates(width, height, affine)
+        crs = _match(lambda x: str(x.crs.data), all_images, "crs", anyof=True)
     imspec = ImageSpec(coords_x, coords_y, crs)
     return imspec
 
@@ -52,32 +55,72 @@ class _ImageStackSource(ArraySource):
         If not provided then a semi-sensible value is computed.
 
     """
-    def __init__(self, spec: ImageSpec, path_list: List[str]) -> None:
+
+    _type_name = ""
+
+    def __init__(self, image_spec, path_list: List[str],
+                 missing: int=-2147483648) -> None:
+
         """Construct an instance of ImageStack."""
-        all_images = [rasterio.open(k, "r") for k in path_list]
-        self._bands = _bands(all_images)
-        nbands = len(self._bands)
-        self._shape = (spec.height, spec.width, nbands)
-        self._missing = _missing(self._bands, dtype=self.dtype)
-        self._columns = _names(self._bands)
-        self._native = _block_rows(self._bands)
+        self._path_list = path_list
+        with ExitStack() as stack:
+            all_images = [stack.enter_context(rasterio.open(k, "r"))
+                          for k in path_list]
+            bands = _bands(all_images)
+            nbands = len(bands)
+            self._shape = (image_spec.height,
+                           image_spec.width, nbands)
+            self._missing = _missing(missing, bands, self.dtype)
+            self._columns = _names(bands)
+            self._native = _block_rows(bands)
 
-        log.info("Found {} {} bands".format(nbands, self.dtype))
-        log.info("Using tif block size of {} rows".format(self._native))
-
-    def _arrayslice(self, start: int, end: int) -> np.ndarray:
-        array = _read_slice(self._bands, start, end, self._shape[1],
-                            self.dtype)
-        return array
-
+        log.info("Found {} {} bands".format(nbands, self._type_name))
+        log.info("Largest tif block size is {} rows".format(self._native))
 
 
-class OrdinalStackArraySource(_ImageStackSource, OrdinalArraySource):
-    pass
+    def __enter__(self):
+        self._images = [rasterio.open(k, "r") for k in self._path_list]
+        self._bands = _bands(self._images)
+        super().__enter__()
 
 
-class CategoricalStackArraySource(_ImageStackSource, CategoricalArraySource):
-    pass
+    def __exit__(self, *args):
+        for i in self._images:
+            i.close()
+        del(self._images)
+        del(self._bands)
+        super().__exit__()
+        pass
+
+    def _arrayslice(self, start_row: int, end_row: int) -> np.ndarray:
+        """Create a generator that yields blocks of the image stack."""
+        assert start_row < end_row
+        w = ((start_row, end_row), (0, self._shape[1]))
+        shape = (end_row - start_row, self._shape[1], self.shape[-1])
+        out_array = np.empty(shape, dtype=self._dtype)
+
+        start_band = 0
+        for im in self._images:
+            stop_band = start_band + im.count
+            marray = im.read(window=w, masked=True).astype(self._dtype)
+            if self._missing is not None:
+                if np.sum(marray.data == self._missing) > 0:
+                    raise ValueError("Mask value detected in dataset")
+                marray.data[marray.mask] = self._missing
+            data = marray.data
+            data = np.moveaxis(data, 0, -1)
+            out_array[..., start_band:stop_band] = data
+            start_band = stop_band
+
+        return out_array
+
+
+class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
+    _type_name = "ordinal"
+
+
+class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
+    _type_name = "categorical"
 
 
 def _match(f: Callable[[Any], Any],
@@ -133,18 +176,15 @@ def _names(band_list: List[Band]) -> List[str]:
     return band_names
 
 
-def _missing(bands: List[Band], dtype: np.dtype) -> List[Any]:
+def _missing(value, bands: List[Band], dtype) -> Any:
     """
     Convert missing data values to a given dtype (rasterio workaround).
 
     Note that the list may contain 'None' where there are no missing values.
     """
-    lst = [b.image.nodatavals[b.index - 1] for b in bands]
-
-    def convert(x: Union[None, float]) -> Any:
-        return dtype(x) if x is not None else x
-    r = [convert(k) for k in lst]
-    return r
+    r_set = set([b.image.nodatavals[b.index - 1] for b in bands])
+    result = None if r_set == {None} else dtype(value)
+    return result
 
 
 def _bands(images: List[DatasetReader]) -> List[Band]:
@@ -167,17 +207,3 @@ def _block_rows(bands: List[Band]) -> int:
         block_list.append(block[0])
     blockrows = int(np.amax(block_list))  # LCM would be more efficient but meh
     return blockrows
-
-
-def _read_slice(band_list: List[Band], start_row: int, end_row: int,
-                width: int, dtype: np.dtype) -> np.ndarray:
-    """Create a generator that yields blocks of the image stack."""
-    assert width > 0
-    assert start_row < end_row
-    w = ((start_row, end_row), (0, width))
-    shape = (end_row - start_row, width, len(band_list))
-    out_array = np.empty(shape, dtype=dtype)
-    for i, b in enumerate(band_list):
-        a = b.image.read(b.index, window=w)
-        out_array[:, :, i] = a.astype(dtype)
-    return out_array

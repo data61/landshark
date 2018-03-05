@@ -1,14 +1,17 @@
 import numpy as np
+import logging
 
-from landshark.basetypes import ClassSpec
-from landshark.multiproc import task_list
+from tqdm import tqdm
+
+# from landshark.basetypes import ClassSpec
 from landshark import iteration
 from landshark.util import to_masked
 
+log = logging.getLogger(__name__)
 
-class Normaliser:
+
+class StatCounter:
     """Class that computes online mean and variance."""
-
     def __init__(self, n_features: int) -> None:
         """Initialise the counters."""
         self._mean = np.zeros(n_features)
@@ -49,47 +52,36 @@ class Normaliser:
         var = self._m2 / self._n
         return var
 
-
-class NormaliserPreprocessor:
-
-    def __init__(self, ncols, missing_values):
-        self.ncols = ncols
-        self.missing_values = missing_values
-
-    def __call__(self, x):
-        bs = x.reshape((-1, self.ncols))
-        bm = to_masked(bs, self.missing_values)
-        return bm
+    @property
+    def count(self) -> np.ndarray:
+        """Get the count of each feature."""
+        return self._n
 
 
-class OrdinalOutputTransform:
-    def __init__(self, mean, variance, missing_values):
-        self.mean = mean
-        self.variance = variance
-        self.missing_values = missing_values
+class Normaliser:
+
+    def __init__(self, mean, var):
+        self._mean = mean
+        self._var = var
 
     def __call__(self, x):
-        if (self.mean is None) or (self.variance is None):
-            return x
-        bm = to_masked(x, self.missing_values)
-        bm -= self.mean
-        bm /= np.sqrt(self.variance)
-        out = bm.data
-        return out
+        x0 = x - self._mean
+        xw = x0 / self._var
+        return xw
 
 
-def get_stats(array_src_spec, meta, batchsize, n_workers):
-    n_rows = meta.shape[0]
-    n_features = meta.shape[-1]
-    missing_values = meta.missing
-    norm = Normaliser(n_features)
-    it = list(iteration.batch_slices(batchsize, n_rows))
-    worker_spec = ClassSpec(NormaliserPreprocessor,
-                            [n_features, missing_values])
-    out_it = task_list(it, array_src_spec, worker_spec, n_workers)
-    for ma in out_it:
-        norm.update(ma)
-    return norm.mean, norm.variance
-
-
-
+def get_stats(src, batchsize, n_workers):
+    log.info("Computing ordinal feature statistics")
+    n_rows = src.shape[0]
+    n_cols = src.shape[-1]
+    stats = StatCounter(n_cols)
+    with tqdm(total=n_rows) as pbar:
+        with src:
+            for s in iteration.batch_slices(batchsize, n_rows):
+                x = src(s)
+                bs = x.reshape((-1, x.shape[-1]))
+                bm = to_masked(bs, src.missing)
+                stats.update(bm)
+                pbar.update(x.shape[0])
+    mean, variance = stats.mean, stats.variance
+    return mean, variance

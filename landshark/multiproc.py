@@ -13,46 +13,67 @@ log = logging.getLogger(__name__)
 
 class _Task(Process):
 
-    def __init__(self, class_spec, in_queue, out_queue, shutdown,
-                 blocktime=0.01):
+    def __init__(self, datasrc, f, in_queue, out_queue, shutdown,
+                 blocktime=0.1):
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.shutdown = shutdown
-        self.class_spec = class_spec
+        self.datasrc = datasrc
+        self.f = f
         super().__init__()
         self._blocktime = blocktime
 
 
     def run(self):
 
-        f = self.class_spec.instantiate()
         running = True
-        while running:
-            if self.shutdown.poll():
-                running = False
+        with self.datasrc:
+            while running:
+                if self.shutdown.poll():
+                    running = False
 
-            try:
-                task_id, in_data = self.in_queue.get(True, self._blocktime)
-                out_data = f(in_data)
-                self.out_queue.put((task_id, out_data))
-            except queue.Empty:
-                pass
+                try:
+                    task_id, req = self.in_queue.get(True, self._blocktime)
+                    data = self.datasrc(req)
+                    out_data = self.f(data)
+                    self.out_queue.put((task_id, out_data))
+                except queue.Empty:
+                    pass
 
 
-def task_list(task_list, reader_spec, worker_spec, n_workers,
-              req_queue_size=0, data_queue_size=1, result_queue_size=1):
+def task_list(task_list, reader, worker, n_workers, req_queue_size=0,
+              data_queue_size=1, result_queue_size=1):
+    if n_workers == 0:
+        return _task_list_0(task_list, reader, worker)
+    else:
+        return _task_list_multi(task_list, reader, worker, n_workers,
+                                req_queue_size, data_queue_size,
+                                result_queue_size)
+
+
+def _task_list_0(task_list, reader, worker):
+    total = len(task_list)
+    with reader:
+        with tqdm(total=total) as pbar:
+            for t in task_list:
+                data = reader(t)
+                output = worker(data)
+                yield output
+                pbar.update()
+
+
+def _task_list_multi(task_list, reader, worker, n_workers,
+                     req_queue_size=0, data_queue_size=1, result_queue_size=1):
     req_queue = Queue(req_queue_size)
-    data_queue = Queue(data_queue_size)
     result_queue = Queue(result_queue_size)
     shutdown_recv, shutdown_send = Pipe(False)
-    io_process = _Task(reader_spec, req_queue, data_queue, shutdown_recv)
-    worker_procs = [_Task(worker_spec, data_queue, result_queue, shutdown_recv)
+    worker_procs = [_Task(reader, worker, req_queue, result_queue,
+                          shutdown_recv)
                     for _ in range(n_workers)]
     cache = {}
 
     task_id = 0
     task_id_out = 0
-    io_process.start()
     for w in worker_procs:
         w.start()
 
@@ -76,6 +97,5 @@ def task_list(task_list, reader_spec, worker_spec, n_workers,
             pbar.update()
 
     shutdown_send.send(0)
-    io_process.join()
     for w in worker_procs:
         w.join()

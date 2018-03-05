@@ -1,16 +1,28 @@
 """Importing routines for tif data."""
 import logging
+from operator import iadd
+from functools import reduce
+from contextlib import ExitStack
 
+from tqdm import tqdm
 import tables
 # from typing import List, Union, Callable, Iterator
 
-from landshark.basetypes import get_metadata, ClassSpec, FixedSlice
-from landshark.category import get_categories, CategoricalOutputTransform
-from landshark.normalise import get_stats, OrdinalOutputTransform
+from landshark.basetypes import FixedSlice
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
+from landshark.category import CategoryMapper
+from landshark.normalise import Normaliser
 
 log = logging.getLogger(__name__)
+
+
+def _id(x):
+    return x
+
+def _cat(it):
+    result = [i for k in it for i in k]
+    return result
 
 
 def write_imagespec(spec, h5file):
@@ -21,81 +33,74 @@ def write_imagespec(spec, h5file):
                         obj=spec.y_coordinates)
 
 
-def write_ordinal(array_src_spec, h5file, batchsize, n_workers,
-                  normalise=True):
-    meta = get_metadata(array_src_spec)
-    batchsize = batchsize if batchsize else meta.native
-    shape = meta.shape[0:-1]
-    # The bands will form part of the atom
-    nbands = meta.shape[-1]
-    atom = tables.Float32Atom(shape=(nbands,))
+def _write_stats(hfile, stats):
+    if stats is not None:
+        mean, variance = stats
+    else:
+        mean, variance = None, None
+    hfile.root.ordinal_data.attrs.mean = mean
+    hfile.root.ordinal_data.attrs.variance = variance
+
+
+def _write_maps(hfile, maps):
+    if maps is not None:
+        _make_int_vlarray(hfile, "categorical_mappings", maps.mappings)
+        _make_int_vlarray(hfile, "categorical_counts", maps.counts)
+        hfile.root.categorical_data.attrs.missing = maps.missing
+
+
+def write_ordinal(source, hfile, n_workers, batchsize=None, stats=None):
+    transform = Normaliser(*stats) if stats else _id
+    n_workers = n_workers if stats else 0
+    _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
+                  "ordinal_data", transform, n_workers, batchsize)
+    _write_stats(hfile, stats)
+
+def write_categorical(source, hfile, n_workers, batchsize=None, maps=None):
+    transform = CategoryMapper(maps.mappings) if maps else _id
+    n_workers = n_workers if maps else 0
+    _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
+                  "categorical_data", transform, n_workers, batchsize)
+    _write_maps(hfile, maps)
+
+
+def _write_source(src, hfile, atom, name, transform,
+                  n_workers, batchsize=None):
+    front_shape = src.shape[0:-1]
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
-    array = h5file.create_carray(h5file.root, name="ordinal_data",
-                                 atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = meta.columns
-    missing = meta.missing
-    array.attrs.missing = missing
-    mean, variance = None, None
-    if normalise:
-        log.info("Computing statistics for standardisation:")
-        mean, variance = get_stats(array_src_spec, meta, batchsize, n_workers)
-    array.attrs.mean = mean
-    array.attrs.variance = variance
-
-    worker_spec = ClassSpec(OrdinalOutputTransform, [mean, variance, missing])
-    log.info("Writing ordinal data to disk:")
-    _write(array_src_spec, meta, array, worker_spec, batchsize, n_workers)
+    array = hfile.create_carray(hfile.root, name=name,
+                                atom=atom, shape=front_shape, filters=filters)
+    array.attrs.columns = src.columns
+    array.attrs.missing = src.missing
+    batchsize = batchsize if batchsize else src.native
+    log.info("Writing {} to HDF5 in {}-row batches".format(name, batchsize))
+    _write(src, array, batchsize, n_workers, transform)
 
 
-def write_categorical(array_src_spec, h5file, batchsize, n_workers):
-    meta = get_metadata(array_src_spec)
-    shape = meta.shape[0:-1]
-    # The bands will form part of the atom
-    nbands = meta.shape[-1]
-    atom = tables.Int32Atom(shape=(nbands,))
-    filters = tables.Filters(complevel=1, complib="blosc:lz4")
-    array = h5file.create_carray(h5file.root, name="categorical_data",
-                                 atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = meta.columns
-    res = get_categories(array_src_spec, meta, batchsize, n_workers)
-
-    _make_int_vlarray(h5file, "categorical_mappings", res.mappings)
-    _make_int_vlarray(h5file, "categorical_counts", res.counts)
-    array.attrs.missing = res.missing
-
-    worker_spec = ClassSpec(CategoricalOutputTransform, [res.mappings])
-    log.info("Writing categorical data to disk:")
-    _write(array_src_spec, meta, array, worker_spec, batchsize, n_workers)
-
+def _write(source, array, batchsize, n_workers, transform):
+    # Assume all the same
+    n_rows = len(source)
+    slices = list(batch_slices(batchsize, n_rows))
+    out_it = task_list(slices, source, transform, n_workers)
+    for s, d in with_slices(out_it):
+        array[s.start:s.stop] = d
+    array.flush()
 
 def write_coordinates(array_src, h5file, batchsize):
-    shape = array_src.shape[0:1]
-    atom = tables.Float64Atom(shape=(array_src.shape[1],))
-    filters = tables.Filters(complevel=1, complib="blosc:lz4")
-    array = h5file.create_carray(h5file.root, name="coordinates",
-                                 atom=atom, shape=shape, filters=filters)
-    array.attrs.columns = array_src.columns
-    array.attrs.missing = array_src.missing
-    it = batch_slices(batchsize, array_src.shape[0])
-    for start_idx, stop_idx in it:
-        # TODO: why do we need this squeeze??
-        array[start_idx: stop_idx] = \
-            array_src(FixedSlice(start_idx, stop_idx)).squeeze()
-
-
-def _write(source_spec, meta, array, worker_spec, batchsize, n_workers):
-    n_rows = meta.shape[0]
-    slices = list(batch_slices(batchsize, n_rows))
-    out_it = task_list(slices, source_spec, worker_spec, n_workers)
-    for (start_idx, end_idx), d in with_slices(out_it):
-        array[start_idx:end_idx] = d
-        array.flush()
+    with array_src:
+        shape = array_src.shape[0:1]
+        atom = tables.Float64Atom(shape=(array_src.shape[1],))
+        filters = tables.Filters(complevel=1, complib="blosc:lz4")
+        array = h5file.create_carray(h5file.root, name="coordinates",
+                                     atom=atom, shape=shape, filters=filters)
+        array.attrs.columns = array_src.columns
+        array.attrs.missing = array_src.missing
+        for s in batch_slices(batchsize, array_src.shape[0]):
+            array[s.start:s.stop] = array_src(s)
 
 
 def _make_int_vlarray(h5file, name, attribute):
-    filters = tables.Filters(complevel=1, complib="blosc:lz4")
     vlarray = h5file.create_vlarray(h5file.root, name=name,
-                                    atom=tables.Int32Atom(shape=()),
-                                    filters=filters)
+                                    atom=tables.Int32Atom(shape=()))
     for a in attribute:
         vlarray.append(a)

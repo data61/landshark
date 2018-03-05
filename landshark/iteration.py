@@ -28,5 +28,5 @@ def with_slices(it):
     start_idx = 0
     for d in it:
         end_idx = start_idx + d.shape[0]
-        yield (start_idx, end_idx), d
+        yield FixedSlice(start_idx, end_idx), d
         start_idx = end_idx
