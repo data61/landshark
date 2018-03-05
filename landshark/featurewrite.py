@@ -34,15 +34,19 @@ def write_imagespec(spec, h5file):
 
 
 def _write_stats(hfile, stats):
-    mean, variance = stats
+    if stats is not None:
+        mean, variance = stats
+    else:
+        mean, variance = None, None
     hfile.root.ordinal_data.attrs.mean = mean
     hfile.root.ordinal_data.attrs.variance = variance
 
 
 def _write_maps(hfile, maps):
-    _make_int_vlarray(hfile, "categorical_mappings", maps.mappings)
-    _make_int_vlarray(hfile, "categorical_counts", maps.counts)
-    hfile.root.categorical_data.attrs.missing = maps.missing
+    if maps is not None:
+        _make_int_vlarray(hfile, "categorical_mappings", maps.mappings)
+        _make_int_vlarray(hfile, "categorical_counts", maps.counts)
+        hfile.root.categorical_data.attrs.missing = maps.missing
 
 
 def write_ordinal(source, hfile, n_workers, batchsize=None, stats=None):
@@ -50,16 +54,14 @@ def write_ordinal(source, hfile, n_workers, batchsize=None, stats=None):
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
                   "ordinal_data", transform, n_workers, batchsize)
-    if stats:
-        _write_stats(hfile, stats)
+    _write_stats(hfile, stats)
 
 def write_categorical(source, hfile, n_workers, batchsize=None, maps=None):
     transform = CategoryMapper(maps.mappings) if maps else _id
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
                   "categorical_data", transform, n_workers, batchsize)
-    if maps:
-        _write_maps(hfile, maps)
+    _write_maps(hfile, maps)
 
 
 def _write_source(src, hfile, atom, name, transform,

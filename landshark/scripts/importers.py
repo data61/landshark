@@ -65,13 +65,14 @@ def _tifnames(directory: str) -> List[str]:
 @click.option("--batchsize", type=int, default=100)
 @click.option("--categorical", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
-@click.option("--normalise", is_flag=True)
+@click.option("--nonormalise", is_flag=True)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
-def tifs(categorical: str, ordinal: str, normalise: bool,
+def tifs(categorical: str, ordinal: str, nonormalise: bool,
          name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
+    normalise = not nonormalise
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     otmp_filename = os.path.join(os.getcwd(), name + "_features_ORAW.hdf5")
