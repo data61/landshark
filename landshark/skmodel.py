@@ -1,18 +1,18 @@
 """Scikit Learn training and testing with tf records."""
 import logging
 import os.path
+import json
 
-from tqdm import tqdm
 import tensorflow as tf
 import numpy as np
 import pickle
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, log_loss, r2_score, \
+    confusion_matrix
 
-from landshark.model import train_data, test_data
+from landshark.model import train_data, test_data, sample_weights_labels
 from landshark.serialise import deserialise
 from landshark.basetypes import CategoricalType, OrdinalType
-
-from sklearn.metrics import accuracy_score, log_loss, r2_score
-
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _get_data(records_train, records_test, metadata, npoints,
         train_dataset.output_types,
         train_dataset.output_shapes,
         shared_name="Iterator"
-    )
+        )
 
     train_init_op = iterator.make_initializer(train_dataset)
     test_init_op = iterator.make_initializer(test_dataset)
@@ -121,18 +121,22 @@ def _query_it(records_query, batch_size, metadata):
 def _convert_res(res):
     """Make sure Y adheres to our conventions."""
     y, extra = res
-    if type(extra) is list:
+    if isinstance(extra, list):
         extra = [e.astype(OrdinalType) for e in extra]
     else:
         extra = extra.astype(OrdinalType)
-    if y.ndim == 1:
-        y = y[:, np.newaxis]
+
     if y.dtype == np.float64 or y.dtype == np.float32:
+        if y.ndim == 1:
+            y = y[:, np.newaxis]
         y = y.astype(OrdinalType)
+
     elif y.dtype == np.int64 or y.dtype == np.int32:
         y = y.astype(CategoricalType)
         # Make binary classifier output consistent with TensorFlow
-        if extra.shape[1] <= 2:
+        if np.ndim(extra) < 2:
+            raise RuntimeError("The classifier needs to output E[y] and p(y)!")
+        if np.shape(extra)[1] <= 2:
             extra = extra[:, 1:]
     return y, extra
 
@@ -159,21 +163,30 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
 
     if classification:
         EYs, pys = res
+        sample_weights, labels = sample_weights_labels(metadata, EYs)
         acc = accuracy_score(y_array_test, EYs)
+        bacc = accuracy_score(y_array_test, EYs, sample_weight=sample_weights)
+        conf = confusion_matrix(y_array_test, EYs)
         nlabels = len(metadata.target_map[0])
         labels = np.arange(nlabels)
         lp = -1 * log_loss(y_array_test, pys, labels=labels)
         log.info("Sklearn acc: {:.5f}, lp: {:.5f}".format(acc, lp))
+        scores = {"acc": acc, "bacc": bacc, "lp": lp, "confmat": conf.tolist()}
 
     else:
         EYs, _ = res
         r2 = r2_score(y_array_test, EYs, multioutput='raw_values')
         log.info("Sklearn r2: {}" .format(r2))
+        scores = {"r2": r2}
 
     log.info("Saving model to disk")
     model_path = os.path.join(model_dir, "skmodel.pickle")
     with open(model_path, 'wb') as f:
         pickle.dump(model, f)
+
+    score_path = os.path.join(model_dir, "skmodel.json")
+    with open(score_path, 'w') as f:
+        json.dump(scores, f)
 
 
 def predict(modeldir, metadata, query_records, batch_size):
