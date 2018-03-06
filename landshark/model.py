@@ -10,10 +10,12 @@ from collections import namedtuple
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, log_loss, r2_score, \
+    confusion_matrix
+
 from landshark.metadata import TrainingMetadata
 from landshark.serialise import deserialise
-from tqdm import tqdm
-from sklearn.metrics import accuracy_score, log_loss, r2_score
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -226,10 +228,21 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
     return dataset
 
 
+def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
+        Tuple[np.array, np.array]:
+    """Calculate the samples weights and labels for classification."""
+    nlabels = len(metadata.target_map[0])
+    labels = np.arange(nlabels)
+    counts = np.bincount(Ys, minlength=nlabels)
+    weights = np.zeros_like(counts, dtype=float)
+    weights[counts != 0] = 1. / counts[counts != 0].astype(float)
+    sample_weights = weights[Ys]
+    return sample_weights, labels
+
+
 #
 # Private module utility functions
 #
-
 
 def _log_scores(scores: dict, initial_message: str="Aboleth ") -> None:
     """Log testing scores."""
@@ -337,19 +350,15 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     Ys = np.vstack(Ys)[:, 0]
     Ps = np.vstack(Ps)
     Ey = np.hstack(Eys)
-    nlabels = len(metadata.target_map[0])
-    labels = np.arange(nlabels)
-    counts = np.bincount(Ys, minlength=nlabels)
-    weights = np.zeros_like(counts, dtype=float)
-    weights[counts != 0] = 1. / counts[counts != 0].astype(float)
-    sample_weights = weights[Ys]
+    sample_weights, labels = sample_weights_labels(metadata, Ys)
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
+    conf = confusion_matrix(Ys, Ey)
     lp = float(-1 * log_loss(Ys, Ps, labels=labels))
     _scalar_summary(acc, sess, "accuracy", step)
     _scalar_summary(bacc, sess, "balanced accuracy", step)
     _scalar_summary(lp, sess, "log probability", step)
-    scores = {"acc": acc, "bacc": bacc, "lp": lp}
+    scores = {"acc": acc, "bacc": bacc, "lp": lp, "confmat": conf.tolist()}
     return scores
 
 
