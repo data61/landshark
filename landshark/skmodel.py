@@ -177,7 +177,12 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
 
     else:
         EYs, _ = res
-        r2 = r2_score(y_array_test, EYs, multioutput='raw_values')
+        r2_arr = r2_score(y_array_test, EYs, multioutput='raw_values')
+        if r2_arr.size == 1:
+            r2 = r2_arr[0]
+        else:
+            r2 = list(r2_arr)
+
         log.info("Sklearn r2: {}" .format(r2))
         scores = {"r2": r2}
 
