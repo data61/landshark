@@ -65,7 +65,8 @@ def _get_data(records_train, records_test, metadata, npoints,
               batch_size, random_seed):
     data_frac = min(npoints / metadata.N, 1.0)
 
-    train_dataset = train_data(records_train, batch_size, epochs=1)
+    train_dataset = train_data(records_train, batch_size, epochs=1,
+                               random_seed=random_seed)
     test_dataset = test_data(records_test, batch_size)
 
     iterator = tf.data.Iterator.from_structure(
@@ -155,7 +156,8 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
     userconfig = __import__(config_module)
 
     log.info("Training model")
-    model = userconfig.SKModel(metadata)
+    model = userconfig.SKModel(metadata, random_seed=random_seed)
+
     model.fit(ord_array, cat_array, y_array)
     log.info("Evaluating test data")
     res = model.predict(ord_array_test, cat_array_test)
