@@ -25,19 +25,19 @@ setup(
         ]
     },
     install_requires=[
-        "numpy==1.13.3",
-        "scipy==1.0.0",
-        "click==6.7",
+        "numpy>=1.13.3",
+        "scipy>=1.0.0",
+        "click>=6.7",
         "GDAL==2.0.1",
-        "rasterio==1.0a10",
-        "tables==3.4.2",
-        "pyshp==1.2.12",
-        "mypy==0.521",
-        "mypy_extensions==0.3.0",
-        "lru-dict==1.1.6",
-        "tqdm",
-        "scikit-learn",
-        "aboleth"
+        "rasterio>=1.0a10",
+        "tables>=3.4.2",
+        "pyshp>=1.2.12",
+        "mypy>=0.521",
+        "mypy_extensions>=0.3.0",
+        "lru-dict>=1.1.6",
+        "tqdm>=4.19.6",
+        "scikit-learn>=0.19.1",
+        "aboleth>=0.7.0"
     ],
 
     extras_require={
