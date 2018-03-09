@@ -3,29 +3,33 @@
 import logging
 import os.path
 from glob import glob
-from multiprocessing import cpu_count, Pool
+from multiprocessing import cpu_count
 
 import tables
 import click
 # mypy type checking
 from typing import List
 
-from landshark.tifread import shared_image_spec, OrdinalStackArraySource, \
-    CategoricalStackArraySource
+# from landshark.basetypes import ClassSpec
+from landshark.tifread import shared_image_spec, OrdinalStackSource, \
+    CategoricalStackSource
 
 # from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
     write_categorical, write_coordinates
-from landshark.shpread import OrdinalShpArraySource,  \
+from landshark.shpread import OrdinalShpArraySource, \
     CategoricalShpArraySource, CoordinateShpArraySource
 # from landshark.importers import tfwrite
 # from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
 # from landshark import feed
-from landshark.hread import read_image_spec
+from landshark.hread import read_image_spec, OrdinalH5ArraySource, CategoricalH5ArraySource
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
-from landshark.image import strip_image_spec
+# from landshark.image import strip_image_spec
+
+from landshark.normalise import get_stats
+from landshark.category import get_maps
 
 log = logging.getLogger(__name__)
 
@@ -58,16 +62,17 @@ def _tifnames(directory: str) -> List[str]:
 
 
 @cli.command()
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=100)
 @click.option("--categorical", type=click.Path(exists=True))
 @click.option("--ordinal", type=click.Path(exists=True))
+@click.option("--nonormalise", is_flag=True)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
-def tifs(categorical: str, ordinal: str,
+def tifs(categorical: str, ordinal: str, nonormalise: bool,
          name: str, nworkers: int, batchsize: int) -> int:
     """Build a tif stack from a set of input files."""
-    pool = Pool(nworkers)
+    normalise = not nonormalise
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
@@ -75,81 +80,97 @@ def tifs(categorical: str, ordinal: str,
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames)
 
-    with tables.open_file(out_filename, mode="w", title=name) as h5file:
-
-        write_imagespec(spec, h5file)
+    with tables.open_file(out_filename, mode="w", title=name) as outfile:
+        write_imagespec(spec, outfile)
 
         if ordinal:
-            ord_source = OrdinalStackArraySource(spec, ord_filenames)
-            write_ordinal(ord_source, h5file, batchsize, pool)
+            ord_source = OrdinalStackSource(spec, ord_filenames)
+            stats = get_stats(ord_source, batchsize, nworkers) \
+                if normalise else None
+            log.info("Writing normalised ordinal data to output file")
+            write_ordinal(ord_source, outfile, nworkers, batchsize, stats)
 
         if categorical:
-            cat_source = CategoricalStackArraySource(spec, cat_filenames)
-            write_categorical(cat_source, h5file, batchsize, pool)
+            cat_source = CategoricalStackSource(spec, cat_filenames)
+            maps = get_maps(cat_source, batchsize, nworkers)
+            log.info("Writing mapped categorical data to output file")
+            write_categorical(cat_source, outfile, nworkers, batchsize, maps)
+
+    log.info("GTiff import complete")
 
     return 0
+
 
 @cli.command()
 @click.argument("targets", type=str, nargs=-1)
 @click.option("--shapefile", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=100)
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
+@click.option("--normalise", is_flag=True)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
-            every: int, categorical: bool,
-            nworkers: int, random_seed: int) -> int:
+            every: int, categorical: bool, nworkers: int, normalise: bool,
+            random_seed: int) -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
-    pool = Pool(nworkers)
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
-    with tables.open_file(out_filename, mode="w", title=name) as h5file:
 
+    with tables.open_file(out_filename, mode="w", title=name) as h5file:
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
         write_coordinates(coord_src, h5file, batchsize)
 
         if categorical:
-            cat_source = CategoricalShpArraySource(shapefile, targets,
-                                                   random_seed)
-            write_categorical(cat_source, h5file, batchsize, pool)
+            cat_source = CategoricalShpArraySource(
+                shapefile, targets, random_seed)
+            maps = get_maps(cat_source, batchsize, nworkers)
+            write_categorical(cat_source, h5file, nworkers, batchsize, maps)
         else:
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
-            write_ordinal(ord_source, h5file, batchsize, pool)
+            stats = get_stats(ord_source, batchsize, nworkers) \
+                if normalise else None
+            write_ordinal(ord_source, h5file, batchsize, stats)
+
+    log.info("Target import complete")
+
     return 0
 
 
 @cli.command()
 @click.argument("features", type=click.Path(exists=True))
 @click.argument("targets", type=click.Path(exists=True))
-@click.option("--test_frac", type=float, default=0.1)
-@click.option("--halfwidth", type=int, default=1)
-@click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--folds", type=click.IntRange(2, None), default=10)
+@click.option("--testfold", type=click.IntRange(1, None), default=1)
+@click.option("--halfwidth", type=click.IntRange(0, None), default=1)
+@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
+@click.option("--batchsize", type=click.IntRange(1, None), default=100)
 @click.option("--random_seed", type=int, default=666)
-def trainingdata(features: str, targets: str, test_frac: int,
-                 halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int):
+def trainingdata(features: str, targets: str, testfold: int,
+                 folds: int, halfwidth: int, batchsize: int, nworkers: int,
+                 random_seed: int) -> int:
     """Get training data."""
-    pool = Pool(nworkers)
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
         os.path.basename(targets).rsplit("_targets.")[0]
-    directory = os.path.join(os.getcwd(), name + "_trainingdata")
+    directory = os.path.join(os.getcwd(), name +
+                             "_traintest{}of{}".format(testfold, folds))
 
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
-                                 halfwidth, pool, directory,
-                                 test_frac, random_seed)
+                                 halfwidth, nworkers, directory,
+                                 testfold, folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train)
     write_metadata(directory, metadata)
+    log.info("Training import complete")
+    return 0
 
 
 @cli.command()
 @click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1000)
+@click.option("--batchsize", type=int, default=1)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=1)
 @click.argument("strip", type=int)
@@ -157,7 +178,6 @@ def trainingdata(features: str, targets: str, test_frac: int,
 def querydata(features: str, batchsize: int, nworkers: int,
               halfwidth: int, strip: int, totalstrips: int) -> int:
     """Grab a chunk for prediction."""
-    pool = Pool(nworkers)
     log.info("Using {} worker processes".format(nworkers))
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
@@ -171,5 +191,6 @@ def querydata(features: str, batchsize: int, nworkers: int,
     image_spec = read_image_spec(features)
     tag = "query.{}of{}".format(strip, totalstrips)
     write_querydata(features, image_spec, strip, totalstrips,
-                    batchsize, halfwidth, pool, directory, tag)
+                    batchsize, halfwidth, nworkers, directory, tag)
+    log.info("Query import complete")
     return 0

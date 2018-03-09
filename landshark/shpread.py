@@ -58,8 +58,9 @@ class _ShpArraySource(ArraySource):
         all_fields, all_dtypes = _get_record_info(self._sf)
         self._columns = labels
         self._column_indices = _get_indices(self._columns, all_fields)
+        self._original_dtypes = [all_dtypes[i] for i in self._column_indices]
         self._shape = (self._sf.numRecords, len(labels))
-        self._missing = [None] * self._shape[1]
+        self._missing = None
         log.info("Shapefile contains {} records "
                  "of {} requested columns.".format(
                      self._shape[0], self._shape[1]))
@@ -73,6 +74,7 @@ class _ShpArraySource(ArraySource):
         data = [[r[i] for i in self._column_indices] for r in records]
         array = np.array(data, dtype=self.dtype)
         return array
+
 
 
 class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
@@ -89,7 +91,7 @@ class CoordinateShpArraySource(CoordinateArraySource):
         self._sf = shapefile.Reader(filename)
         self._shape = (self._sf.numRecords, 2)
         self._native = 1
-        self._missing = [None, None]
+        self._missing = None
         self._columns = ["X", "Y"]
         rnd = np.random.RandomState(random_seed)
         self._perm = rnd.permutation(self._shape[0])
@@ -98,5 +100,7 @@ class CoordinateShpArraySource(CoordinateArraySource):
         indices = self._perm[start: end]
         coords = [self._sf.shape(r).__geo_interface__["coordinates"]
                   for r in indices]
-        array = np.array(coords, dtype=self.dtype)
+        array = np.array(coords, dtype=self.dtype).squeeze()
+        if array.ndim == 1:
+            array == array[:, np.newaxis]
         return array

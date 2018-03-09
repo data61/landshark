@@ -4,7 +4,7 @@ import logging
 from collections import namedtuple
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized
+from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Any, Dict
 
 log = logging.getLogger(__name__)
 
@@ -14,40 +14,17 @@ CategoricalType = np.int32
 NumericalType = Union[np.float32, np.int32]
 MissingType = Optional[NumericalType]
 CoordinateType = np.float64
+DataType = Union[OrdinalType, CategoricalType, CoordinateType]
 
 FeatureValues = namedtuple("FeatureValues",
-                           ["ordinal", "categorical", "coordinates"])
+                           ["ordinal", "categorical"])
 
 
-class FixedSlice:
-    """
-    Slice object that requires a start and end point.
+class FixedSlice(NamedTuple):
+    """simpler slice."""
 
-    This is mainly for typing reasons, in a normal slice start and stop
-    can be None. This is not allowed in this class.
-
-    Parameters
-    ----------
-    start : int
-        Start of the slice (inclusive).
-    stop : int
-        End of the slice (exclusive).
-
-    """
-
-    def __init__(self, start: int, stop: int) -> None:
-        """Initialise the object."""
-        assert start >= 0
-        assert stop >= start
-        self.start = start
-        self.stop = stop
-
-    @property
-    def as_slice(self) -> slice:
-        """Convert to a python native slice."""
-        s = slice(self.start, self.stop)
-        return s
-
+    start: int
+    stop: int
 
 class ArraySource(Sized):
     """Abstract UniData interface."""
@@ -57,8 +34,9 @@ class ArraySource(Sized):
         self._shape = (0, 0)
         self._native = 0
         self._dtype = OrdinalType
-        self._missing: List[MissingType] = []
+        self._missing: MissingType = None
         self._columns: List[str] = []
+        self._open = False
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -95,18 +73,15 @@ class ArraySource(Sized):
         return self._native
 
     @property
-    def missing(self) -> List[MissingType]:
+    def missing(self) -> MissingType:
         """
-        Get the special values that show missing data for each feature.
-
-        Features are indexed by the LAST axis.
+        Get the special value that show missing data for the features.
 
         Returns
         -------
-        m : List[MissingType]
-            A list entry for each feature, with either the missing value
-            or None to indicate there is no missing value defined.
-
+        m : MissingType
+            The value to indicate missingness or none if there is no
+            missing values
         """
         return self._missing
 
@@ -124,27 +99,39 @@ class ArraySource(Sized):
         """
         return self._columns
 
-    def slice(self, start: int, end: int) -> np.ndarray:
+    def __call__(self, s: FixedSlice) -> np.ndarray:
         """
         Get a slice from the array along the first dimension.
 
         Parameters
         ----------
-        start : int
-            The start of the slice (inclusive)
-        end : int
-            The end of the slice (exclusive)
-
-        Returns
-        -------
-        array : np.ndarray
-            The values of the slice. First dimension will have length
-            end - start.
+        s : FixedSlice
+            The section of the array to get
 
         """
-        return self._arrayslice(start, end)
+        if not hasattr(self, "_open") or not self._open:
+            raise RuntimeError("Array access must be within context manager")
+        else:
+            return self._arrayslice(s.start, s.stop)
 
-    def _arrayslice(self, start: int, end: int) -> np.ndarray:
+    def __enter__(self) -> None:
+        """
+        Enter the context.
+
+        TODO
+        """
+        self._open = True
+
+
+    def __exit__(self, *args) -> None:
+        """
+        Exit the context.
+
+        TODO
+        """
+        self._open = False
+
+    def _arrayslice(self, start: int, stop: int) -> np.ndarray:
         """Perform the array slice. This gets overridden by children."""
         raise NotImplementedError
 

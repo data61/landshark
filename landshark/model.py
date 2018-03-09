@@ -1,18 +1,21 @@
 """Train/test with tfrecords."""
 import signal
 import logging
+import json
 import os.path
-from typing import List, Any, Generator, Optional, Tuple, Union, Iterable
+from typing import List, Any, Generator, Optional, Dict, Union, Iterable, Tuple
 from itertools import count
 from collections import namedtuple
 
 import numpy as np
 import tensorflow as tf
 import aboleth as ab
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, log_loss, r2_score, \
+    confusion_matrix
+
 from landshark.metadata import TrainingMetadata
 from landshark.serialise import deserialise
-from tqdm import tqdm
-from sklearn.metrics import accuracy_score, log_loss, r2_score
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -89,8 +92,7 @@ def train_test(records_train: List[str],
         test_fdict = {_samples: params.test_samples}
 
         if classification:
-            prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
-            Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+            prob, Ey = _decision(lkhood)
         else:
             logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
             Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
@@ -128,24 +130,15 @@ def train_test(records_train: List[str],
                 # Test loop
                 sess.run(test_init_op, feed_dict=test_fdict)
                 if classification:
-                    *scores, lp = _classify_test_loop(Y, Ey, prob, sess,
-                                                      test_fdict, metadata,
-                                                      step)
+                    scores = _classify_test_loop(Y, Ey, prob, sess, test_fdict,
+                                                 metadata, step)
                 else:
-                    *scores, lp = _regress_test_loop(Y, Ey, logprob, sess,
-                                                     test_fdict, metadata,
-                                                     step)
-                saver.save(lp, *scores)
-
+                    scores = _regress_test_loop(Y, Ey, logprob, sess,
+                                                test_fdict, metadata, step)
+                saver.save(scores)
+                _log_scores(scores, "Aboleth ")
             except KeyboardInterrupt:
                 log.info("Training stopped on keyboard input")
-                if classification:
-                    lp, acc, bacc = saver.best_scores
-                    log.info("Final acc: {:.5f}, Final bacc: {:.5f}, "
-                             "Final lp: {:.5f}.".format(acc, bacc, lp))
-                else:
-                    lp, r2 = saver.best_scores
-                    log.info("Final r2: {}, Final mlp: {:.5f}.".format(r2, lp))
                 break
 
 
@@ -218,12 +211,12 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     return slices
 
 
-def train_data(records: List[str], batch_size: int, epochs: int=1) \
-        -> tf.data.TFRecordDataset:
+def train_data(records: List[str], batch_size: int, epochs: int=1,
+               random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:
     """Train dataset feeder."""
     dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
         .repeat(count=epochs) \
-        .shuffle(buffer_size=1000) \
+        .shuffle(buffer_size=1000, seed=random_seed) \
         .batch(batch_size)
     return dataset
 
@@ -235,9 +228,29 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
     return dataset
 
 
+def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
+        Tuple[np.array, np.array]:
+    """Calculate the samples weights and labels for classification."""
+    nlabels = len(metadata.target_map[0])
+    labels = np.arange(nlabels)
+    counts = np.bincount(Ys, minlength=nlabels)
+    weights = np.zeros_like(counts, dtype=float)
+    weights[counts != 0] = 1. / counts[counts != 0].astype(float)
+    sample_weights = weights[Ys]
+    return sample_weights, labels
+
+
 #
 # Private module utility functions
 #
+
+def _log_scores(scores: dict, initial_message: str="Aboleth ") -> None:
+    """Log testing scores."""
+    logmsg = str(initial_message)
+    for k, v in scores.items():
+        logmsg += "{}: {} ".format(k, v)
+    log.info(logmsg)
+
 
 def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
                  feed_dict: dict) -> Any:
@@ -257,27 +270,53 @@ def _fix_samples(graph: tf.Graph, sess: tf.Session, eval_list: List[tf.Tensor],
     return res[0:neval]
 
 
+def _decision(lkhood: tf.distributions.Distribution,
+              binary_threshold: float=0.5) -> Tuple[tf.Tensor, tf.Tensor]:
+    """Get a decision from a binary or multiclass classifier."""
+    prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
+    # Multiclass
+    if prob.shape[1] > 1:
+        Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+    # Binary
+    else:
+        Ey = tf.squeeze(prob > binary_threshold, name="Ey")
+    return prob, Ey
+
+
 class _BestScoreSaver:
-    """Saver for only saving the best model based on held out score."""
+    """Saver for only saving the best model based on held out score.
 
-    # TODO - see if we can make the "best score" persist between runs?
+    This now persists between runs by keeping a JSON file in the model
+    directory.
+    """
 
-    def __init__(self, directory: str) -> None:
+    def __init__(self, directory: str, score_name: str="lp") -> None:
         """Saver initialiser."""
-        self.path = os.path.join(directory, "model_best.ckpt")
-        self.best_scores = [-1 * np.inf]
+        self.model_path = os.path.join(directory, "model_best.ckpt")
+        self.score_path = os.path.join(directory, "model_best.json")
+        self.score_name = score_name
+        if os.path.exists(self.score_path):
+            with open(self.score_path, "r") as f:
+                self.best_scores = json.load(f)
+        else:
+            self.best_scores = {score_name: -1 * np.inf}
         self.saver = tf.train.Saver()
 
     def attach_session(self, session: tf.Session) -> None:
         """Attach a session to save."""
         self.sess = session
 
-    def save(self, score: float, *other_scores: float) -> None:
+    def save(self, scores: dict) -> None:
         """Save the session *only* if the best score is exceeded."""
-        if score > self.best_scores[0]:
-            self.best_scores = [score] + list(other_scores)
-            self.saver.save(self.sess, self.path)
-            log.info("New best model saved with score: {}".format(score))
+        if self.score_name not in scores:
+            raise ValueError("score_name has to be in dictionary of scores!")
+        if scores[self.score_name] > self.best_scores[self.score_name]:
+            self.best_scores = scores
+            self.saver.save(self.sess, self.model_path)
+            with open(self.score_path, "w") as f:
+                json.dump(self.best_scores, f)
+            log.info("New best model saved with score: {}"
+                     .format(self.best_scores[self.score_name]))
 
 
 def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
@@ -295,7 +334,7 @@ def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
 def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
                         sess: tf.Session, fdict: dict,
                         metadata: TrainingMetadata, step: int) \
-        -> Tuple[float, float, float]:
+        -> Dict[str, Union[List[float], float]]:
     """Test the trained classifier on held out data."""
     Eys = []
     Ys = []
@@ -311,27 +350,22 @@ def _classify_test_loop(Y: tf.Tensor, Ey: tf.Tensor, prob: tf.Tensor,
     Ys = np.vstack(Ys)[:, 0]
     Ps = np.vstack(Ps)
     Ey = np.hstack(Eys)
-    nlabels = len(metadata.target_map[0])
-    labels = np.arange(nlabels)
-    counts = np.bincount(Ys, minlength=nlabels)
-    weights = np.zeros_like(counts, dtype=float)
-    weights[counts != 0] = 1. / counts[counts != 0].astype(float)
-    sample_weights = weights[Ys]
+    sample_weights, labels = sample_weights_labels(metadata, Ys)
     acc = accuracy_score(Ys, Ey)
     bacc = accuracy_score(Ys, Ey, sample_weight=sample_weights)
-    lp = -1 * log_loss(Ys, Ps, labels=labels)
+    conf = confusion_matrix(Ys, Ey)
+    lp = float(-1 * log_loss(Ys, Ps, labels=labels))
     _scalar_summary(acc, sess, "accuracy", step)
     _scalar_summary(bacc, sess, "balanced accuracy", step)
     _scalar_summary(lp, sess, "log probability", step)
-    log.info("Aboleth acc: {:.5f}, bacc: {:.5f}, lp: {:.5f}"
-             .format(acc, bacc, lp))
-    return acc, bacc, lp
+    scores = {"acc": acc, "bacc": bacc, "lp": lp, "confmat": conf.tolist()}
+    return scores
 
 
 def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
                        sess: tf.Session, fdict: dict,
                        metadata: TrainingMetadata, step: int) \
-        -> Tuple[float, float]:
+        -> Dict[str, Union[List[float], float]]:
     """Test the trained regressor on held out data."""
     Ys, EYs, LP = [], [], []
     try:
@@ -345,12 +379,12 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
         pass
     Ys = np.vstack(Ys)
     EYs = np.vstack(EYs)
-    lp = np.concatenate(LP, axis=1).mean()
-    r2 = r2_score(Ys, EYs, multioutput="raw_values")
+    lp = float(np.concatenate(LP, axis=1).mean())
+    r2 = list(r2_score(Ys, EYs, multioutput="raw_values"))
     _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
-    log.info("Aboleth r2: {}, mlp: {:.5f}" .format(r2, lp))
-    return r2, lp
+    scores = {"r2": r2, "lp": lp}
+    return scores
 
 
 def _scalar_summary(scalar: Union[int, bool, float], session: tf.Session,

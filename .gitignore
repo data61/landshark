@@ -106,9 +106,6 @@ ENV/
 # test stuff
 test_output/
 
-# configs
-configs/
-
 # data dir
 data/
 

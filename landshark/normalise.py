@@ -1,12 +1,17 @@
 import numpy as np
+import logging
 
+from tqdm import tqdm
+
+# from landshark.basetypes import ClassSpec
 from landshark import iteration
 from landshark.util import to_masked
 
+log = logging.getLogger(__name__)
 
-class Normaliser:
+
+class StatCounter:
     """Class that computes online mean and variance."""
-
     def __init__(self, n_features: int) -> None:
         """Initialise the counters."""
         self._mean = np.zeros(n_features)
@@ -19,11 +24,16 @@ class Normaliser:
         assert array.shape[0] > 1
 
         new_n = np.ma.count(array, axis=0)
-        new_mean = np.ma.mean(array, axis=0)
-        new_m2 = np.ma.var(array, axis=0, ddof=0) * new_n
+        new_mean = (np.ma.mean(array, axis=0)).data
+        new_mean[new_n == 0] = 0.  # enforce this condition
+        new_m2 = (np.ma.var(array, axis=0, ddof=0) * new_n).data
+
+        add_n = new_n + self._n
+        if any(add_n == 0):  # catch any totally masked images
+            add_n[add_n == 0] = 1
 
         delta = new_mean - self._mean
-        delta_mean = delta * (new_n / (new_n + self._n))
+        delta_mean = delta * (new_n / add_n)
 
         self._mean += delta_mean
         self._m2 += new_m2 + (delta * self._n * delta_mean)
@@ -42,44 +52,36 @@ class Normaliser:
         var = self._m2 / self._n
         return var
 
-class NormaliserPreprocessor:
-
-    def __init__(self, ncols, missing_values):
-        self.ncols = ncols
-        self.missing_values = missing_values
-
-    def __call__(self, x):
-        bs = x.reshape((-1, self.ncols))
-        bm = to_masked(bs, self.missing_values)
-        return bm
+    @property
+    def count(self) -> np.ndarray:
+        """Get the count of each feature."""
+        return self._n
 
 
-class OrdinalOutputTransform:
-    def __init__(self, mean, variance, missing_values):
-        self.mean = mean
-        self.variance = variance
-        self.missing_values = missing_values
+class Normaliser:
+
+    def __init__(self, mean, var):
+        self._mean = mean
+        self._var = var
 
     def __call__(self, x):
-        bm = to_masked(x, self.missing_values)
-        bm -= self.mean
-        bm /= np.sqrt(self.variance)
-        out = bm.data
-        return out
+        x0 = x - self._mean
+        xw = x0 / self._var
+        return xw
 
 
-def get_stats(array_src, batchsize, pool):
-    n_rows = array_src.shape[0]
-    n_features = array_src.shape[-1]
-    missing_values = array_src.missing
-    norm = Normaliser(n_features)
-    it = iteration.batch_slices(batchsize, n_rows)
-    f = NormaliserPreprocessor(n_features, missing_values)
-    data_it = ((array_src.slice(start, end)) for start, end in it)
-    out_it = pool.imap(f, data_it)
-    for ma in out_it:
-        norm.update(ma)
-    return norm.mean, norm.variance
-
-
-
+def get_stats(src, batchsize, n_workers):
+    log.info("Computing ordinal feature statistics")
+    n_rows = src.shape[0]
+    n_cols = src.shape[-1]
+    stats = StatCounter(n_cols)
+    with tqdm(total=n_rows) as pbar:
+        with src:
+            for s in iteration.batch_slices(batchsize, n_rows):
+                x = src(s)
+                bs = x.reshape((-1, x.shape[-1]))
+                bm = to_masked(bs, src.missing)
+                stats.update(bm)
+                pbar.update(x.shape[0])
+    mean, variance = stats.mean, stats.variance
+    return mean, variance
