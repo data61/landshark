@@ -211,12 +211,12 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     return slices
 
 
-def train_data(records: List[str], batch_size: int, epochs: int=1) \
-        -> tf.data.TFRecordDataset:
+def train_data(records: List[str], batch_size: int, epochs: int=1,
+               random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:
     """Train dataset feeder."""
     dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
         .repeat(count=epochs) \
-        .shuffle(buffer_size=1000) \
+        .shuffle(buffer_size=1000, seed=random_seed) \
         .batch(batch_size)
     return dataset
 
