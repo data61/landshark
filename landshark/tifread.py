@@ -26,7 +26,8 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 Band = namedtuple("Band", ["image", "index"])
 
 
-def shared_image_spec(path_list) -> ImageSpec:
+def shared_image_spec(path_list: List[str],
+                      ignore_crs: bool=False) -> ImageSpec:
     """Get the (hopefully matching) image spec from a list of images"""
     with ExitStack() as stack:
         all_images = [stack.enter_context(rasterio.open(k, "r"))
@@ -35,7 +36,9 @@ def shared_image_spec(path_list) -> ImageSpec:
         height = _match(lambda x: x.height, all_images, "height")
         affine = _match_transforms([x.transform for x in all_images], all_images)
         coords_x, coords_y = pixel_coordinates(width, height, affine)
-    crs = _match(lambda x: x.crs.data, all_images, "crs", anyof=True)
+
+    crs = _match(lambda x: x.crs.data if x.crs else None,
+                 all_images, "crs", anyof=ignore_crs)
     imspec = ImageSpec(coords_x, coords_y, crs)
     return imspec
 
