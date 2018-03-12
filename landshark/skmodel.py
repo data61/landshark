@@ -184,7 +184,7 @@ def train_test(config_module, records_train, records_test, metadata, model_dir,
             r2 = list(r2_arr)
 
         log.info("Sklearn r2: {}" .format(r2))
-        scores = {"r2": r2}
+        scores = {"r2": r2.tolist()}
 
     log.info("Saving model to disk")
     model_path = os.path.join(model_dir, "skmodel.pickle")

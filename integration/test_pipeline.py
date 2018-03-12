@@ -18,7 +18,7 @@ model_files = {"regression": {"landshark": "nnr.py",
 
 target_files = {"regression": {"target": "Na_ppm_i_1",
                                "args": []},
-                "classification": {"target": "LITHNAME",
+                "classification": {"target": "SAMPLETYPE",
                                    "args": ["--categorical"]}}
 
 training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
@@ -34,7 +34,7 @@ def whichproblem(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 2])
+@pytest.fixture(params=[0, 1])
 def number_of_cpus(request):
     return request.param
 

@@ -9,10 +9,11 @@ from typing import Tuple, List
 
 from landshark import iteration
 from landshark.basetypes import CategoricalType
+from landshark.util import to_masked
 
 log = logging.getLogger(__name__)
 
-CategoryInfo = namedtuple("CategoryInfo", ["mappings", "counts", "missing"])
+CategoryInfo = namedtuple("CategoryInfo", ["mappings", "counts"])
 
 
 def unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
@@ -25,9 +26,10 @@ def unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
 class _CategoryAccumulator:
     """Class for accumulating categorical values and their counts."""
 
-    def __init__(self) -> None:
+    def __init__(self, missing_value) -> None:
         """Initialise the object."""
         self.counts: OrderedDict = OrderedDict()
+        self.missing = missing_value
 
     def update(self, values: np.ndarray, counts: np.ndarray) -> None:
         """Add a new set of values from a batch."""
@@ -41,6 +43,9 @@ class _CategoryAccumulator:
                 self.counts[v] += c
             else:
                 self.counts[v] = c
+        # Dont include the missing value
+        if self.missing in self.counts:
+            self.counts.pop(self.missing)
 
 
 def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
@@ -52,11 +57,10 @@ def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
     n_rows = src.shape[0]
     n_features = src.shape[-1]
     missing_value = src.missing
-    accums = [_CategoryAccumulator() for _ in range(n_features)]
-    # Add the missing values initially as zeros
-    if missing_value is not None:
-        for a in accums:
-            a.update(np.array([missing_value]), np.array([0], dtype=int))
+    accums = [_CategoryAccumulator(missing_value) for _ in range(n_features)]
+
+    if missing_value is not None and missing_value > 0:
+        raise ValueError("Missing value must be negative")
 
     with tqdm(total=n_rows) as pbar:
         with src:
@@ -67,22 +71,49 @@ def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
                     a.update(u, c)
                 pbar.update(x.shape[0])
 
-    missing = CategoricalType(0) if missing_value is not None else None
     count_dicts = [m.counts for m in accums]
-    mappings = [np.array(list(c.keys())) for c in count_dicts]
-    counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
-    result = CategoryInfo(mappings=mappings, counts=counts, missing=missing)
+    unsorted_mappings = [np.array(list(c.keys())) for c in count_dicts]
+    unsorted_counts = [np.array(list(c.values()), dtype=np.int64)
+                       for c in count_dicts]
+    sortings = [np.argsort(m, kind="mergesort") for m in unsorted_mappings]
+    mappings = [m[s] for m, s in zip(unsorted_mappings, sortings)]
+    counts = [c[s] for c, s in zip(unsorted_counts, sortings)]
+    result = CategoryInfo(mappings=mappings, counts=counts)
     return result
 
 
 class CategoryMapper:
-    def __init__(self, mappings: List[np.ndarray]) -> None:
+    def __init__(self, mappings: List[np.ndarray],
+                 missing_value: int) -> None:
         self._mappings = mappings
+        self._missing = missing_value
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
-        buf = np.empty_like(x)
-        for ch, cat in enumerate(self._mappings):
-            flat = np.hstack((cat, x[..., ch].ravel()))
-            _, remap = np.unique(flat, return_inverse=True)
-            buf[..., ch] = remap[len(cat):].reshape(x.shape[:-1])
-        return buf
+        fill = self._missing if self._missing is not None else 0
+        x_new = np.empty_like(x)
+        for i, cats in enumerate(self._mappings):
+            x_i = x[..., i].ravel()
+            mask = x_i != self._missing if self._missing \
+                else np.ones_like(x_i, dtype=bool)
+            x_i_valid = x_i[mask].flatten()
+            flat = np.hstack((cats, x_i_valid))
+            actual_cat, remap = np.unique(flat, return_inverse=True)
+            x_i_new_valid = remap[len(cats):]
+            x_i_new = np.full_like(x_i, fill)
+            x_i_new[mask] = x_i_new_valid
+            x_new[..., i] = x_i_new.reshape(x[..., i].shape)
+            assert np.all(actual_cat == cats)
+        return x_new
+
+    def _check(self, x_orig, x_trans):
+        for ch, m in enumerate(self._mappings):
+            x_o = x_orig[..., ch]
+            x_t = x_trans[..., ch]
+            old_mask = x_o != self._missing
+            new_mask = x_t != self._missing
+            if not np.all(old_mask == new_mask):
+                return False
+            x_r = m[x_t[new_mask]]
+            if not np.all(x_r == x_o[new_mask]):
+                return False
+            return True

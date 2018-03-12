@@ -130,6 +130,7 @@ class TrainingDataProcessor:
             cat_marray = _direct_read(self.feature_source.categorical,
                                       patch_reads, mask_reads,
                                       npatches, patchwidth)
+
         strings = serialise(ord_marray, cat_marray, targets)
         return strings
 

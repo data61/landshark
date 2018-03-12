@@ -1,6 +1,7 @@
 
 """Metadata."""
 
+from itertools import chain, repeat
 import os.path
 import pickle
 import tables
@@ -9,7 +10,7 @@ from landshark.basetypes import OrdinalType, CategoricalType
 class TrainingMetadata:
     def __init__(self, ntargets, target_dtype, nfeatures_ord, nfeatures_cat,
                  halfwidth, N, ncategories, target_labels, image_spec,
-                 target_map, target_counts):
+                 target_map, target_counts, ncategories_patched):
         self.ntargets = ntargets
         self.target_dtype = target_dtype
         self.nfeatures_ord = nfeatures_ord
@@ -17,6 +18,7 @@ class TrainingMetadata:
         self.halfwidth = halfwidth
         self.N = N
         self.ncategories = ncategories
+        self.ncategories_patched = ncategories_patched
         self.target_labels = target_labels
         self.image_spec = image_spec
         self.target_map = target_map
@@ -28,10 +30,16 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
     nfeatures_ord = 0
     nfeatures_cat = 0
     ncategories = None
+    ncategories_patched = None
     with tables.open_file(feature_file, "r") as hfile:
         if hasattr(hfile.root, "categorical_data"):
             nfeatures_cat = hfile.root.categorical_data.atom.shape[0]
             ncategories = [len(k) for k in hfile.root.categorical_mappings]
+            bmul = (2 * halfwidth + 1) ** 2
+            # ncategories_patched = ncategories * bmul
+            ncats_nested = [[k] * bmul for k in ncategories]
+            ncategories_patched = [e for l in ncats_nested for e in l]
+
 
         if hasattr(hfile.root, "ordinal_data"):
             nfeatures_ord = hfile.root.ordinal_data.atom.shape[0]
@@ -63,7 +71,8 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
                          target_labels=target_labels,
                          image_spec=image_spec,
                          target_map=target_map,
-                         target_counts=target_counts)
+                         target_counts=target_counts,
+                         ncategories_patched=ncategories_patched)
     return m
 
 def write_metadata(directory, m):
