@@ -43,7 +43,7 @@ class BatchWriter:
 
 
 def _make_writer(directory, label, dtype, image_spec):
-    crs = rs.crs.CRS(**eval(image_spec.crs))
+    crs = rs.crs.CRS(**image_spec.crs)
     params = dict(driver="GTiff", width=image_spec.width,
                   height=image_spec.height, count=1, dtype=dtype,
                   crs=crs, affine=image_spec.affine)

@@ -69,8 +69,9 @@ def _tifnames(directory: str) -> List[str]:
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
+@click.option("--ignore-crs/--no-ignore-crs", is_flag=True, default=False)
 def tifs(categorical: str, ordinal: str, nonormalise: bool,
-         name: str, nworkers: int, batchsize: int) -> int:
+         name: str, nworkers: int, batchsize: int, ignore_crs: bool) -> int:
     """Build a tif stack from a set of input files."""
     normalise = not nonormalise
     log.info("Using {} worker processes".format(nworkers))
@@ -78,7 +79,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     ord_filenames = _tifnames(ordinal) if ordinal else []
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
-    spec = shared_image_spec(all_filenames)
+    spec = shared_image_spec(all_filenames, ignore_crs)
 
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
         write_imagespec(spec, outfile)

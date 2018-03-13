@@ -26,7 +26,8 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 Band = namedtuple("Band", ["image", "index"])
 
 
-def shared_image_spec(path_list) -> ImageSpec:
+def shared_image_spec(path_list: List[str],
+                      ignore_crs: bool=False) -> ImageSpec:
     """Get the (hopefully matching) image spec from a list of images"""
     with ExitStack() as stack:
         all_images = [stack.enter_context(rasterio.open(k, "r"))
@@ -35,7 +36,9 @@ def shared_image_spec(path_list) -> ImageSpec:
         height = _match(lambda x: x.height, all_images, "height")
         affine = _match_transforms([x.transform for x in all_images], all_images)
         coords_x, coords_y = pixel_coordinates(width, height, affine)
-        crs = _match(lambda x: str(x.crs.data), all_images, "crs", anyof=True)
+
+    crs = _match(lambda x: x.crs.data if x.crs else None,
+                 all_images, "crs", anyof=ignore_crs)
     imspec = ImageSpec(coords_x, coords_y, crs)
     return imspec
 
@@ -122,22 +125,20 @@ class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
 class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
     _type_name = "categorical"
 
-
 def _match(f: Callable[[Any], Any],
            images: List[DatasetReader],
            name: str,
            anyof=False) -> Any:
     """Return specified property of images if they match."""
-    property_list = []
-    for k in images:
-        try:
-            property_list.append(f(k))
-        except:
-            continue
-    property_set = set(property_list)
-    if len(property_set) != 1 and not anyof:
+    property_list = [f(k) for k in images]
+    if len(images) == 1:
+        allequal = True
+    else:
+        allequal = all(p == property_list[0] for p in property_list[1:])
+
+    if not (allequal or anyof):
         _fatal_mismatch(property_list, images, name)
-    result = property_set.pop()
+    result = property_list[0]
     return result
 
 
