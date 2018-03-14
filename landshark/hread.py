@@ -79,8 +79,7 @@ class H5Features:
             counts = self._hfile.root.categorical_counts.read()
             self.categorical.missing = \
                 self._hfile.root.categorical_data.attrs.missing
-            self.categorical.maps = CategoryInfo(maps, counts,
-                                                 self.categorical.missing)
+            self.categorical.maps = CategoryInfo(maps, counts)
         if self.ordinal:
             self._n = len(self.ordinal)
         if self.categorical:

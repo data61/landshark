@@ -46,7 +46,6 @@ def _write_maps(hfile, maps):
     if maps is not None:
         _make_int_vlarray(hfile, "categorical_mappings", maps.mappings)
         _make_int_vlarray(hfile, "categorical_counts", maps.counts)
-        hfile.root.categorical_data.attrs.missing = maps.missing
 
 
 def write_ordinal(source, hfile, n_workers, batchsize=None, stats=None):
@@ -57,7 +56,7 @@ def write_ordinal(source, hfile, n_workers, batchsize=None, stats=None):
     _write_stats(hfile, stats)
 
 def write_categorical(source, hfile, n_workers, batchsize=None, maps=None):
-    transform = CategoryMapper(maps.mappings) if maps else _id
+    transform = CategoryMapper(maps.mappings, source.missing) if maps else _id
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
                   "categorical_data", transform, n_workers, batchsize)

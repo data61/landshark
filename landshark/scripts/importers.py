@@ -86,6 +86,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
+            log.info("Ordinal missing value is {}".format(ord_source.missing))
             stats = get_stats(ord_source, batchsize, nworkers) \
                 if normalise else None
             log.info("Writing normalised ordinal data to output file")
@@ -93,6 +94,8 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 
         if categorical:
             cat_source = CategoricalStackSource(spec, cat_filenames)
+            log.info("Categorical missing value is {}".format(
+                cat_source.missing))
             maps = get_maps(cat_source, batchsize, nworkers)
             log.info("Writing mapped categorical data to output file")
             write_categorical(cat_source, outfile, nworkers, batchsize, maps)
