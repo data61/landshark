@@ -1,23 +1,28 @@
 """Baseclass for datatypes. Modron-light basically."""
 
 import logging
-from collections import namedtuple
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Any, Dict
+from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Any
 
 log = logging.getLogger(__name__)
 
 # Definitions of numerical types used in the project.
 OrdinalType = np.float32
 CategoricalType = np.int32
-NumericalType = Union[np.float32, np.int32]
-MissingType = Optional[NumericalType]
 CoordinateType = np.float64
-DataType = Union[OrdinalType, CategoricalType, CoordinateType]
 
-FeatureValues = namedtuple("FeatureValues",
-                           ["ordinal", "categorical"])
+# Union[OrdinalType, CategoricalType] but mypy doesn't support yet
+FeatureType = Union[np.float32, np.int32]
+NumericalType = Union[np.float32, np.int32, np.float64]
+MissingType = Optional[NumericalType]
+
+
+class FeatureValues(NamedTuple):
+    """Pair of features."""
+
+    ordinal: np.ndarray
+    categorical: np.ndarray
 
 
 class FixedSlice(NamedTuple):
@@ -25,6 +30,7 @@ class FixedSlice(NamedTuple):
 
     start: int
     stop: int
+
 
 class ArraySource(Sized):
     """Abstract UniData interface."""
@@ -122,8 +128,7 @@ class ArraySource(Sized):
         """
         self._open = True
 
-
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         """
         Exit the context.
 
