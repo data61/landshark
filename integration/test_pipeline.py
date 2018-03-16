@@ -57,7 +57,8 @@ def _run(runner, cmd, args):
 
 def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
     # Import tifs
-    tif_import_args = ["--categorical", cat_dir, "--ordinal", ord_dir]
+    tif_import_args = ["--categorical", cat_dir, "--ordinal", ord_dir,
+                       "--ignore-crs"]
     if feature_string == "ordinal-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":

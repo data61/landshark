@@ -12,7 +12,8 @@ from sklearn.metrics import accuracy_score, log_loss, r2_score, \
 
 from landshark.model import train_data, test_data, sample_weights_labels
 from landshark.serialise import deserialise
-from landshark.basetypes import CategoricalType, OrdinalType
+from landshark.basetypes import CategoricalType, OrdinalType, \
+    RegressionPrediction, ClassificationPrediction
 
 log = logging.getLogger(__name__)
 
@@ -29,10 +30,8 @@ def _extract(Xo, Xom, Xc, Xcm, Y, sess, data_frac=None, random_seed=666):
     try:
         while True:
             result = sess.run([Xo, Xom, Xc, Xcm, Y])
-            x_ord_data, x_ord_mask, x_cat, _, y = result
-            n = x_ord_data.shape[0]
-            if has_ord:
-                x_ord = np.ma.MaskedArray(data=x_ord_data, mask=x_ord_mask)
+            x_ord_d, x_ord_m, x_cat_d, x_cat_m, y = result
+            n = x_ord_d.shape[0] if has_ord else x_cat_d.shape[0]
             if data_frac is not None:
                 mask = rnd.choice([True, False], size=(n,),
                                   p=[data_frac, 1.0 - data_frac])
@@ -40,25 +39,25 @@ def _extract(Xo, Xom, Xc, Xcm, Y, sess, data_frac=None, random_seed=666):
                 mask = slice(n)
 
             if has_ord:
+                x_ord = np.ma.MaskedArray(data=x_ord_d, mask=x_ord_m)
                 ord_list.append(x_ord[mask])
             if has_cat:
+                x_cat = np.ma.MaskedArray(data=x_cat_d, mask=x_cat_m)
                 cat_list.append(x_cat[mask])
             y_list.append(y[mask])
     except tf.errors.OutOfRangeError:
         pass
-    ord_array = None
-    cat_array = None
+    ord_marray = None
+    cat_marray = None
     if has_ord:
-        ord_array = np.ma.concatenate(ord_list, axis=0)
-        ord_array.data[ord_array.mask] = np.nan
-        ord_array = ord_array.data
+        ord_marray = np.ma.concatenate(ord_list, axis=0)
     if has_cat:
-        cat_array = np.concatenate(cat_list, axis=0)
+        cat_marray = np.ma.concatenate(cat_list, axis=0)
     y_array = np.concatenate(y_list, axis=0)
     # sklearn only supports 1D Y at the moment
     assert y_array.ndim == 1 or y_array.shape[1] == 1
     y_array = y_array.flatten()
-    return ord_array, cat_array, y_array
+    return ord_marray, cat_marray, y_array
 
 
 def _get_data(records_train, records_test, metadata, npoints,
@@ -107,13 +106,13 @@ def _query_it(records_query, batch_size, metadata):
             while True:
                 try:
                     xo, xom, xc, xcm = sess.run([Xo, Xom, Xc, Xcm])
-                    ord_array = xo
-                    ord_array[xom] = np.nan
-                    cat_array = xc
-                    pbar.update(xo.shape[0])
-                    ord_array = ord_array if has_ord else None
-                    cat_array = cat_array if has_cat else None
-                    yield ord_array, cat_array
+                    ord_marray = np.ma.MaskedArray(data=xo, mask=xom) \
+                        if has_ord else None
+                    cat_marray = np.ma.MaskedArray(data=xc, mask=xcm) \
+                        if has_cat else None
+                    n = xo.shape[0] if has_ord else xc.shape[0]
+                    pbar.update(n)
+                    yield ord_marray, cat_marray
                 except tf.errors.OutOfRangeError:
                     break
             return
@@ -121,25 +120,26 @@ def _query_it(records_query, batch_size, metadata):
 
 def _convert_res(res):
     """Make sure Y adheres to our conventions."""
+    # regression
     y, extra = res
-    if isinstance(extra, list):
-        extra = [e.astype(OrdinalType) for e in extra]
-    else:
+    if extra is not None:
         extra = extra.astype(OrdinalType)
-
     if y.dtype == np.float64 or y.dtype == np.float32:
         if y.ndim == 1:
             y = y[:, np.newaxis]
         y = y.astype(OrdinalType)
+        if extra is not None and extra.shape[0] != 2:
+            raise RuntimeError("The regressor must output either None"
+                               " or upper and lower quantiles in 2xN array")
+        out = RegressionPrediction(Ey=y, percentiles=extra)
 
     elif y.dtype == np.int64 or y.dtype == np.int32:
         y = y.astype(CategoricalType)
         # Make binary classifier output consistent with TensorFlow
-        if np.ndim(extra) < 2:
+        if extra is not None and np.ndim(extra) < 2:
             raise RuntimeError("The classifier needs to output E[y] and p(y)!")
-        if np.shape(extra)[1] <= 2:
-            extra = extra[:, 1:]
-    return y, extra
+        out = ClassificationPrediction(Ey=y, probabilities=extra)
+    return out
 
 
 def train_test(config_module, records_train, records_test, metadata, model_dir,

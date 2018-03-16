@@ -1,20 +1,24 @@
+"""TIF writing functionality."""
 import os.path
 import logging
 
+from typing import List, Iterator
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.basetypes import CategoricalType, OrdinalType
-# with ExitStack() as stack:
-#     files = [stack.enter_context(open(fname)) for fname in filenames]
+from landshark.metadata import TrainingMetadata
+from landshark.image import ImageSpec
+from landshark.basetypes import CategoricalType, OrdinalType, NumericalType,\
+    RegressionPrediction, ClassificationPrediction
+
 
 log = logging.getLogger(__name__)
 
-
 class BatchWriter:
 
-    def __init__(self, rs_file, width, height, dtype):
+    def __init__(self, rs_file: rs.DatasetReader, width: int, height: int,
+                 dtype: NumericalType) -> None:
         self.f = rs_file
         self.width = width
         self.height = height
@@ -22,14 +26,12 @@ class BatchWriter:
         self.res = np.array([], dtype=dtype)
         self.rows_written = 0
 
-    def write(self, data):
+    def write(self, data: np.ndarray) -> None:
 
         assert data.ndim == 1
         all_data = np.hstack((self.res, data))
         nrows = len(all_data) // self.width
         if nrows > 0:
-            # w = (slice(self.rows_written, self.rows_written + nrows),
-                 # slice(0, self.width))
             d = all_data[0: nrows * self.width].reshape(nrows, self.width)
             w = Window(0, self.rows_written, d.shape[1], d.shape[0])
             self.f.write(d, 1, window=w)
@@ -38,11 +40,11 @@ class BatchWriter:
         else:
             self.res = all_data
 
-    def close(self):
+    def close(self) -> None:
         self.f.close()
 
-
-def _make_writer(directory, label, dtype, image_spec):
+def _make_writer(directory: str, label: str, dtype: NumericalType,
+                 image_spec: ImageSpec) -> BatchWriter:
     crs = rs.crs.CRS(**image_spec.crs)
     params = dict(driver="GTiff", width=image_spec.width,
                   height=image_spec.height, count=1, dtype=dtype,
@@ -54,7 +56,9 @@ def _make_writer(directory, label, dtype, image_spec):
     return writer
 
 
-def _make_classify_labels(label, target_map):
+def _make_classify_labels(label: str,
+                          target_map: List[List[CategoricalType]]) \
+        -> List[str]:
     target_list = target_map[0]
 
     # Binary
@@ -70,7 +74,11 @@ def _make_classify_labels(label, target_map):
     return labels
 
 
-def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
+def write_geotiffs(y_dash,
+                   directory: str,
+                   metadata: TrainingMetadata,
+                   percentiles: List[int],
+                   tag: str=""):
     classification = metadata.target_dtype != OrdinalType
 
     if percentiles is None:
@@ -87,8 +95,10 @@ def write_geotiffs(y_dash, directory, metadata, percentiles, tag=""):
         _write_regression(y_dash, labels, directory, metadata, percentiles)
 
 
-
-def _write_classification(y_dash, labels, directory, metadata):
+def _write_classification(y_dash: Iterator[ClassificationPrediction],
+                          labels: List[str],
+                          directory: str,
+                          metadata: TrainingMetadata) -> None:
     assert len(labels) == 1
     label = labels[0]
     ey_writer = _make_writer(directory, label, CategoricalType,
@@ -96,33 +106,42 @@ def _write_classification(y_dash, labels, directory, metadata):
     p_labels = _make_classify_labels(label, metadata.target_map)
     p_writers = [_make_writer(directory, l, OrdinalType,
                               metadata.image_spec) for l in p_labels]
-    for b, (ey_batch, prob_batch) in enumerate(y_dash):
-        ey_writer.write(ey_batch.flatten())
-        for d, w in zip(prob_batch.T, p_writers):
-            w.write(d)
+    for b, yb in enumerate(y_dash):
+        ey_writer.write(yb.Ey.flatten())
+        if yb.probabilities is not None:
+            for d, w in zip(yb.probabilities.T, p_writers):
+                w.write(d)
     ey_writer.close()
     for w in p_writers:
         w.close()
 
 
-def _write_regression(y_dash, labels, directory, metadata, percentiles):
+def _write_regression(y_dash: Iterator[RegressionPrediction],
+                      labels: List[str],
+                      directory: str,
+                      metadata: TrainingMetadata,
+                      percentiles: List[float]) -> None:
         perc_labels = [[l + "_p{}".format(p) for l in labels]
                        for p in percentiles]
 
-        m_writers = [_make_writer(directory, l, OrdinalType, metadata.image_spec)
+        m_writers = [_make_writer(directory, l, OrdinalType,
+                                  metadata.image_spec)
                      for l in labels]
         p_writers = [[_make_writer(directory, lbl, OrdinalType,
                                    metadata.image_spec) for lbl in lbl_list]
                      for lbl_list in perc_labels]
 
-        for i, (mbatch, pbatch) in enumerate(y_dash):
+        for i, yi in enumerate(y_dash):
+            mbatch = yi.Ey
+            pbatch = yi.percentiles
             # write mean data
             for ym, mwriter in zip(mbatch.T, m_writers):
                 mwriter.write(ym)
             # write perc data
-            for perc, pwriterlist in zip(pbatch, p_writers):
-                for bandperc, pwriter in zip(perc.T, pwriterlist):
-                    pwriter.write(bandperc)
+            if pbatch is not None:
+                for perc, pwriterlist in zip(pbatch, p_writers):
+                    for bandperc, pwriter in zip(perc.T, pwriterlist):
+                        pwriter.write(bandperc)
 
         log.info("Closing file objects")
         for i in m_writers:

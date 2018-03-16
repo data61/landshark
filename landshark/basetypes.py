@@ -1,9 +1,10 @@
 """Baseclass for datatypes. Modron-light basically."""
 
+from types import TracebackType
 import logging
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Any
+from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Dict
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,20 @@ class FixedSlice(NamedTuple):
 
     start: int
     stop: int
+
+
+class RegressionPrediction(NamedTuple):
+    """Output of a regression predictor."""
+    Ey: np.ndarray
+    percentiles: Optional[np.ndarray]
+
+class ClassificationPrediction(NamedTuple):
+    """Output of a classification predictor."""
+    Ey: np.ndarray
+    probabilities: Optional[np.ndarray]
+
+
+Prediction = Union[RegressionPrediction, ClassificationPrediction]
 
 
 class ArraySource(Sized):
@@ -128,7 +143,8 @@ class ArraySource(Sized):
         """
         self._open = True
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, ex_type: type, ex_val: Exception,
+                 ex_tb: TracebackType) -> None:
         """
         Exit the context.
 

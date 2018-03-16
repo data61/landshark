@@ -31,13 +31,13 @@ class H5ArraySource(ArraySource):
             self._coords = self._hfile.root.coordinates
         super().__enter__()
 
-    def __exit__(self, *args):
+    def __exit__(self, ex_type, ex_value, ex_traceback):
         self._hfile.close()
         del(self._carray)
         if hasattr(self, "_coords"):
             del(self._coords)
         del(self._hfile)
-        super().__exit__()
+        super().__exit__(ex_type, ex_value, ex_traceback)
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
         """
