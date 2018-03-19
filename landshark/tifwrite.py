@@ -2,7 +2,7 @@
 import os.path
 import logging
 
-from typing import List, Iterator
+from typing import List, Iterator, cast
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
@@ -10,7 +10,7 @@ from rasterio.windows import Window
 from landshark.metadata import TrainingMetadata
 from landshark.image import ImageSpec
 from landshark.basetypes import CategoricalType, OrdinalType, NumericalType,\
-    RegressionPrediction, ClassificationPrediction
+    RegressionPrediction, ClassificationPrediction, Prediction
 
 
 log = logging.getLogger(__name__)
@@ -74,11 +74,11 @@ def _make_classify_labels(label: str,
     return labels
 
 
-def write_geotiffs(y_dash,
+def write_geotiffs(y_dash: Iterator[Prediction],
                    directory: str,
                    metadata: TrainingMetadata,
-                   percentiles: List[int],
-                   tag: str=""):
+                   percentiles: List[float],
+                   tag: str="") -> None:
     classification = metadata.target_dtype != OrdinalType
 
     if percentiles is None:
@@ -90,9 +90,11 @@ def write_geotiffs(y_dash,
     labels = [l + "_" + tag for l in metadata.target_labels]
 
     if classification:
-        _write_classification(y_dash, labels, directory, metadata)
+        y_dash_c = cast(Iterator[ClassificationPrediction], y_dash)
+        _write_classification(y_dash_c, labels, directory, metadata)
     else:
-        _write_regression(y_dash, labels, directory, metadata, percentiles)
+        y_dash_r = cast(Iterator[RegressionPrediction], y_dash)
+        _write_regression(y_dash_r, labels, directory, metadata, percentiles)
 
 
 def _write_classification(y_dash: Iterator[ClassificationPrediction],
@@ -144,8 +146,8 @@ def _write_regression(y_dash: Iterator[RegressionPrediction],
                         pwriter.write(bandperc)
 
         log.info("Closing file objects")
-        for i in m_writers:
-            i.close()
-        for i in p_writers:
-            for j in i:
-                j.close()
+        for j in m_writers:
+            j.close()
+        for k in p_writers:
+            for m in k:
+                m.close()
