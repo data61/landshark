@@ -1,36 +1,44 @@
-
 """Metadata."""
 
-from itertools import chain, repeat
 import os.path
 import pickle
 import tables
+import numpy as np
+from typing import NamedTuple, List, Optional, cast
+
+from landshark.image import ImageSpec
 from landshark.basetypes import OrdinalType, CategoricalType
 
-class TrainingMetadata:
-    def __init__(self, ntargets, target_dtype, nfeatures_ord, nfeatures_cat,
-                 halfwidth, N, ncategories, target_labels, image_spec,
-                 target_map, target_counts, ncategories_patched):
-        self.ntargets = ntargets
-        self.target_dtype = target_dtype
-        self.nfeatures_ord = nfeatures_ord
-        self.nfeatures_cat = nfeatures_cat
-        self.halfwidth = halfwidth
-        self.N = N
-        self.ncategories = ncategories
-        self.ncategories_patched = ncategories_patched
-        self.target_labels = target_labels
-        self.image_spec = image_spec
-        self.target_map = target_map
-        self.target_counts = target_counts
+
+class TrainingMetadata(NamedTuple):
+    """Metadata that training alogrithms need to know."""
+
+    ntargets: int
+    target_dtype: np.dtype
+    nfeatures_ord: int
+    nfeatures_cat: int
+    halfwidth: int
+    N: int
+    target_labels: List[str]
+    image_spec: ImageSpec
+    ncategories: Optional[List[int]]
+    ncategories_patched: Optional[List[int]]
+    target_map: Optional[np.ndarray]
+    target_counts: Optional[List[List[int]]]
 
 
-def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
-
+def from_files(feature_file: str,
+               target_file: str,
+               image_spec: ImageSpec,
+               halfwidth: int,
+               n_train: int) -> TrainingMetadata:
+    """TODO."""
     nfeatures_ord = 0
     nfeatures_cat = 0
     ncategories = None
     ncategories_patched = None
+    target_counts = None
+    target_map = None
     with tables.open_file(feature_file, "r") as hfile:
         if hasattr(hfile.root, "categorical_data"):
             nfeatures_cat = hfile.root.categorical_data.atom.shape[0]
@@ -39,7 +47,6 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
             # ncategories_patched = ncategories * bmul
             ncats_nested = [[k] * bmul for k in ncategories]
             ncategories_patched = [e for l in ncats_nested for e in l]
-
 
         if hasattr(hfile.root, "ordinal_data"):
             nfeatures_ord = hfile.root.ordinal_data.atom.shape[0]
@@ -53,8 +60,6 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
             target_counts = list(hfile.root.categorical_counts)
             target_map = list(hfile.root.categorical_mappings)
         elif hasattr(hfile.root, "ordinal_data"):
-            target_counts = None
-            target_map = None
             target_labels = hfile.root.ordinal_data.attrs.columns
             ntargets = hfile.root.ordinal_data.atom.shape[0]
             target_dtype = OrdinalType
@@ -75,14 +80,17 @@ def from_files(feature_file, target_file, image_spec, halfwidth, n_train):
                          ncategories_patched=ncategories_patched)
     return m
 
-def write_metadata(directory, m):
+
+def write_metadata(directory: str, m: TrainingMetadata) -> None:
+    """TODO."""
     spec_path = os.path.join(directory, "METADATA.bin")
     with open(spec_path, "wb") as f:
         pickle.dump(m, f)
 
 
-def load_metadata(path):
+def load_metadata(path: str) -> TrainingMetadata:
+    """TODO."""
     with open(path, "rb") as f:
         obj = pickle.load(f)
-    return obj
-
+        m = cast(TrainingMetadata, obj)  # no way to know type from pickle
+    return m
