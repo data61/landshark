@@ -2,30 +2,33 @@
 
 import queue
 import logging
-from multiprocessing import Process, Queue, Pipe
-from typing import NamedTuple, List, Dict, Any
+from multiprocessing import Process, Queue, Pipe  # type: ignore
+from typing import List, Dict, Callable, TypeVar, Iterator
+
+from landshark.basetypes import ArraySource, FixedSlice
 
 from tqdm import tqdm
 
 log = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
 
 class _Task(Process):
 
-    def __init__(self, datasrc, f, in_queue, out_queue, shutdown,
-                 blocktime=0.1):
+    def __init__(self, datasrc: ArraySource,
+                 f: Callable[[FixedSlice], T], in_queue: Queue,
+                 out_queue: Queue, shutdown: Pipe,
+                 blocktime: float=0.1) -> None:
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.shutdown = shutdown
         self.datasrc = datasrc
         self.f = f
-        super().__init__()
         self._blocktime = blocktime
+        super().__init__()
 
-
-    def run(self):
-
+    def run(self) -> None:
         running = True
         with self.datasrc:
             while running:
@@ -41,8 +44,11 @@ class _Task(Process):
                     pass
 
 
-def task_list(task_list, reader, worker, n_workers, req_queue_size=0,
-              data_queue_size=1, result_queue_size=1):
+def task_list(task_list: List[FixedSlice],
+              reader: ArraySource,
+              worker: Callable[[FixedSlice], T],
+              n_workers: int, req_queue_size: int=0,
+              data_queue_size: int=0, result_queue_size: int=0) -> Iterator[T]:
     if n_workers == 0:
         return _task_list_0(task_list, reader, worker)
     else:
@@ -51,7 +57,9 @@ def task_list(task_list, reader, worker, n_workers, req_queue_size=0,
                                 result_queue_size)
 
 
-def _task_list_0(task_list, reader, worker):
+def _task_list_0(task_list: List[FixedSlice],
+                 reader: ArraySource,
+                 worker: Callable[[FixedSlice], T]) -> Iterator[T]:
     total = len(task_list)
     with reader:
         with tqdm(total=total) as pbar:
@@ -62,15 +70,18 @@ def _task_list_0(task_list, reader, worker):
                 pbar.update()
 
 
-def _task_list_multi(task_list, reader, worker, n_workers,
-                     req_queue_size=0, data_queue_size=1, result_queue_size=1):
+def _task_list_multi(task_list: List[FixedSlice],
+                     reader: ArraySource,
+                     worker: Callable[[FixedSlice], T],
+                     n_workers: int, req_queue_size: int, data_queue_size: int,
+                     result_queue_size: int) -> Iterator[T]:
     req_queue = Queue(req_queue_size)
     result_queue = Queue(result_queue_size)
     shutdown_recv, shutdown_send = Pipe(False)
     worker_procs = [_Task(reader, worker, req_queue, result_queue,
                           shutdown_recv)
                     for _ in range(n_workers)]
-    cache = {}
+    cache: Dict[int, T] = {}
 
     task_id = 0
     task_id_out = 0
