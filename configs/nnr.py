@@ -57,6 +57,6 @@ def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
 
     F, reg = net(**arg_dict)
     lkhood = tf.distributions.StudentT(df=5., loc=F, scale=ab.pos(noise))
-    loss = ab.max_posterior(lkhood, Y, reg)
+    loss = ab.max_posterior(lkhood.log_prob(Y), reg)
 
     return F, lkhood, loss, Y

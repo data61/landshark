@@ -55,6 +55,6 @@ def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
 
     F, reg = net(**arg_dict)
     lkhood = tf.distributions.Categorical(logits=F)
-    loss = ab.max_posterior(lkhood, Y[:, 0], reg)
+    loss = ab.max_posterior(lkhood.log_prob(Y[:, 0]), reg)
     return F, lkhood, loss, Y
 
