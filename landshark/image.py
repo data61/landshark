@@ -94,8 +94,8 @@ class ImageSpec:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
-        self.width = x_coordinates.shape[0] - 1
-        self.height = y_coordinates.shape[0] - 1
+        self.width: int = x_coordinates.shape[0] - 1
+        self.height: int = y_coordinates.shape[0] - 1
         assert self.width > 0
         assert self.height > 0
         self.x_coordinates = x_coordinates

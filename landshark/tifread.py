@@ -1,5 +1,6 @@
 """Importing routines for tif data."""
 
+from types import TracebackType
 import os.path
 import logging
 from collections import namedtuple
@@ -7,13 +8,14 @@ from contextlib import ExitStack
 
 import rasterio
 from rasterio.io import DatasetReader
+from affine import Affine
 import numpy as np
-from typing import Callable, Any, List, Tuple, Union
+from typing import Callable, Any, List, Tuple, Union, Optional
 from mypy_extensions import NoReturn
 
 from landshark.image import pixel_coordinates, ImageSpec
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource
+    CategoricalArraySource, FeatureType
 
 
 log = logging.getLogger(__name__)
@@ -34,7 +36,8 @@ def shared_image_spec(path_list: List[str],
                       for k in path_list]
         width = _match(lambda x: x.width, all_images, "width")
         height = _match(lambda x: x.height, all_images, "height")
-        affine = _match_transforms([x.transform for x in all_images], all_images)
+        affine = _match_transforms([x.transform for x in all_images],
+                                   all_images)
         coords_x, coords_y = pixel_coordinates(width, height, affine)
 
     crs = _match(lambda x: x.crs.data if x.crs else None,
@@ -58,12 +61,10 @@ class _ImageStackSource(ArraySource):
         If not provided then a semi-sensible value is computed.
 
     """
-
     _type_name = ""
 
-    def __init__(self, image_spec, path_list: List[str],
+    def __init__(self, image_spec: ImageSpec, path_list: List[str],
                  missing: int=-2147483648) -> None:
-
         """Construct an instance of ImageStack."""
         self._path_list = path_list
         with ExitStack() as stack:
@@ -80,19 +81,18 @@ class _ImageStackSource(ArraySource):
         log.info("Found {} {} bands".format(nbands, self._type_name))
         log.info("Largest tif block size is {} rows".format(self._native))
 
-
-    def __enter__(self):
+    def __enter__(self) -> None:
         self._images = [rasterio.open(k, "r") for k in self._path_list]
         self._bands = _bands(self._images)
         super().__enter__()
 
-
-    def __exit__(self, *args):
+    def __exit__(self, ex_type: type, ex_val: Exception,
+                 ex_tb: TracebackType) -> None:
         for i in self._images:
             i.close()
         del(self._images)
         del(self._bands)
-        super().__exit__(*args)
+        super().__exit__(ex_type, ex_val, ex_tb)
         pass
 
     def _arrayslice(self, start_row: int, end_row: int) -> np.ndarray:
@@ -125,10 +125,11 @@ class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
 class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
     _type_name = "categorical"
 
+
 def _match(f: Callable[[Any], Any],
            images: List[DatasetReader],
            name: str,
-           anyof=False) -> Any:
+           anyof: bool=False) -> Any:
     """Return specified property of images if they match."""
     property_list = [f(k) for k in images]
     if len(images) == 1:
@@ -142,7 +143,8 @@ def _match(f: Callable[[Any], Any],
     return result
 
 
-def _match_transforms(transforms, images):
+def _match_transforms(transforms: List[Affine],
+                      images: List[DatasetReader]) -> Affine:
     t0 = transforms[0]
     for t in transforms[1:]:
         if not t0.almost_equals(t):
@@ -177,7 +179,8 @@ def _names(band_list: List[Band]) -> List[str]:
     return band_names
 
 
-def _missing(value, bands: List[Band], dtype) -> Any:
+def _missing(value: FeatureType, bands: List[Band],
+             dtype: np.dtype) -> Optional[FeatureType]:
     """
     Convert missing data values to a given dtype (rasterio workaround).
 

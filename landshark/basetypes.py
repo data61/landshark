@@ -53,7 +53,7 @@ class ArraySource(Sized):
 
     def __init__(self) -> None:
         """Baseclass for data backends."""
-        self._shape = (0, 0)
+        self._shape: Tuple[int, ...] = (0, 0)
         self._native = 0
         self._dtype = OrdinalType
         self._missing: MissingType = None

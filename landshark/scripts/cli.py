@@ -11,6 +11,7 @@ from landshark.scripts.logger import configure_logging
 from landshark.image import strip_image_spec
 from landshark.model import TrainingConfig, QueryConfig
 from landshark.tfread import setup_training, setup_query, get_strips
+from landshark.metadata import TrainingMetadata
 
 log = logging.getLogger(__name__)
 
@@ -83,8 +84,10 @@ def predict(
     y_dash_it = model.predict(modeldir, metadata, query_records, params)
 
     strip, nstrips = get_strips(query_records)
-    imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
-    metadata.image_spec = imspec
-    write_geotiffs(y_dash_it, modeldir, metadata, params.percentiles,
+    strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
+    md_dict = metadata._asdict()
+    md_dict["image_spec"] = strip_imspec
+    strip_metadata = TrainingMetadata(**md_dict)
+    write_geotiffs(y_dash_it, modeldir, strip_metadata, params.percentiles,
                    tag="{}of{}".format(strip, nstrips))
     return 0
