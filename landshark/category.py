@@ -5,7 +5,7 @@ from collections import OrderedDict
 
 from tqdm import tqdm
 import numpy as np
-from typing import Tuple, List, NamedTuple
+from typing import Tuple, List, NamedTuple, Optional, Callable
 
 from landshark import iteration
 from landshark.basetypes import CategoricalType, CategoricalArraySource
@@ -85,7 +85,7 @@ def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
 
 class CategoryMapper:
     def __init__(self, mappings: List[np.ndarray],
-                 missing_value: int) -> None:
+                 missing_value: Optional[int]) -> None:
         self._mappings = mappings
         self._missing = missing_value
 
