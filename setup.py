@@ -47,8 +47,6 @@ setup(
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
             "pytest-cov>=2.5.1",
-            "pytest-regtest>=0.15.1",
-            "pytest-xdist>=1.22.0",
             "flake8-docstrings>=1.1.0",
             "flake8-quotes>=0.11.0",
             "flake8-comprehensions>=1.4.1"
