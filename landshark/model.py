@@ -14,6 +14,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, log_loss, r2_score, \
     confusion_matrix
 
+from landshark.basetypes import ClassificationPrediction, RegressionPrediction
 from landshark.metadata import TrainingMetadata
 from landshark.serialise import deserialise
 
@@ -171,11 +172,13 @@ def predict(model: str,
                 Ey = _load_op(graph, "Test/Ey")
                 prob = _load_op(graph, "Test/prob")
                 eval_list = [Ey, prob]
+                to_obj = ClassificationPrediction
             else:
                 Ef = _load_op(graph, "Deepnet/F_mean")
                 F_samps = _load_op(graph, "Deepnet/F_sample")
                 Per = ab.sample_percentiles(F_samps, params.percentiles)
                 eval_list = [Ef, Per]
+                to_obj = RegressionPrediction
 
             # Initialise the dataset iterator
             feed_dict = {_records: records, _batchsize: params.batchsize,
@@ -185,17 +188,19 @@ def predict(model: str,
 
             # Get a single set of samples from the model
             res = _fix_samples(graph, sess, eval_list, feed_dict)
+            res_obj = to_obj(*res)
 
             with tqdm(total=total_size) as pbar:
                 # Yield prediction result from fixing samples
-                yield res
+                yield res_obj
                 pbar.update(res[0].shape[0])
 
                 # Continue obtaining predictions
                 while True:
                     try:
-                        res = sess.run(eval_list, feed_dict=feed_dict)
-                        yield res
+                        res = to_obj(*sess.run(eval_list, feed_dict=feed_dict))
+                        res_obj = to_obj(*res)
+                        yield res_obj
                         pbar.update(res[0].shape[0])
                     except tf.errors.OutOfRangeError:
                         return

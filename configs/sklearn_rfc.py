@@ -7,9 +7,12 @@ NTREES = 100
 
 
 class SKModel:
-    def __init__(self, metadata):
-        self.imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
-                           verbose=0, copy=True)
+    def __init__(self, metadata, random_seed):
+        self.ord_imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
+                               verbose=0, copy=True)
+        self.cat_imp = Imputer(missing_values=-1,
+                               strategy="most_frequent",
+                               axis=0, verbose=0, copy=True)
 
         psize = (2 * metadata.halfwidth + 1)**2
         if metadata.ncategories:
@@ -18,15 +21,19 @@ class SKModel:
                                      categorical_features="all",
                                      dtype=np.float32, sparse=False)
 
-        self.est = RandomForestClassifier(n_estimators=NTREES)
+        self.est = RandomForestClassifier(n_estimators=NTREES,
+                                          random_state=random_seed)
 
     def fit(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array):
         X_list = []
         if Xc is not None:
-            X_onehot = self.enc.fit_transform(Xc)
+            Xc.data[Xc.mask] = -1
+            X_cat_imp = self.cat_imp.fit_transform(Xc.data)
+            X_onehot = self.enc.fit_transform(X_cat_imp)
             X_list.append(X_onehot)
         if Xo is not None:
-            X_imputed = self.imp.fit_transform(Xo)
+            Xo.data[Xo.mask] = np.nan
+            X_imputed = self.ord_imp.fit_transform(Xo.data)
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         self.est.fit(X, Y)
@@ -35,10 +42,13 @@ class SKModel:
     def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray):
         X_list = []
         if Xc is not None:
-            X_onehot = self.enc.transform(Xc)
+            Xc.data[Xc.mask] = -1
+            X_cat_imp = self.cat_imp.transform(Xc.data)
+            X_onehot = self.enc.transform(X_cat_imp)
             X_list.append(X_onehot)
         if Xo is not None:
-            X_imputed = self.imp.transform(Xo)
+            Xo.data[Xo.mask] = np.nan
+            X_imputed = self.ord_imp.transform(Xo)
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         Py = self.est.predict_proba(X)

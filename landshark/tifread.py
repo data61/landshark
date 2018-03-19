@@ -92,7 +92,7 @@ class _ImageStackSource(ArraySource):
             i.close()
         del(self._images)
         del(self._bands)
-        super().__exit__()
+        super().__exit__(*args)
         pass
 
     def _arrayslice(self, start_row: int, end_row: int) -> np.ndarray:
