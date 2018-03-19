@@ -1,19 +1,20 @@
 """Operations to support categorical data."""
 
 import logging
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 
 from tqdm import tqdm
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple, List, NamedTuple
 
 from landshark import iteration
-from landshark.basetypes import CategoricalType
-from landshark.util import to_masked
+from landshark.basetypes import CategoricalType, CategoricalArraySource
 
 log = logging.getLogger(__name__)
 
-CategoryInfo = namedtuple("CategoryInfo", ["mappings", "counts"])
+class CategoryInfo(NamedTuple):
+    mappings: List[np.ndarray]
+    counts: List[np.ndarray]
 
 
 def unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
@@ -26,7 +27,7 @@ def unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
 class _CategoryAccumulator:
     """Class for accumulating categorical values and their counts."""
 
-    def __init__(self, missing_value) -> None:
+    def __init__(self, missing_value: CategoricalType) -> None:
         """Initialise the object."""
         self.counts: OrderedDict = OrderedDict()
         self.missing = missing_value
@@ -48,7 +49,7 @@ class _CategoryAccumulator:
             self.counts.pop(self.missing)
 
 
-def get_maps(src, batchsize: int) -> CategoryInfo:
+def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
@@ -104,16 +105,3 @@ class CategoryMapper:
             x_new[..., i] = x_i_new.reshape(x[..., i].shape)
             assert np.all(actual_cat == cats)
         return x_new
-
-    def _check(self, x_orig, x_trans):
-        for ch, m in enumerate(self._mappings):
-            x_o = x_orig[..., ch]
-            x_t = x_trans[..., ch]
-            old_mask = x_o != self._missing
-            new_mask = x_t != self._missing
-            if not np.all(old_mask == new_mask):
-                return False
-            x_r = m[x_t[new_mask]]
-            if not np.all(x_r == x_o[new_mask]):
-                return False
-            return True
