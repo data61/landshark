@@ -48,7 +48,7 @@ class _CategoryAccumulator:
             self.counts.pop(self.missing)
 
 
-def get_maps(src, batchsize: int, n_workers: int) -> CategoryInfo:
+def get_maps(src, batchsize: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 

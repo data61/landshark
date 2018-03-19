@@ -70,7 +70,7 @@ class Normaliser:
         return xw
 
 
-def get_stats(src, batchsize, n_workers):
+def get_stats(src, batchsize):
     log.info("Computing ordinal feature statistics")
     n_rows = src.shape[0]
     n_cols = src.shape[-1]
