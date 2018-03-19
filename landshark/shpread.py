@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 import shapefile
 # for mypy type checking
-from typing import List
+from typing import List, Tuple
 
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
     CategoricalArraySource, CoordinateArraySource, \
@@ -15,18 +15,22 @@ from landshark.basetypes import ArraySource, OrdinalArraySource, \
 log = logging.getLogger(__name__)
 
 
-def _extract_type(python_type, field_length):
+def _extract_type(python_type: type, field_length: int) -> np.dtype:
     if python_type is float:
-        return OrdinalType
+        result = OrdinalType
     elif python_type is int:
-        return CategoricalType
+        result = CategoricalType
     elif python_type is str:
-        return "a" + str(field_length)
+        result = np.dtype("a" + str(field_length))
     elif python_type is datetime.date:
-        return "a10"
+        result = np.dtype("a10")
+    else:
+        raise ValueError("Unrecognised shapefile type {}".format(python_type))
+    return result
 
 
-def _get_record_info(shp):
+def _get_record_info(shp: shapefile.Reader) \
+        -> Tuple[List[str], List[np.dtype]]:
     field_list = shp.fields[1:]
     labels, type_strings, nbytes, decimals = zip(*field_list)
     record0 = shp.record(0)
@@ -35,13 +39,14 @@ def _get_record_info(shp):
     return labels, type_list
 
 
-def _get_indices(labels, all_labels):
+def _get_indices(labels: List[str], all_labels: List[str]) -> List[int]:
     label_dict = dict(zip(all_labels, range(len(all_labels))))
     label_indices = [label_dict[k] for k in labels]
     return label_indices
 
 
-def _get_dtype(labels, all_labels, all_dtypes):
+def _get_dtype(labels: List[str], all_labels: List[str],
+               all_dtypes: List[np.dtype]) -> np.dtype:
     dtype_dict = dict(zip(all_labels, all_dtypes))
     dtype_set = {dtype_dict[l] for l in labels}
     if len(dtype_set) > 1:
@@ -50,8 +55,7 @@ def _get_dtype(labels, all_labels, all_dtypes):
     return dtype
 
 
-# TODO force this to be abstract. DONT USE!
-class _ShpArraySource(ArraySource):
+class _AbstractShpArraySource(ArraySource):
     def __init__(self, filename: str, labels: List[str],
                  random_seed: int) -> None:
         self._sf = shapefile.Reader(filename)
@@ -77,11 +81,13 @@ class _ShpArraySource(ArraySource):
 
 
 
-class OrdinalShpArraySource(_ShpArraySource, OrdinalArraySource):
+class OrdinalShpArraySource(_AbstractShpArraySource,
+                            OrdinalArraySource):
     pass
 
 
-class CategoricalShpArraySource(_ShpArraySource, CategoricalArraySource):
+class CategoricalShpArraySource(_AbstractShpArraySource,
+                                CategoricalArraySource):
     pass
 
 

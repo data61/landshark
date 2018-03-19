@@ -4,7 +4,8 @@ from types import TracebackType
 import logging
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Dict
+from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Dict, \
+    Callable, Any
 
 log = logging.getLogger(__name__)
 

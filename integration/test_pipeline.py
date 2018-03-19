@@ -73,8 +73,7 @@ def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
 def import_targets(runner, target_dir, target_name, target_flags, ncpus):
     # Import targets
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(runner, importers.cli, ["targets", "--nworkers", ncpus,
-                                 "--shapefile", target_file,
+    _run(runner, importers.cli, ["targets", "--shapefile", target_file,
                                  "--name", target_name] +
          target_flags + [target_name])
     target_file = "{}_targets.hdf5".format(target_name)

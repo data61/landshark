@@ -87,7 +87,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
             log.info("Ordinal missing value is {}".format(ord_source.missing))
-            stats = get_stats(ord_source, batchsize, nworkers) \
+            stats = get_stats(ord_source, batchsize) \
                 if normalise else None
             log.info("Writing normalised ordinal data to output file")
             write_ordinal(ord_source, outfile, nworkers, batchsize, stats)
@@ -96,7 +96,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
             cat_source = CategoricalStackSource(spec, cat_filenames)
             log.info("Categorical missing value is {}".format(
                 cat_source.missing))
-            maps = get_maps(cat_source, batchsize, nworkers)
+            maps = get_maps(cat_source, batchsize)
             log.info("Writing mapped categorical data to output file")
             write_categorical(cat_source, outfile, nworkers, batchsize, maps)
 
@@ -113,15 +113,14 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 @click.option("--every", type=int, default=1)
 @click.option("--categorical", is_flag=True)
 @click.option("--normalise", is_flag=True)
-@click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
-            every: int, categorical: bool, nworkers: int, normalise: bool,
-            random_seed: int) -> int:
+            every: int, categorical: bool, normalise: bool, random_seed: int) \
+        -> int:
     """Build target file from shapefile."""
     log.info("Loading shapefile targets")
-    log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_targets.hdf5")
+    nworkers = 0  # shapefile reading breaks with concurrency
 
     with tables.open_file(out_filename, mode="w", title=name) as h5file:
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
@@ -130,13 +129,13 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
         if categorical:
             cat_source = CategoricalShpArraySource(
                 shapefile, targets, random_seed)
-            maps = get_maps(cat_source, batchsize, nworkers)
+            maps = get_maps(cat_source, batchsize)
             write_categorical(cat_source, h5file, nworkers, batchsize, maps)
         else:
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
-            stats = get_stats(ord_source, batchsize, nworkers) \
+            stats = get_stats(ord_source, batchsize) \
                 if normalise else None
-            write_ordinal(ord_source, h5file, batchsize, stats)
+            write_ordinal(ord_source, h5file, nworkers, stats)
 
     log.info("Target import complete")
 

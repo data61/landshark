@@ -3,6 +3,7 @@
 import logging
 import os.path
 
+from typing import Iterator, List, Optional, Tuple
 import numpy as np
 import tensorflow as tf
 
@@ -11,14 +12,15 @@ log = logging.getLogger(__name__)
 FILESIZE_MB = 100
 
 
-def query(data, n_total, output_directory, tag):
+def query(data: Iterator[List[bytes]], n_total: int,
+          output_directory: str, tag: str) -> None:
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
         writer.add(d)
     writer.close()
 
 
-def training(data, n_total: int, output_directory: str,
+def training(data: Iterator[List[bytes]], n_total: int, output_directory: str,
              testfold: int, folds: int, random_seed: int=666) -> int:
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
@@ -38,23 +40,24 @@ def training(data, n_total: int, output_directory: str,
     return n_train
 
 
-def _get_mb(path):
+def _get_mb(path: str) -> int:
     filesize = os.path.getsize(path) // (1024 ** 2)
     return filesize
 
 
 class _MultiFileWriter:
-    def __init__(self, output_directory, tag):
+    def __init__(self, output_directory: str, tag: str) -> None:
         self.output_directory = output_directory
         self.tag = tag
         self.file_index = -1
         self._options = tf.python_io.TFRecordOptions(
             tf.python_io.TFRecordCompressionType.ZLIB)
+        self._f: Optional[tf.python_io.TFRecordWriter] = None
         self._nextfile()
         self.lines_written = 0
 
-    def _nextfile(self):
-        if hasattr(self, '_f'):
+    def _nextfile(self) -> None:
+        if self._f:
             self._f.close()
         self.file_index += 1
         self.path = os.path.join(
@@ -62,20 +65,28 @@ class _MultiFileWriter:
             "{}.{:05d}.tfrecord".format(self.tag, self.file_index))
         self._f = tf.python_io.TFRecordWriter(self.path, options=self._options)
 
-    def add(self, batch):
-        filesize = _get_mb(self.path)
-        if filesize > FILESIZE_MB:
-            self._nextfile()
-        for b in batch:
-            self._f.write(b)
-            self.lines_written += 1
-        self._f.flush()
+    def add(self, batch: List[bytes]) -> None:
+        if self._f:
+            filesize = _get_mb(self.path)
+            if filesize > FILESIZE_MB:
+                self._nextfile()
+            for b in batch:
+                self._f.write(b)
+                self.lines_written += 1
+            self._f.flush()
+        else:
+            raise RuntimeError("Cannot add data to writer that isnt open")
 
-    def close(self):
-        self._f.close()
+    def close(self) -> None:
+        if self._f:
+            self._f.close()
+        else:
+            raise RuntimeError("Cannot close a writer that isnt open")
 
 
-def _split_on_mask(data, rnd, testfold, folds):
+def _split_on_mask(data: List[bytes], rnd: np.random.RandomState,
+                   testfold: int, folds: int) \
+        -> Tuple[List[bytes], List[bytes]]:
     n = len(data)
     mask = rnd.randint(1, folds + 1, size=(n,)) != testfold
     nmask = ~mask
