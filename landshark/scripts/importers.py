@@ -135,7 +135,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
             stats = get_stats(ord_source, batchsize) \
                 if normalise else None
-            write_ordinal(ord_source, h5file, nworkers, stats)
+            write_ordinal(ord_source, h5file, nworkers, batchsize, stats)
 
     log.info("Target import complete")
 

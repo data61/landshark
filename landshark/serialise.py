@@ -27,7 +27,7 @@ _FDICT = {
 #
 
 def serialise(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
-              y: np.array) -> List[str]:
+              y: np.array) -> List[bytes]:
     """Serialise data to tf.records."""
     if x_ord is None:
         x_ord = repeat(np.ma.MaskedArray(data=[], mask=[]))

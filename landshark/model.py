@@ -172,7 +172,7 @@ def predict(model: str,
                 Ey = _load_op(graph, "Test/Ey")
                 prob = _load_op(graph, "Test/prob")
                 eval_list = [Ey, prob]
-                to_obj = ClassificationPrediction
+                to_obj: type = ClassificationPrediction
             else:
                 Ef = _load_op(graph, "Deepnet/F_mean")
                 F_samps = _load_op(graph, "Deepnet/F_sample")
@@ -236,6 +236,7 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
 def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
         Tuple[np.array, np.array]:
     """Calculate the samples weights and labels for classification."""
+    assert metadata.target_map is not None
     nlabels = len(metadata.target_map[0])
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)

@@ -8,7 +8,7 @@ import numpy as np
 from typing import Tuple, List, NamedTuple, Optional, Callable
 
 from landshark import iteration
-from landshark.basetypes import CategoricalType, CategoricalArraySource
+from landshark.basetypes import CategoricalType, CategoricalArraySource, Worker
 
 log = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
     return result
 
 
-class CategoryMapper:
+class CategoryMapper(Worker):
     def __init__(self, mappings: List[np.ndarray],
                  missing_value: Optional[int]) -> None:
         self._mappings = mappings

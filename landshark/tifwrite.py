@@ -2,7 +2,7 @@
 import os.path
 import logging
 
-from typing import List, Iterator, cast
+from typing import List, Iterator, cast, Optional
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
@@ -76,7 +76,7 @@ def _make_classify_labels(label: str, target_map: np.ndarray) -> List[str]:
 def write_geotiffs(y_dash: Iterator[Prediction],
                    directory: str,
                    metadata: TrainingMetadata,
-                   percentiles: List[float],
+                   percentiles: Optional[List[float]],
                    tag: str="") -> None:
     classification = metadata.target_dtype != OrdinalType
 

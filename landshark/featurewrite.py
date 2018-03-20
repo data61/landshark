@@ -9,7 +9,8 @@ from typing import List, Union, Callable, Iterator, TypeVar, \
 
 
 from landshark.basetypes import FixedSlice, OrdinalArraySource, \
-    CategoricalArraySource, ArraySource, CoordinateArraySource
+    CategoricalArraySource, ArraySource, CoordinateArraySource, Worker, \
+    IdWorker
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
@@ -20,10 +21,6 @@ log = logging.getLogger(__name__)
 
 
 T = TypeVar("T")
-
-
-def _id(x: T) -> T:
-    return x
 
 
 def _cat(it: Iterator[Iterator[T]]) -> List[T]:
@@ -62,11 +59,10 @@ def write_ordinal(source: OrdinalArraySource,
                   batchsize: Optional[int]=None,
                   stats: Optional[Tuple[np.ndarray, np.ndarray]]=None) \
         -> None:
-    transform = Normaliser(*stats) if stats else _id
-    transform_f = cast(Callable[[np.ndarray], np.ndarray], transform)
+    transform = Normaliser(*stats) if stats else IdWorker()
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
-                  "ordinal_data", transform_f, n_workers, batchsize)
+                  "ordinal_data", transform, n_workers, batchsize)
     _write_stats(stats, hfile)
 
 def write_categorical(source: CategoricalArraySource,
@@ -74,11 +70,11 @@ def write_categorical(source: CategoricalArraySource,
                       n_workers: int,
                       batchsize: Optional[int]=None,
                       maps: Optional[CategoryInfo]=None) -> None:
-    transform = CategoryMapper(maps.mappings, source.missing) if maps else _id
-    transform_f = cast(Callable[[np.ndarray], np.ndarray], transform)
+    transform = CategoryMapper(maps.mappings, source.missing) \
+        if maps else IdWorker()
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
-                  "categorical_data", transform_f, n_workers, batchsize)
+                  "categorical_data", transform, n_workers, batchsize)
     _write_maps(maps, hfile)
 
 
@@ -86,7 +82,7 @@ def _write_source(src: ArraySource,
                   hfile: tables.File,
                   atom: tables.Atom,
                   name: str,
-                  transform: Callable[[np.ndarray], np.ndarray],
+                  transform: Worker,
                   n_workers: int,
                   batchsize: Optional[int]=None) -> None:
     front_shape = src.shape[0:-1]
@@ -101,8 +97,7 @@ def _write_source(src: ArraySource,
 
 
 def _write(source: ArraySource, array: tables.CArray,
-           batchsize: int, n_workers: int,
-           transform: Callable[[FixedSlice], np.ndarray]) -> None:
+           batchsize: int, n_workers: int, transform: Worker) -> None:
     n_rows = len(source)
     slices = list(batch_slices(batchsize, n_rows))
     out_it = task_list(slices, source, transform, n_workers)

@@ -62,6 +62,6 @@ def predict(modeldir: str, querydir: str, batchsize: int) -> int:
     md_dict = metadata._asdict()
     md_dict["image_spec"] = strip_imspec
     strip_metadata = TrainingMetadata(**md_dict)
-    write_geotiffs(y_dash_it, modeldir, strip_metadata, None,
+    write_geotiffs(y_dash_it, modeldir, strip_metadata, percentiles=None,
                    tag="{}of{}".format(strip, nstrips))
     return 0
