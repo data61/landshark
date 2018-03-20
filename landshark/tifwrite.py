@@ -2,7 +2,7 @@
 import os.path
 import logging
 
-from typing import List, Iterator, cast, Optional
+from typing import List, Iterator, cast, Optional, Tuple
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window

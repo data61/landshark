@@ -3,9 +3,9 @@ import signal
 import logging
 import json
 import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, Iterable, Tuple
+from typing import List, Any, Generator, Optional, Dict, Union, \
+    Iterable, Tuple, NamedTuple
 from itertools import count
-from collections import namedtuple
 
 import numpy as np
 import tensorflow as tf
@@ -26,12 +26,21 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 # Module constants and types
 #
 
-TrainingConfig = namedtuple("TrainingConfig",
-                            ["epochs", "batchsize", "samples",
-                             "test_batchsize", "test_samples", "use_gpu"])
 
-QueryConfig = namedtuple("QueryConfig", ["batchsize", "samples",
-                                         "percentiles", "use_gpu"])
+class TrainingConfig(NamedTuple):
+    epochs: int
+    batchsize: int
+    samples: int
+    test_batchsize: int
+    test_samples: int
+    use_gpu: bool
+
+
+class QueryConfig(NamedTuple):
+    batchsize: int
+    samples: int
+    percentiles: Tuple[float, float]
+    use_gpu: bool
 
 
 #
