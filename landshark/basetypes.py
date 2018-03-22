@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Dict, \
-    Callable, Any
+    Callable, Any, TypeVar
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +48,38 @@ class ClassificationPrediction(NamedTuple):
 Prediction = Union[RegressionPrediction, ClassificationPrediction]
 
 
-class ArraySource(Sized):
+T = TypeVar("T")
+
+
+class Reader:
+    """Generic reading class."""
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(self, ex_type: type, ex_val: Exception,
+                 ex_tb: TracebackType) -> None:
+        pass
+
+    def __call__(self, index: Any) -> T:
+        raise NotImplementedError
+
+
+class Worker:
+    """Generic worker (callable)."""
+    def __call__(self, x: Any) -> Any:
+        raise NotImplementedError
+
+
+class IdReader(Reader):
+    def __call__(self, index: T) -> T:
+        return index
+
+class IdWorker(Worker):
+    def __call__(self, x: T) -> T:
+        return x
+
+
+class ArraySource(Sized, Reader):
     """Abstract UniData interface."""
 
     def __init__(self) -> None:

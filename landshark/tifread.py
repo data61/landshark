@@ -3,14 +3,13 @@
 from types import TracebackType
 import os.path
 import logging
-from collections import namedtuple
 from contextlib import ExitStack
 
 import rasterio
 from rasterio.io import DatasetReader
 from affine import Affine
 import numpy as np
-from typing import Callable, Any, List, Tuple, Union, Optional
+from typing import Callable, Any, List, Tuple, Union, Optional, NamedTuple
 from mypy_extensions import NoReturn
 
 from landshark.image import pixel_coordinates, ImageSpec
@@ -24,8 +23,11 @@ log = logging.getLogger(__name__)
 ShpFieldsType = List[Tuple[str, str, int, int]]
 WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 
+
 # Convenience types
-Band = namedtuple("Band", ["image", "index"])
+class Band(NamedTuple):
+    image: DatasetReader
+    idx: int
 
 
 def shared_image_spec(path_list: List[str],
@@ -186,7 +188,7 @@ def _missing(value: FeatureType, bands: List[Band],
 
     Note that the list may contain 'None' where there are no missing values.
     """
-    r_set = set([b.image.nodatavals[b.index - 1] for b in bands])
+    r_set = set([b.image.nodatavals[b.idx - 1] for b in bands])
     result = None if r_set == {None} else dtype(value)
     return result
 
@@ -196,7 +198,7 @@ def _bands(images: List[DatasetReader]) -> List[Band]:
     bandlist = []
     for im in images:
         for i, _ in enumerate(im.dtypes):
-            band = Band(image=im, index=(i + 1))   # bands start from 1
+            band = Band(image=im, idx=(i + 1))   # bands start from 1
             bandlist.append(band)
     return bandlist
 
@@ -205,7 +207,7 @@ def _block_rows(bands: List[Band]) -> int:
     """Choose a sensible (global) blocksize based on input images' blocks."""
     block_list = []
     for b in bands:
-        block = b.image.block_shapes[b.index - 1]
+        block = b.image.block_shapes[b.idx - 1]
         if not block[0] <= block[1]:
             raise ValueError("No support for column-wise blocks")
         block_list.append(block[0])

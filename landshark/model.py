@@ -3,9 +3,9 @@ import signal
 import logging
 import json
 import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, Iterable, Tuple
+from typing import List, Any, Generator, Optional, Dict, Union, \
+    Iterable, Tuple, NamedTuple
 from itertools import count
-from collections import namedtuple
 
 import numpy as np
 import tensorflow as tf
@@ -26,12 +26,21 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 # Module constants and types
 #
 
-TrainingConfig = namedtuple("TrainingConfig",
-                            ["epochs", "batchsize", "samples",
-                             "test_batchsize", "test_samples", "use_gpu"])
 
-QueryConfig = namedtuple("QueryConfig", ["batchsize", "samples",
-                                         "percentiles", "use_gpu"])
+class TrainingConfig(NamedTuple):
+    epochs: int
+    batchsize: int
+    samples: int
+    test_batchsize: int
+    test_samples: int
+    use_gpu: bool
+
+
+class QueryConfig(NamedTuple):
+    batchsize: int
+    samples: int
+    percentiles: Tuple[float, float]
+    use_gpu: bool
 
 
 #
@@ -172,7 +181,7 @@ def predict(model: str,
                 Ey = _load_op(graph, "Test/Ey")
                 prob = _load_op(graph, "Test/prob")
                 eval_list = [Ey, prob]
-                to_obj = ClassificationPrediction
+                to_obj: type = ClassificationPrediction
             else:
                 Ef = _load_op(graph, "Deepnet/F_mean")
                 F_samps = _load_op(graph, "Deepnet/F_sample")
@@ -236,6 +245,7 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
 def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
         Tuple[np.array, np.array]:
     """Calculate the samples weights and labels for classification."""
+    assert metadata.target_map is not None
     nlabels = len(metadata.target_map[0])
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)

@@ -1,7 +1,7 @@
 """Patch extraction for images."""
 
 import logging
-from collections import namedtuple
+from typing import NamedTuple
 
 import numpy as np
 from typing import Tuple, List
@@ -9,8 +9,18 @@ from typing import Tuple, List
 log = logging.getLogger(__name__)
 
 
-PatchRowRW = namedtuple("PatchRowRW", (["idx", "x", "y", "xp", "yp"]))
-PatchMaskRowRW = namedtuple("PatchMaskRowRW", (["idx", "xp", "yp"]))
+class PatchRowRW(NamedTuple):
+    idx: int
+    x: slice
+    y: int
+    xp: slice
+    yp: int
+
+
+class PatchMaskRowRW(NamedTuple):
+    idx: int
+    xp: slice
+    yp: int
 
 
 def patches(x_coords: np.ndarray, y_coords: np.ndarray, halfwidth: int,

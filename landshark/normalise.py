@@ -5,7 +5,7 @@ from tqdm import tqdm
 from typing import Tuple
 
 from landshark import iteration
-from landshark.basetypes import OrdinalArraySource
+from landshark.basetypes import OrdinalArraySource, Worker
 from landshark.util import to_masked
 
 log = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class StatCounter:
         return self._n
 
 
-class Normaliser:
+class Normaliser(Worker):
 
     def __init__(self, mean: np.ndarray, var: np.ndarray) -> None:
         self._mean = mean

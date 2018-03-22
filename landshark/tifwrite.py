@@ -2,7 +2,7 @@
 import os.path
 import logging
 
-from typing import List, Iterator, cast
+from typing import List, Iterator, cast, Optional, Tuple
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
@@ -43,6 +43,7 @@ class BatchWriter:
     def close(self) -> None:
         self.f.close()
 
+
 def _make_writer(directory: str, label: str, dtype: NumericalType,
                  image_spec: ImageSpec) -> BatchWriter:
     crs = rs.crs.CRS(**image_spec.crs)
@@ -56,9 +57,7 @@ def _make_writer(directory: str, label: str, dtype: NumericalType,
     return writer
 
 
-def _make_classify_labels(label: str,
-                          target_map: List[List[CategoricalType]]) \
-        -> List[str]:
+def _make_classify_labels(label: str, target_map: np.ndarray) -> List[str]:
     target_list = target_map[0]
 
     # Binary
@@ -77,7 +76,7 @@ def _make_classify_labels(label: str,
 def write_geotiffs(y_dash: Iterator[Prediction],
                    directory: str,
                    metadata: TrainingMetadata,
-                   percentiles: List[float],
+                   percentiles: Optional[List[float]],
                    tag: str="") -> None:
     classification = metadata.target_dtype != OrdinalType
 
@@ -102,6 +101,9 @@ def _write_classification(y_dash: Iterator[ClassificationPrediction],
                           directory: str,
                           metadata: TrainingMetadata) -> None:
     assert len(labels) == 1
+    if metadata.target_map is None:
+        raise ValueError("Cant write classification target without"
+                         "target mapping")
     label = labels[0]
     ey_writer = _make_writer(directory, label, CategoricalType,
                              metadata.image_spec)
