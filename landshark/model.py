@@ -157,7 +157,6 @@ def predict(model: str,
             records: List[str],
             params: QueryConfig) -> Generator:
     """Load a model and predict results for record inputs."""
-    total_size = metadata.image_spec.height * metadata.image_spec.width
     classification = metadata.target_dtype != np.float32
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
@@ -199,10 +198,12 @@ def predict(model: str,
             res = _fix_samples(graph, sess, eval_list, feed_dict)
             res_obj = to_obj(*res)
 
+            total_size = (metadata.image_spec.height *
+                          metadata.image_spec.width) // params.batchsize
             with tqdm(total=total_size) as pbar:
                 # Yield prediction result from fixing samples
                 yield res_obj
-                pbar.update(res[0].shape[0])
+                pbar.update()
 
                 # Continue obtaining predictions
                 while True:
@@ -210,7 +211,7 @@ def predict(model: str,
                         res = to_obj(*sess.run(eval_list, feed_dict=feed_dict))
                         res_obj = to_obj(*res)
                         yield res_obj
-                        pbar.update(res[0].shape[0])
+                        pbar.update()
                     except tf.errors.OutOfRangeError:
                         return
 

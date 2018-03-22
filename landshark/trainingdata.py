@@ -220,7 +220,7 @@ def write_querydata(feature_path: str,
                     tag: str) -> None:
     true_batchsize = batchsize * image_spec.width
     log.info("Writing query data to tfrecord in {}-row batches".format(
-        true_batchsize))
+        batchsize))
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, total_strips,
                                 true_batchsize)

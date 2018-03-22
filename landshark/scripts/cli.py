@@ -82,13 +82,13 @@ def predict(
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
 
-    y_dash_it = model.predict(modeldir, metadata, query_records, params)
-
     strip, nstrips = get_strips(query_records)
     strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
     md_dict = metadata._asdict()
     md_dict["image_spec"] = strip_imspec
     strip_metadata = TrainingMetadata(**md_dict)
+
+    y_dash_it = model.predict(modeldir, strip_metadata, query_records, params)
     write_geotiffs(y_dash_it, modeldir, strip_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
