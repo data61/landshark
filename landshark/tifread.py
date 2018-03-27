@@ -66,7 +66,7 @@ class _ImageStackSource(ArraySource):
     _type_name = ""
 
     def __init__(self, image_spec: ImageSpec, path_list: List[str],
-                 missing: int=-2147483648) -> None:
+                 missing: np.float32=np.finfo(np.float32).max) -> None:
         """Construct an instance of ImageStack."""
         self._path_list = path_list
         with ExitStack() as stack:
@@ -110,7 +110,8 @@ class _ImageStackSource(ArraySource):
             marray = im.read(window=w, masked=True).astype(self._dtype)
             if self._missing is not None:
                 if np.sum(marray.data == self._missing) > 0:
-                    raise ValueError("Mask value detected in dataset")
+                    msg = "Mask value {} detected in dataset (image: {})"
+                    raise ValueError(msg.format(self._missing, im))
                 marray.data[marray.mask] = self._missing
             data = marray.data
             data = np.moveaxis(data, 0, -1)
