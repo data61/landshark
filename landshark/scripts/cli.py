@@ -38,6 +38,8 @@ def cli(verbosity: str) -> int:
 @click.option("--test_samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for validating on the"
               " test set.")
+@click.option("--learnrate", type=float, default=0.01,
+              help="Learning rate to pass to ADAM optimiser")
 @click.option("--test_batchsize", type=click.IntRange(min=1), default=1000,
               help="Testing batch size")
 @click.option("--iterations", type=click.IntRange(min=1), default=None,
@@ -45,14 +47,15 @@ def cli(verbosity: str) -> int:
 @click.option("--gpu/--no-gpu", default=False)
 def train(directory: str, config: str, epochs: int, batchsize: int,
           test_batchsize: int, samples: int, test_samples: int,
-          gpu: bool, iterations: Optional[int]) -> int:
+          gpu: bool, iterations: Optional[int], learnrate: float) -> int:
     """Train a model specified by an input configuration."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, directory)
 
     # Train
     training_params = TrainingConfig(epochs, batchsize, samples,
-                                     test_batchsize, test_samples, gpu)
+                                     test_batchsize, test_samples, gpu,
+                                     learnrate)
     model.train_test(training_records, testing_records, metadata, model_dir,
                      sys.modules[cf], training_params, iterations)
     return 0
