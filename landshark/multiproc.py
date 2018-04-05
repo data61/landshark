@@ -11,6 +11,13 @@ from tqdm import tqdm
 
 log = logging.getLogger(__name__)
 
+# Do not make result queue size 0 if you care about memory
+# Values larger than 1 probably dont help anyway
+RESULT_QUEUE_SIZE = 1
+
+# We're assuming the actual request objects are small here
+REQ_QUEUE_SIZE = 0
+
 
 class _Task(Process):
 
@@ -43,14 +50,11 @@ class _Task(Process):
 
 
 def task_list(task_list: List[Any], reader: Reader, worker: Worker,
-              n_workers: int, req_queue_size: int=0, data_queue_size: int=0,
-              result_queue_size: int=0) -> Iterator[Any]:
+              n_workers: int) -> Iterator[Any]:
     if n_workers == 0:
         return _task_list_0(task_list, reader, worker)
     else:
-        return _task_list_multi(task_list, reader, worker, n_workers,
-                                req_queue_size, data_queue_size,
-                                result_queue_size)
+        return _task_list_multi(task_list, reader, worker, n_workers)
 
 
 def _task_list_0(task_list: List[Any], reader: Reader,
@@ -66,10 +70,9 @@ def _task_list_0(task_list: List[Any], reader: Reader,
 
 
 def _task_list_multi(task_list: List[Any], reader: Reader, worker: Worker,
-                     n_workers: int, req_queue_size: int, data_queue_size: int,
-                     result_queue_size: int) -> Iterator[Any]:
-    req_queue = Queue(req_queue_size)
-    result_queue = Queue(result_queue_size)
+                     n_workers: int) -> Iterator[Any]:
+    req_queue = Queue(REQ_QUEUE_SIZE)
+    result_queue = Queue(RESULT_QUEUE_SIZE)
     shutdown_recv, shutdown_send = Pipe(False)
     worker_procs = [_Task(reader, worker, req_queue, result_queue,
                           shutdown_recv)
