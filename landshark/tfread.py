@@ -28,10 +28,6 @@ def load_model(config_file: str) -> str:
 
 def setup_training(config: str, directory: str) -> \
         Tuple[List[str], List[str], TrainingMetadata, str, str]:
-    name = os.path.basename(config).rsplit(".")[0] + "_model"
-    # name = os.path.basename(directory) + "_" + \
-    #     os.path.basename(config).rsplit(".")[0] + "_model"
-
     # Get the data
     test_dir = os.path.join(directory, "testing")
     training_records = glob(os.path.join(directory, "*.tfrecord"))
@@ -42,6 +38,8 @@ def setup_training(config: str, directory: str) -> \
     metadata = load_metadata(metadata_path)
 
     # Write the metadata
+    name = os.path.basename(config).rsplit(".")[0] + \
+        "_model_{}of{}".format(metadata.testfold, metadata.folds)
     model_dir = os.path.join(os.getcwd(), name)
     try:
         os.makedirs(model_dir)
