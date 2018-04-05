@@ -7,27 +7,18 @@ from multiprocessing import cpu_count
 
 import tables
 import click
-# mypy type checking
 from typing import List
 
-# from landshark.basetypes import ClassSpec
 from landshark.tifread import shared_image_spec, OrdinalStackSource, \
     CategoricalStackSource
-
-# from landshark.hread import ImageFeatures
 from landshark.featurewrite import write_imagespec, write_ordinal, \
     write_categorical, write_coordinates
 from landshark.shpread import OrdinalShpArraySource, \
     CategoricalShpArraySource, CoordinateShpArraySource
-# from landshark.importers import tfwrite
-# from landshark.importers import metadata as mt
 from landshark.scripts.logger import configure_logging
-# from landshark import feed
-from landshark.hread import read_image_spec, OrdinalH5ArraySource, CategoricalH5ArraySource
+from landshark.hread import read_image_spec
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
-# from landshark.image import strip_image_spec
-
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 
@@ -51,7 +42,7 @@ def cli(verbosity: str) -> int:
 
 def _tifnames(directory: str) -> List[str]:
     if directory is not None:
-        file_types = ('tif', 'gtif')
+        file_types = ("tif", "gtif")
         names = []
         for t in file_types:
             glob_pattern = os.path.join(directory, "**", "*.{}".format(t))
@@ -165,7 +156,8 @@ def trainingdata(features: str, targets: str, testfold: int,
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
                                  halfwidth, nworkers, directory,
                                  testfold, folds, random_seed)
-    metadata = from_files(features, targets, image_spec, halfwidth, n_train)
+    metadata = from_files(features, targets, image_spec, halfwidth, n_train,
+                          folds, testfold)
     write_metadata(directory, metadata)
     log.info("Training import complete")
     return 0
