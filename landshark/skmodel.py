@@ -137,9 +137,15 @@ def _convert_res(res: Tuple[np.ndarray, Optional[np.ndarray]]) -> Prediction:
         if y.ndim == 1:
             y = y[:, np.newaxis]
         y = y.astype(OrdinalType)
-        if extra is not None and extra.shape[0] != 2:
-            raise RuntimeError("The regressor must output either None"
-                               " or upper and lower quantiles in 2xN array")
+        if extra is not None:
+            if extra.shape[0] != 2:
+                raise RuntimeError("The regressor must output either None"
+                                   " or upper and lower quantiles in 2xN array")
+
+            # Add another dimension (percentiles are expected in batches)
+            if extra.ndim == 2:
+                extra = extra[..., None]
+
         out: Prediction = RegressionPrediction(Ey=y, percentiles=extra)
 
     elif y.dtype == np.int64 or y.dtype == np.int32:
@@ -171,7 +177,7 @@ def train_test(config_module: str, records_train: List[str],
 
     model.fit(ord_array, cat_array, y_array)
     log.info("Evaluating test data")
-    res = model.predict(ord_array_test, cat_array_test)
+    res = model.predict(ord_array_test, cat_array_test, None)
     res = _convert_res(res)
 
     if classification:
@@ -209,13 +215,14 @@ def train_test(config_module: str, records_train: List[str],
 
 
 def predict(modeldir: str, metadata: TrainingMetadata,
-            query_records: List[str], batch_size: int) -> Iterator[Prediction]:
+            query_records: List[str], batch_size: int,
+            percentiles: Tuple[float, float]) -> Iterator[Prediction]:
 
     model_path = os.path.join(modeldir, "skmodel.pickle")
     with open(model_path, "rb") as f:
         model = pickle.load(f)
 
     for xo, xc in _query_it(query_records, batch_size, metadata):
-        res = model.predict(xo, xc)
+        res = model.predict(xo, xc, percentiles)
         res = _convert_res(res)
         yield res
