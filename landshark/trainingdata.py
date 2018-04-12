@@ -107,6 +107,61 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
     return data
 
 
+def _process_training(coords: np.ndarray,
+                      feature_source: H5Features, image_spec: ImageSpec,
+                      halfwidth: int) -> \
+        Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
+    coords_x, coords_y = coords.T
+    indices_x = world_to_image(coords_x, image_spec.x_coordinates)
+    indices_y = world_to_image(coords_y, image_spec.y_coordinates)
+    patch_reads, mask_reads = patch.patches(indices_x, indices_y,
+                                            halfwidth,
+                                            image_spec.width,
+                                            image_spec.height)
+    npatches = indices_x.shape[0]
+    patchwidth = 2 * halfwidth + 1
+    ord_marray, cat_marray = None, None
+    if feature_source.ordinal:
+        ord_marray = _direct_read(feature_source.ordinal,
+                                  patch_reads, mask_reads,
+                                  npatches, patchwidth)
+    if feature_source.categorical:
+        cat_marray = _direct_read(feature_source.categorical,
+                                  patch_reads, mask_reads,
+                                  npatches, patchwidth)
+    return ord_marray, cat_marray
+
+
+def _process_query(indices: Tuple[np.ndarray, np.ndarray],
+                   feature_source: H5Features,
+                   image_spec: ImageSpec, halfwidth: int) \
+        -> Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
+    indices_x, indices_y = indices
+    patch_reads, mask_reads = patch.patches(indices_x, indices_y,
+                                            halfwidth,
+                                            image_spec.width,
+                                            image_spec.height)
+    patch_data_slices = _slices_from_patches(patch_reads)
+    npatches = indices_x.shape[0]
+    patchwidth = 2 * halfwidth + 1
+    ord_marray, cat_marray = None, None
+    if feature_source.ordinal:
+        ord_data_cache = _get_rows(patch_data_slices,
+                                   feature_source.ordinal)
+        ord_marray = _cached_read(ord_data_cache,
+                                  feature_source.ordinal,
+                                  patch_reads, mask_reads, npatches,
+                                  patchwidth)
+    if feature_source.categorical:
+        cat_data_cache = _get_rows(patch_data_slices,
+                                   feature_source.categorical)
+        cat_marray = _cached_read(cat_data_cache,
+                                  feature_source.categorical,
+                                  patch_reads, mask_reads, npatches,
+                                  patchwidth)
+    return ord_marray, cat_marray
+
+
 class TrainingDataProcessor(Worker):
 
     def __init__(self, image_spec: ImageSpec, feature_path: str,
@@ -116,29 +171,22 @@ class TrainingDataProcessor(Worker):
         self.image_spec = image_spec
         self.feature_source: Optional[H5Features] = None
 
-    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> List[bytes]:
+    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
+            Tuple[np.ma.MaskedArray, np.ma.MaskedArray, np.ndarray]:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         targets, coords = values
-        coords_x, coords_y = coords.T
-        indices_x = world_to_image(coords_x, self.image_spec.x_coordinates)
-        indices_y = world_to_image(coords_y, self.image_spec.y_coordinates)
-        patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                                self.halfwidth,
-                                                self.image_spec.width,
-                                                self.image_spec.height)
-        npatches = indices_x.shape[0]
-        patchwidth = 2 * self.halfwidth + 1
-        ord_marray, cat_marray = None, None
-        if self.feature_source.ordinal:
-            ord_marray = _direct_read(self.feature_source.ordinal,
-                                      patch_reads, mask_reads,
-                                      npatches, patchwidth)
-        if self.feature_source.categorical:
-            cat_marray = _direct_read(self.feature_source.categorical,
-                                      patch_reads, mask_reads,
-                                      npatches, patchwidth)
+        ord_marray, cat_marray = _process_training(coords, self.feature_source,
+                                                   self.image_spec,
+                                                   self.halfwidth)
+        return ord_marray, cat_marray, targets
 
+
+class SerialisingTrainingDataProcessor(TrainingDataProcessor):
+
+    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
+            List[bytes]:
+        ord_marray, cat_marray, targets = super().__call__(values)
         strings = serialise(ord_marray, cat_marray, targets)
         return strings
 
@@ -152,32 +200,20 @@ class QueryDataProcessor(Worker):
         self.image_spec = image_spec
         self.feature_source: Optional[H5Features] = None
 
-    def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> List[bytes]:
+    def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
+            Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
-        indices_x, indices_y = indices
-        patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                                self.halfwidth,
-                                                self.image_spec.width,
-                                                self.image_spec.height)
-        patch_data_slices = _slices_from_patches(patch_reads)
-        npatches = indices_x.shape[0]
-        patchwidth = 2 * self.halfwidth + 1
-        ord_marray, cat_marray = None, None
-        if self.feature_source.ordinal:
-            ord_data_cache = _get_rows(patch_data_slices,
-                                       self.feature_source.ordinal)
-            ord_marray = _cached_read(ord_data_cache,
-                                      self.feature_source.ordinal,
-                                      patch_reads, mask_reads, npatches,
-                                      patchwidth)
-        if self.feature_source.categorical:
-            cat_data_cache = _get_rows(patch_data_slices,
-                                       self.feature_source.categorical)
-            cat_marray = _cached_read(cat_data_cache,
-                                      self.feature_source.categorical,
-                                      patch_reads, mask_reads, npatches,
-                                      patchwidth)
+        ord_marray, cat_marray = _process_query(indices, self.feature_source,
+                                                self.image_spec,
+                                                self.halfwidth)
+        return ord_marray, cat_marray
+
+
+class SerialisingQueryDataProcessor(QueryDataProcessor):
+    def __call_(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
+            List[bytes]:
+        ord_marray, cat_marray = super().__call__(indices)
         strings = serialise(ord_marray, cat_marray, None)
         return strings
 
@@ -201,7 +237,8 @@ def write_trainingdata(feature_path: str,
     target_src = CategoricalH5ArraySource(target_path) if categorical \
         else OrdinalH5ArraySource(target_path)
     n_rows = len(target_src)
-    worker = TrainingDataProcessor(image_spec, feature_path, halfwidth)
+    worker = SerialisingTrainingDataProcessor(image_spec, feature_path,
+                                              halfwidth)
     tasks = list(batch_slices(batchsize, n_rows))
     out_it = task_list(tasks, target_src, worker, n_workers)
     n_train = tfwrite.training(out_it, n_rows, output_directory, testfold,
@@ -224,7 +261,7 @@ def write_querydata(feature_path: str,
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, total_strips,
                                 true_batchsize)
-    worker = QueryDataProcessor(image_spec, feature_path, halfwidth)
+    worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, n_workers)
     tfwrite.query(out_it, n_total, output_directory, tag)
