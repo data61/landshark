@@ -18,6 +18,7 @@ from landshark.hread import H5Features, CategoricalH5ArraySource, \
     OrdinalH5ArraySource
 from landshark.image import indices_strip, world_to_image, ImageSpec
 from landshark.serialise import serialise
+from landshark.kfold import KFolds
 
 log = logging.getLogger(__name__)
 
@@ -237,12 +238,14 @@ def write_trainingdata(feature_path: str,
     target_src = CategoricalH5ArraySource(target_path) if categorical \
         else OrdinalH5ArraySource(target_path)
     n_rows = len(target_src)
+    kfolds = KFolds(n_rows, folds, random_seed)
+    n_train = n_rows - kfolds.counts[testfold]
     worker = SerialisingTrainingDataProcessor(image_spec, feature_path,
                                               halfwidth)
     tasks = list(batch_slices(batchsize, n_rows))
     out_it = task_list(tasks, target_src, worker, n_workers)
-    n_train = tfwrite.training(out_it, n_rows, output_directory, testfold,
-                               folds, random_seed)
+    fold_it = kfolds.iterator(batchsize)
+    tfwrite.training(out_it, n_rows, output_directory, testfold, fold_it)
     return n_train
 
 

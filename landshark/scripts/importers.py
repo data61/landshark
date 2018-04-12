@@ -21,6 +21,7 @@ from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
+from landshark.kfold import KFolds
 
 log = logging.getLogger(__name__)
 
@@ -154,8 +155,8 @@ def trainingdata(features: str, targets: str, testfold: int,
 
     image_spec = read_image_spec(features)
     n_train = write_trainingdata(features, targets, image_spec, batchsize,
-                                 halfwidth, nworkers, directory,
-                                 testfold, folds, random_seed)
+                                 halfwidth, nworkers, directory, testfold,
+                                 folds, random_seed)
     metadata = from_files(features, targets, image_spec, halfwidth, n_train,
                           folds, testfold)
     write_metadata(directory, metadata)
