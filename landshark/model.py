@@ -34,6 +34,7 @@ class TrainingConfig(NamedTuple):
     test_batchsize: int
     test_samples: int
     use_gpu: bool
+    learnrate: float
 
 
 class QueryConfig(NamedTuple):
@@ -91,7 +92,7 @@ def train_test(records_train: List[str],
 
     # Training
     with tf.name_scope("Train"):
-        optimizer = tf.train.AdamOptimizer()
+        optimizer = tf.train.AdamOptimizer(learning_rate=params.learnrate)
         global_step = tf.train.create_global_step()
         train = optimizer.minimize(loss, global_step=global_step)
 

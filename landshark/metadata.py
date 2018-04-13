@@ -25,13 +25,17 @@ class TrainingMetadata(NamedTuple):
     ncategories_patched: Optional[List[int]]
     target_map: Optional[np.ndarray]
     target_counts: Optional[List[List[int]]]
+    folds: int
+    testfold: int
 
 
 def from_files(feature_file: str,
                target_file: str,
                image_spec: ImageSpec,
                halfwidth: int,
-               n_train: int) -> TrainingMetadata:
+               n_train: int,
+               folds: int,
+               testfold: int) -> TrainingMetadata:
     """TODO."""
     nfeatures_ord = 0
     nfeatures_cat = 0
@@ -77,7 +81,10 @@ def from_files(feature_file: str,
                          image_spec=image_spec,
                          target_map=target_map,
                          target_counts=target_counts,
-                         ncategories_patched=ncategories_patched)
+                         ncategories_patched=ncategories_patched,
+                         folds=folds,
+                         testfold=testfold
+                         )
     return m
 
 
