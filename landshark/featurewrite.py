@@ -125,3 +125,5 @@ def _make_int_vlarray(h5file: tables.File, name: str,
                                     atom=tables.Int32Atom(shape=()))
     for a in attribute:
         vlarray.append(a)
+
+

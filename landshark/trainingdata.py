@@ -4,13 +4,14 @@ from itertools import groupby, count
 import logging
 
 import numpy as np
-from typing import List, Tuple, Dict, Iterator, cast, Optional, TypeVar
+from typing import List, Tuple, Dict, Iterator, cast, Optional, TypeVar, \
+    NamedTuple
 import tables
 
 
 from landshark import patch
 from landshark.multiproc import task_list
-from landshark.basetypes import FixedSlice, Worker, IdReader
+from landshark.basetypes import FixedSlice, Worker, IdReader, ArraySource
 from landshark.patch import PatchRowRW, PatchMaskRowRW
 from landshark.iteration import batch_slices
 from landshark import tfwrite
@@ -219,34 +220,33 @@ class SerialisingQueryDataProcessor(QueryDataProcessor):
         return strings
 
 
-def write_trainingdata(feature_path: str,
-                       target_path: str,
-                       image_spec: ImageSpec,
-                       batchsize: int,
-                       halfwidth: int,
-                       n_workers: int,
+class TrainingMetadata(NamedTuple):
+    name: str
+    feature_path: str
+    target_src: ArraySource
+    image_spec: ImageSpec
+    halfwidth: int
+    folds: KFolds
+
+
+def write_trainingdata(tinfo: TrainingMetadata,
                        output_directory: str,
                        testfold: int,
-                       folds: int,
-                       random_seed: int) -> int:
+                       batchsize: int,
+                       nworkers: int
+                       ) -> None:
 
-    log.info("Testing data is fold {} of {}".format(testfold, folds))
+    log.info("Testing data is fold {} of {}".format(testfold, tinfo.folds))
     log.info("Writing training data to tfrecord in {}-point batches".format(
         batchsize))
-    with tables.open_file(target_path, "r") as tfile:
-        categorical = hasattr(tfile.root, "categorical_data")
-    target_src = CategoricalH5ArraySource(target_path) if categorical \
-        else OrdinalH5ArraySource(target_path)
-    n_rows = len(target_src)
-    kfolds = KFolds(n_rows, folds, random_seed)
-    n_train = n_rows - kfolds.counts[testfold]
-    worker = SerialisingTrainingDataProcessor(image_spec, feature_path,
-                                              halfwidth)
+    n_rows = len(tinfo.target_src)
+    worker = SerialisingTrainingDataProcessor(tinfo.image_spec,
+                                              tinfo.feature_path,
+                                              tinfo.halfwidth)
     tasks = list(batch_slices(batchsize, n_rows))
-    out_it = task_list(tasks, target_src, worker, n_workers)
-    fold_it = kfolds.iterator(batchsize)
+    out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
+    fold_it = tinfo.folds.iterator(batchsize)
     tfwrite.training(out_it, n_rows, output_directory, testfold, fold_it)
-    return n_train
 
 
 def write_querydata(feature_path: str,
