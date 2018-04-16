@@ -2,6 +2,7 @@
 from types import TracebackType
 from itertools import groupby, count
 import logging
+import os.path
 
 import numpy as np
 from typing import List, Tuple, Dict, Iterator, cast, Optional, TypeVar, \
@@ -18,6 +19,7 @@ from landshark import tfwrite
 from landshark.hread import H5Features, CategoricalH5ArraySource, \
     OrdinalH5ArraySource
 from landshark.image import indices_strip, world_to_image, ImageSpec
+from landshark.hread import read_image_spec
 from landshark.serialise import serialise
 from landshark.kfold import KFolds
 
@@ -227,6 +229,25 @@ class TrainingMetadata(NamedTuple):
     image_spec: ImageSpec
     halfwidth: int
     folds: KFolds
+
+def setup_training(features: str, targets: str, folds: int, random_seed: int,
+                   halfwidth: int) \
+        -> TrainingMetadata:
+    name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
+        os.path.basename(targets).rsplit("_targets.")[0]
+
+    # read the target file
+    with tables.open_file(targets, "r") as tfile:
+        categorical = hasattr(tfile.root, "categorical_data")
+    target_src = CategoricalH5ArraySource(targets) if categorical \
+        else OrdinalH5ArraySource(targets)
+
+    n_rows = len(target_src)
+    image_spec = read_image_spec(features)
+    kfolds = KFolds(n_rows, folds, random_seed)
+    result = TrainingMetadata(name, features, target_src, image_spec,
+                              halfwidth, kfolds)
+    return result
 
 
 def write_trainingdata(tinfo: TrainingMetadata,

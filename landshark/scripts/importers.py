@@ -22,8 +22,7 @@ from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, write_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
-from landshark.kfold import KFolds
-from landshark.trainingdata import TrainingMetadata
+from landshark.trainingdata import setup_training
 
 log = logging.getLogger(__name__)
 
@@ -136,26 +135,6 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
     return 0
 
 
-def _setup_training(features: str, targets: str, folds: int, random_seed: int,
-                    halfwidth: int) \
-        -> TrainingMetadata:
-    name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
-        os.path.basename(targets).rsplit("_targets.")[0]
-
-    # read the target file
-    with tables.open_file(targets, "r") as tfile:
-        categorical = hasattr(tfile.root, "categorical_data")
-    target_src = CategoricalH5ArraySource(targets) if categorical \
-        else OrdinalH5ArraySource(targets)
-
-    n_rows = len(target_src)
-    image_spec = read_image_spec(features)
-    kfolds = KFolds(n_rows, folds, random_seed)
-    result = TrainingMetadata(name, features, target_src, image_spec,
-                              halfwidth, kfolds)
-    return result
-
-
 @cli.command()
 @click.argument("features", type=click.Path(exists=True))
 @click.argument("targets", type=click.Path(exists=True))
@@ -170,7 +149,7 @@ def trainingdata(features: str, targets: str, testfold: int,
                  random_seed: int) -> int:
     """Get training data."""
 
-    tinfo = _setup_training(features, targets, folds, random_seed, halfwidth)
+    tinfo = setup_training(features, targets, folds, random_seed, halfwidth)
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), tinfo.name +
                              "_traintest{}of{}".format(testfold, folds))

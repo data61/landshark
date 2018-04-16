@@ -22,6 +22,7 @@ setup(
             "landshark = landshark.scripts.cli:cli",
             "skshark = landshark.scripts.skcli:cli",
             "landshark-import = landshark.scripts.importers:cli",
+            "landshark-dump = landshark.scripts.dumpers:cli",
         ]
     },
     install_requires=[

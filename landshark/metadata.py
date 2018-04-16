@@ -27,6 +27,8 @@ class TrainingMetadata(NamedTuple):
     target_counts: Optional[List[List[int]]]
     folds: int
     testfold: int
+    missing_ord: Optional[OrdinalType]
+    missing_cat: Optional[CategoricalType]
 
 
 def from_files(feature_file: str,
@@ -43,6 +45,8 @@ def from_files(feature_file: str,
     ncategories_patched = None
     target_counts = None
     target_map = None
+    missing_ord = None
+    missing_cat = None
     with tables.open_file(feature_file, "r") as hfile:
         if hasattr(hfile.root, "categorical_data"):
             nfeatures_cat = hfile.root.categorical_data.atom.shape[0]
@@ -51,8 +55,10 @@ def from_files(feature_file: str,
             # ncategories_patched = ncategories * bmul
             ncats_nested = [[k] * bmul for k in ncategories]
             ncategories_patched = [e for l in ncats_nested for e in l]
+            missing_cat = hfile.root.categorical_data.attrs.missing
 
         if hasattr(hfile.root, "ordinal_data"):
+            missing_ord = hfile.root.ordinal_data.attrs.missing
             nfeatures_ord = hfile.root.ordinal_data.atom.shape[0]
 
     with tables.open_file(target_file, "r") as hfile:
@@ -83,7 +89,9 @@ def from_files(feature_file: str,
                          target_counts=target_counts,
                          ncategories_patched=ncategories_patched,
                          folds=folds,
-                         testfold=testfold
+                         testfold=testfold,
+                         missing_ord=missing_ord,
+                         missing_cat=missing_cat
                          )
     return m
 
