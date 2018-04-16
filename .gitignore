@@ -105,6 +105,7 @@ ENV/
 
 # test stuff
 test_output/
+.pytest_cache/
 
 # data dir
 data/

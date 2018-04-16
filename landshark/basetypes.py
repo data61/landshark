@@ -4,8 +4,8 @@ from types import TracebackType
 import logging
 
 import numpy as np
-from typing import Union, Tuple, Optional, List, Sized, NamedTuple, Dict, \
-    Callable, Any, TypeVar
+from typing import (Union, Tuple, Optional, List, Sized, NamedTuple, Any,
+                    TypeVar)
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ class RegressionPrediction(NamedTuple):
     """Output of a regression predictor."""
     Ey: np.ndarray
     percentiles: Optional[np.ndarray]
+
 
 class ClassificationPrediction(NamedTuple):
     """Output of a classification predictor."""
@@ -74,6 +75,7 @@ class IdReader(Reader):
     def __call__(self, index: T) -> T:
         return index
 
+
 class IdWorker(Worker):
     def __call__(self, x: T) -> T:
         return x
@@ -85,11 +87,12 @@ class ArraySource(Sized, Reader):
     def __init__(self) -> None:
         """Baseclass for data backends."""
         self._shape: Tuple[int, ...] = (0, 0)
-        self._native = 0
-        self._dtype = OrdinalType
+        self._native: int = 0
+        self._dtype: NumericalType = 0
         self._missing: MissingType = None
+        self._missing_val: NumericalType = 0
         self._columns: List[str] = []
-        self._open = False
+        self._open: bool = False
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -197,15 +200,18 @@ class OrdinalArraySource(ArraySource):
     """Array source for Ordinal data."""
 
     _dtype = OrdinalType
+    _missing_val = np.finfo(_dtype).min
 
 
 class CategoricalArraySource(ArraySource):
     """Array source for categorical data."""
 
     _dtype = CategoricalType
+    _missing_val = np.iinfo(_dtype).min
 
 
 class CoordinateArraySource(ArraySource):
     """Array source for coordinate data."""
 
     _dtype = CoordinateType
+    _missing_val = np.finfo(_dtype).min

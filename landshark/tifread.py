@@ -9,12 +9,12 @@ import rasterio
 from rasterio.io import DatasetReader
 from affine import Affine
 import numpy as np
-from typing import Callable, Any, List, Tuple, Union, Optional, NamedTuple
+from typing import Callable, Any, List, Tuple, NamedTuple
 from mypy_extensions import NoReturn
 
 from landshark.image import pixel_coordinates, ImageSpec
 from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, FeatureType
+    CategoricalArraySource
 
 
 log = logging.getLogger(__name__)
@@ -65,8 +65,7 @@ class _ImageStackSource(ArraySource):
     """
     _type_name = ""
 
-    def __init__(self, image_spec: ImageSpec, path_list: List[str],
-                 missing: int=-2147483648) -> None:
+    def __init__(self, image_spec: ImageSpec, path_list: List[str]) -> None:
         """Construct an instance of ImageStack."""
         self._path_list = path_list
         with ExitStack() as stack:
@@ -76,7 +75,7 @@ class _ImageStackSource(ArraySource):
             nbands = len(bands)
             self._shape = (image_spec.height,
                            image_spec.width, nbands)
-            self._missing = _missing(missing, bands, self.dtype)
+            self._missing = self._missing_val if _has_missing(bands) else None
             self._columns = _names(bands)
             self._native = _block_rows(bands)
 
@@ -109,8 +108,9 @@ class _ImageStackSource(ArraySource):
             stop_band = start_band + im.count
             marray = im.read(window=w, masked=True).astype(self._dtype)
             if self._missing is not None:
-                if np.sum(marray.data == self._missing) > 0:
-                    raise ValueError("Mask value detected in dataset")
+                if any(marray.compressed() == self._missing):
+                    msg = "Mask value {} detected in dataset (image: {})"
+                    raise ValueError(msg.format(self._missing, im))
                 marray.data[marray.mask] = self._missing
             data = marray.data
             data = np.moveaxis(data, 0, -1)
@@ -181,16 +181,11 @@ def _names(band_list: List[Band]) -> List[str]:
     return band_names
 
 
-def _missing(value: FeatureType, bands: List[Band],
-             dtype: np.dtype) -> Optional[FeatureType]:
-    """
-    Convert missing data values to a given dtype (rasterio workaround).
-
-    Note that the list may contain 'None' where there are no missing values.
-    """
-    r_set = set([b.image.nodatavals[b.idx - 1] for b in bands])
-    result = None if r_set == {None} else dtype(value)
-    return result
+def _has_missing(bands: List[Band]) -> bool:
+    """Check if any band has any missing values."""
+    r_set = {b.image.nodatavals[b.idx - 1] for b in bands}
+    missing = not (r_set == {None})
+    return missing
 
 
 def _bands(images: List[DatasetReader]) -> List[Band]:

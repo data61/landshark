@@ -80,7 +80,6 @@ class _AbstractShpArraySource(ArraySource):
         return array
 
 
-
 class OrdinalShpArraySource(_AbstractShpArraySource,
                             OrdinalArraySource):
     pass
