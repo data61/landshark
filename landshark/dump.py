@@ -1,14 +1,15 @@
 import tables
 
-
-from landshark.trainingdata import TrainingDataProcessor
+from landshark.image import indices_strip
+from landshark.basetypes import IdReader
+from landshark.trainingdata import TrainingDataProcessor, QueryDataProcessor
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
+from landshark.featurewrite import write_imagespec
+from landshark.hread import H5Features
 
 
-def to_hdf5(tinfo, metadata, fname, batchsize, nworkers):
-
-    # TODO what are missing values!!!!
+def dump_training(tinfo, metadata, fname, batchsize, nworkers):
 
     n_rows = len(tinfo.target_src)
     has_ord = metadata.nfeatures_ord is not None
@@ -75,3 +76,65 @@ def to_hdf5(tinfo, metadata, fname, batchsize, nworkers):
         folds_array.flush()
 
 
+def dump_query(feature_path, image_spec, strip, totalstrips, batchsize,
+               halfwidth, nworkers, name, fname):
+
+    true_batchsize = batchsize * image_spec.width
+    reader_src = IdReader()
+    it, n_total = indices_strip(image_spec, strip, totalstrips,
+                                true_batchsize)
+
+    # read stuff from features because we dont have a metadata object
+    feature_source = H5Features(feature_path)
+    has_ord = feature_source.ordinal is not None
+    has_cat = feature_source.categorical is not None
+    if has_ord:
+        nfeatures_ord = feature_source.ordinal.atom.shape[0]
+        missing_ord = feature_source.ordinal.attrs.missing
+    if has_cat:
+        nfeatures_cat = feature_source.categorical.atom.shape[0]
+        missing_cat = feature_source.categorical.attrs.missing
+    del feature_source
+
+    patchwidth = halfwidth * 2 + 1
+    worker = QueryDataProcessor(image_spec, feature_path, halfwidth)
+    tasks = list(it)
+    out_it = task_list(tasks, reader_src, worker, nworkers)
+
+    filters = tables.Filters(complevel=1, complib="blosc:lz4")
+
+    with tables.open_file(fname, mode="w", title=name) as outfile:
+        if has_ord:
+            ord_shape = (n_total, nfeatures_ord,
+                         patchwidth, patchwidth)
+            ord_array = outfile.create_carray(outfile.root, name="ordinal",
+                                              atom=tables.Float32Atom(),
+                                              shape=ord_shape, filters=filters)
+            ord_array.attrs.missing = missing_ord
+        if has_cat:
+            cat_shape = (n_total, nfeatures_cat,
+                         patchwidth, patchwidth)
+            cat_array = outfile.create_carray(outfile.root, name="categorical",
+                                              atom=tables.Int32Atom(),
+                                              shape=cat_shape, filters=filters)
+            cat_array.attrs.missing = missing_cat
+
+        start = 0
+        for o, c in out_it:
+            n = o.shape[0] if o is not None else c.shape[0]
+            stop = start + n
+            if has_ord:
+                if ord_array.attrs.missing is not None:
+                    o.data[o.mask] = ord_array.attrs.missing
+                ord_array[start:stop] = o.data
+            if has_cat:
+                if cat_array.attrs.missing is not None:
+                    c.data[c.mask] = cat_array.attrs.missing
+                cat_array[start:stop] = c.data
+        start = stop
+        if has_ord:
+            ord_array.flush()
+        if has_cat:
+            cat_array.flush()
+
+        write_imagespec(image_spec, outfile)
