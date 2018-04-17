@@ -215,7 +215,7 @@ class QueryDataProcessor(Worker):
 
 
 class SerialisingQueryDataProcessor(QueryDataProcessor):
-    def __call_(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
+    def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
         ord_marray, cat_marray = super().__call__(indices)
         strings = serialise(ord_marray, cat_marray, None)
