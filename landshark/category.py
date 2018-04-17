@@ -86,6 +86,9 @@ def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
 class CategoryMapper(Worker):
     def __init__(self, mappings: List[np.ndarray],
                  missing_value: Optional[int]) -> None:
+        for m in mappings:
+            is_sorted = np.all(m[:-1] <= m[1:])
+            assert is_sorted
         self._mappings = mappings
         self._missing = missing_value
 

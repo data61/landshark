@@ -1,6 +1,4 @@
 """Tests for the category object in the importer code."""
-from multiprocessing import Pool
-
 import numpy as np
 from landshark import category
 from landshark.basetypes import CategoricalArraySource, CategoricalType
@@ -10,7 +8,7 @@ from landshark.basetypes import CategoricalArraySource, CategoricalType
 def test_unique_values():
     x = np.array([[1, 2, 2], [1, 2, 3],
                  [1, 1, 2], [1, 1, 1]], dtype=CategoricalType)
-    unique_vals, counts = category._unique_values(x)
+    unique_vals, counts = category.unique_values(x)
     true_vals = [np.array([1]), np.array([1, 2]), np.array([1, 2, 3])]
     true_counts = [np.array([4]), np.array([2, 2]), np.array([1, 2, 1])]
 
@@ -22,9 +20,10 @@ def test_unique_values():
 
 def test_category_accumulator():
 
-    acc = category._CategoryAccumulator()
+    missing_value = -1
+    acc = category._CategoryAccumulator(missing_value)
 
-    in_data = np.array([1, 2], dtype=np.int32)
+    in_data = np.array([-1, 2], dtype=np.int32)
     in_counts = np.array([2, 4], dtype=int)
     in_data_2 = np.array([1, 3], dtype=np.int32)
     in_counts_2 = np.array([1, 1], dtype=int)
@@ -32,7 +31,8 @@ def test_category_accumulator():
     acc.update(in_data, in_counts)
     acc.update(in_data_2, in_counts_2)
 
-    assert acc.counts[1] == 3
+    assert set(acc.counts.keys()) == {1, 2, 3}
+    assert acc.counts[1] == 1
     assert acc.counts[2] == 4
     assert acc.counts[3] == 1
 
@@ -52,14 +52,12 @@ class NPCatArraySource(CategoricalArraySource):
 def test_get_categories(mocker):
     rnd = np.random.RandomState(seed=666)
     x = rnd.randint(0, 10, size=(20, 3), dtype=CategoricalType)
-    missing_in = [None, 0, 1]
+    missing_in = -1
     columns = ["1", "2", "3"]
     source = NPCatArraySource(x, missing_in, columns)
-    pool = Pool(2)
     batchsize = 3
-    res = category.get_categories(source, batchsize, pool)
-    mappings, counts, missing = res.mappings, res.counts, res.missing
-    assert missing == [None, 0, 0]
+    res = category.get_maps(source, batchsize)
+    mappings, counts = res.mappings, res.counts
     for m, c, x in zip(mappings, counts, x.T):
         assert set(x) == set(m)
         for m_i, c_i in zip(m, c):
@@ -68,12 +66,12 @@ def test_get_categories(mocker):
 
 def test_categorical_transform():
 
-    mappings = [np.array([1, 2, 3]), np.array([4, 1, 2])]
+    mappings = [np.array([1, 2, 3]), np.array([1, 2, 4])]
     x = np.array([[2, 2, 3, 1], [4, 1, 1, 2]], dtype=CategoricalType).T
-    f = category.CategoricalOutputTransform(mappings)
+    f = category.CategoryMapper(mappings, missing_value=-1)
     out = f(x)
-    ans = np.array([[1, 0],
-                    [1, 1],
-                    [2, 1],
-                    [0, 2]], dtype=CategoricalType)
+    ans = np.array([[1, 2],
+                    [1, 0],
+                    [2, 0],
+                    [0, 1]], dtype=CategoricalType)
     assert np.all(out == ans)
