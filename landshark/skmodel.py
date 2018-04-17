@@ -66,10 +66,11 @@ def _extract(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
 
 
 def _get_data(records_train: List[str], records_test: List[str],
-              metadata: TrainingMetadata, npoints: int, batch_size: int,
+              metadata: TrainingMetadata, npoints: Optional[int],
+              batch_size: int,
               random_seed: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
                                          np.ndarray, np.ndarray, np.ndarray]:
-    data_frac = min(npoints / metadata.N, 1.0)
+    data_frac = min(npoints / metadata.N, 1.0) if npoints else None
 
     train_dataset = train_data(records_train, batch_size, epochs=1,
                                random_seed=random_seed)
@@ -159,7 +160,7 @@ def _convert_res(res: Tuple[np.ndarray, Optional[np.ndarray]]) -> Prediction:
 
 def train_test(config_module: str, records_train: List[str],
                records_test: List[str], metadata: TrainingMetadata,
-               model_dir: str, maxpoints: int, batchsize: int,
+               model_dir: str, maxpoints: Optional[int], batchsize: int,
                random_seed: int) -> None:
 
     classification = metadata.target_dtype != OrdinalType
