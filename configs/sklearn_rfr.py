@@ -40,8 +40,8 @@ class SKModel:
         self.est.fit(X, Y)
 
 
-    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
-            -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray,
+                percentiles: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
         X_list = []
         if Xc is not None:
             Xc.data[Xc.mask] = -1

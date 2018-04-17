@@ -104,7 +104,7 @@ def train(runner, module, model_dir, model_filename, trainingdata_folder,
     model_file = os.path.join(model_dir, model_filename)
     _run(runner, module.cli, ["train"] +
          training_args + [trainingdata_folder, model_file])
-    trained_model_dir = "{}_model".format(model_filename.split(".py")[0])
+    trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
     assert os.path.isdir(trained_model_dir)
     return trained_model_dir
 
