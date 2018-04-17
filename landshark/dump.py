@@ -63,7 +63,7 @@ def dump_training(tinfo, metadata, fname, batchsize, nworkers):
                     c.data[c.mask] = cat_array.attrs.missing
                 cat_array[start:stop] = c.data
             target_array[start:stop] = t
-        start = stop
+            start = stop
 
         if has_ord:
             ord_array.flush()
@@ -131,7 +131,7 @@ def dump_query(feature_path, image_spec, strip, totalstrips, batchsize,
                 if cat_array.attrs.missing is not None:
                     c.data[c.mask] = cat_array.attrs.missing
                 cat_array[start:stop] = c.data
-        start = stop
+            start = stop
         if has_ord:
             ord_array.flush()
         if has_cat:
