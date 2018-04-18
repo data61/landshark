@@ -186,11 +186,15 @@ class TrainingDataProcessor(Worker):
         return ord_marray, cat_marray, targets
 
 
-class SerialisingTrainingDataProcessor(TrainingDataProcessor):
+class SerialisingTrainingDataProcessor(Worker):
+
+    def __init__(self, image_spec: ImageSpec, feature_path:str,
+                 halfwidth: int) -> None:
+        self.proc = TrainingDataProcessor(image_spec, feature_path, halfwidth)
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
-        ord_marray, cat_marray, targets = super().__call__(values)
+        ord_marray, cat_marray, targets = self.proc(values)
         strings = serialise(ord_marray, cat_marray, targets)
         return strings
 
@@ -214,15 +218,20 @@ class QueryDataProcessor(Worker):
         return ord_marray, cat_marray
 
 
-class SerialisingQueryDataProcessor(QueryDataProcessor):
+class SerialisingQueryDataProcessor(Worker):
+
+    def __init__(self, image_spec: ImageSpec, feature_path: str,
+                 halfwidth: int) -> None:
+        self.proc = QueryDataProcessor(image_spec, feature_path, halfwidth)
+
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
-        ord_marray, cat_marray = super().__call__(indices)
+        ord_marray, cat_marray = self.proc(indices)
         strings = serialise(ord_marray, cat_marray, None)
         return strings
 
 
-class TrainingMetadata(NamedTuple):
+class SourceMetadata(NamedTuple):
     name: str
     feature_path: str
     target_src: ArraySource
@@ -232,7 +241,7 @@ class TrainingMetadata(NamedTuple):
 
 def setup_training(features: str, targets: str, folds: int, random_seed: int,
                    halfwidth: int) \
-        -> TrainingMetadata:
+        -> SourceMetadata:
     name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
         os.path.basename(targets).rsplit("_targets.")[0]
 
@@ -245,12 +254,12 @@ def setup_training(features: str, targets: str, folds: int, random_seed: int,
     n_rows = len(target_src)
     image_spec = read_image_spec(features)
     kfolds = KFolds(n_rows, folds, random_seed)
-    result = TrainingMetadata(name, features, target_src, image_spec,
-                              halfwidth, kfolds)
+    result = SourceMetadata(name, features, target_src, image_spec,
+                            halfwidth, kfolds)
     return result
 
 
-def write_trainingdata(tinfo: TrainingMetadata,
+def write_trainingdata(tinfo: SourceMetadata,
                        output_directory: str,
                        testfold: int,
                        batchsize: int,

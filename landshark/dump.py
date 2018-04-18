@@ -1,15 +1,18 @@
 import tables
 
-from landshark.image import indices_strip
+from landshark.image import indices_strip, ImageSpec
 from landshark.basetypes import IdReader
 from landshark.trainingdata import TrainingDataProcessor, QueryDataProcessor
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
 from landshark.featurewrite import write_imagespec
 from landshark.hread import H5Features
+from landshark.trainingdata import SourceMetadata
+from landshark.metadata import TrainingMetadata
 
 
-def dump_training(tinfo, metadata, fname, batchsize, nworkers):
+def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
+                  fname: str, batchsize: int, nworkers: int) -> None:
 
     n_rows = len(tinfo.target_src)
     has_ord = metadata.nfeatures_ord is not None
@@ -76,8 +79,9 @@ def dump_training(tinfo, metadata, fname, batchsize, nworkers):
         folds_array.flush()
 
 
-def dump_query(feature_path, image_spec, strip, totalstrips, batchsize,
-               halfwidth, nworkers, name, fname):
+def dump_query(feature_path: str, image_spec: ImageSpec, strip: int,
+               totalstrips: int, batchsize: int, halfwidth: int,
+               nworkers: int, name: str, fname: str) -> None:
 
     true_batchsize = batchsize * image_spec.width
     reader_src = IdReader()
@@ -86,12 +90,14 @@ def dump_query(feature_path, image_spec, strip, totalstrips, batchsize,
 
     # read stuff from features because we dont have a metadata object
     feature_source = H5Features(feature_path)
-    has_ord = feature_source.ordinal is not None
-    has_cat = feature_source.categorical is not None
-    if has_ord:
+    has_ord = False
+    has_cat = False
+    if feature_source.ordinal is not None:
+        has_ord = True
         nfeatures_ord = feature_source.ordinal.atom.shape[0]
         missing_ord = feature_source.ordinal.attrs.missing
-    if has_cat:
+    if feature_source.categorical is not None:
+        has_cat = True
         nfeatures_cat = feature_source.categorical.atom.shape[0]
         missing_cat = feature_source.categorical.attrs.missing
     del feature_source
