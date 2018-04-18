@@ -23,7 +23,7 @@ class H5ArraySource(ArraySource):
                                 [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
             array_cols = hfile.get_node("/" + self._array_name + "_columns")
-            self._columns = array_cols.read()
+            self._columns = [s.decode() for s in array_cols.read()]
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
 
