@@ -2,7 +2,8 @@
 
 import queue
 import logging
-from multiprocessing import Process, Queue, Pipe  # type: ignore
+from mulitprocessing import Pipe  # type: ignore
+from multiprocessing import Process, Queue
 from typing import List, Dict, Iterator, Any
 
 from landshark.basetypes import Reader, Worker
