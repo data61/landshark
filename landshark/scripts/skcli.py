@@ -4,6 +4,7 @@ import logging
 import os
 from shutil import copyfile
 
+from typing import Optional
 import click
 
 from landshark import skmodel
@@ -31,10 +32,10 @@ def cli(verbosity: str) -> int:
 @click.argument("config", type=click.Path(exists=True))
 @click.option("--batchsize", type=click.IntRange(min=1), default=1000,
               help="Training batch size")
-@click.option("--maxpoints", type=int, default=2000)
+@click.option("--maxpoints", type=int, default=None)
 @click.option("--random_seed", type=int, default=666)
-def train(directory: str, config: str, batchsize: int, maxpoints: int,
-          random_seed: int) -> int:
+def train(directory: str, config: str, batchsize: int,
+          maxpoints: Optional[int], random_seed: int) -> int:
     """Train a model specified by an input configuration."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, directory)
@@ -69,6 +70,7 @@ def predict(modeldir: str, querydir: str, batchsize: int,
     strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
     md_dict = metadata._asdict()
     md_dict["image_spec"] = strip_imspec
+
     strip_metadata = TrainingMetadata(**md_dict)
     write_geotiffs(y_dash_it, modeldir, strip_metadata,
                    list(percentiles), tag="{}of{}".format(strip, nstrips))
