@@ -5,8 +5,9 @@ import numpy as np
 import tables
 from typing import Union, Tuple
 from landshark.image import ImageSpec
-from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, CoordinateArraySource, FeatureValues, FixedSlice
+from landshark.basetypes import (ArraySource, OrdinalArraySource,
+                                 CategoricalArraySource, FeatureValues,
+                                 FixedSlice)
 from landshark.category import CategoryInfo
 
 
@@ -21,7 +22,8 @@ class H5ArraySource(ArraySource):
             self._shape = tuple(list(carray.shape) +
                                 [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
-            self._columns = carray.attrs.columns
+            array_cols = hfile.get_node("/" + self._array_name + "_columns")
+            self._columns = [s.decode() for s in array_cols.read()]
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
 
@@ -104,6 +106,7 @@ class H5Features:
 
     def __del__(self) -> None:
         self._hfile.close()
+
 
 def read_image_spec(filename: str) -> ImageSpec:
     with tables.open_file(filename, mode="r") as h5file:

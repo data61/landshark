@@ -60,11 +60,13 @@ def from_files(feature_file: str,
         if hasattr(hfile.root, "categorical_data"):
             ntargets = hfile.root.categorical_data.atom.shape[0]
             target_dtype = CategoricalType
-            target_labels = hfile.root.categorical_data.attrs.columns
+            target_labels = [s.decode() for s in
+                             hfile.root.categorical_data_columns.read()]
             target_counts = list(hfile.root.categorical_counts)
             target_map = list(hfile.root.categorical_mappings)
         elif hasattr(hfile.root, "ordinal_data"):
-            target_labels = hfile.root.ordinal_data.attrs.columns
+            target_labels = [s.decode() for s in
+                             hfile.root.ordinal_data_columns.read()]
             ntargets = hfile.root.ordinal_data.atom.shape[0]
             target_dtype = OrdinalType
         else:
