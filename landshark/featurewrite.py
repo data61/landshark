@@ -4,13 +4,11 @@ import logging
 import numpy as np
 
 import tables
-from typing import List, Union, Callable, Iterator, TypeVar, \
-    Optional, Tuple, cast
+from typing import List, Iterator, TypeVar, Optional, Tuple
 
-
-from landshark.basetypes import FixedSlice, OrdinalArraySource, \
-    CategoricalArraySource, ArraySource, CoordinateArraySource, Worker, \
-    IdWorker
+from landshark.basetypes import (ArraySource, OrdinalArraySource,
+                                 CategoricalArraySource, CoordinateArraySource,
+                                 Worker, IdWorker)
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
@@ -65,6 +63,7 @@ def write_ordinal(source: OrdinalArraySource,
                   "ordinal_data", transform, n_workers, batchsize)
     _write_stats(stats, hfile)
 
+
 def write_categorical(source: CategoricalArraySource,
                       hfile: tables.File,
                       n_workers: int,
@@ -89,8 +88,9 @@ def _write_source(src: ArraySource,
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = hfile.create_carray(hfile.root, name=name,
                                 atom=atom, shape=front_shape, filters=filters)
-    array.attrs.columns = src.columns
+    _make_str_vlarray(hfile, name + "_columns", src.columns)
     array.attrs.missing = src.missing
+
     batchsize = batchsize if batchsize else src.native
     log.info("Writing {} to HDF5 in {}-row batches".format(name, batchsize))
     _write(src, array, batchsize, n_workers, transform)
@@ -105,6 +105,7 @@ def _write(source: ArraySource, array: tables.CArray,
         array[s.start:s.stop] = d
     array.flush()
 
+
 def write_coordinates(array_src: CoordinateArraySource,
                       h5file: tables.File, batchsize: int) -> None:
     with array_src:
@@ -113,7 +114,7 @@ def write_coordinates(array_src: CoordinateArraySource,
         filters = tables.Filters(complevel=1, complib="blosc:lz4")
         array = h5file.create_carray(h5file.root, name="coordinates",
                                      atom=atom, shape=shape, filters=filters)
-        array.attrs.columns = array_src.columns
+        _make_str_vlarray(h5file, "coordinates_columns", array_src.columns)
         array.attrs.missing = array_src.missing
         for s in batch_slices(batchsize, array_src.shape[0]):
             array[s.start:s.stop] = array_src(s)
@@ -127,3 +128,9 @@ def _make_int_vlarray(h5file: tables.File, name: str,
         vlarray.append(a)
 
 
+def _make_str_vlarray(h5file: tables.File, name: str,
+                      attribute: List[str]) -> None:
+    vlarray = h5file.create_vlarray(h5file.root, name=name,
+                                    atom=tables.VLStringAtom())
+    for a in attribute:
+        vlarray.append(a)

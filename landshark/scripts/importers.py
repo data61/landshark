@@ -80,8 +80,14 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
             log.info("Ordinal missing value is {}".format(ord_source.missing))
-            stats = get_stats(ord_source, batchsize) \
-                if normalise else None
+            if normalise:
+                stats = get_stats(ord_source, batchsize)
+                zvar = stats[1] == 0.0
+                if any(zvar):
+                    zsrcs = [c for z, c in zip(zvar, ord_source.columns) if z]
+                    msg = 'The following sources have zero variance: {}'
+                    raise ValueError(msg.format(zsrcs))
+
             log.info("Writing normalised ordinal data to output file")
             write_ordinal(ord_source, outfile, nworkers, batchsize, stats)
 
