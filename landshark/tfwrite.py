@@ -21,23 +21,19 @@ def query(data: Iterator[List[bytes]], n_total: int,
 
 
 def training(data: Iterator[List[bytes]], n_total: int, output_directory: str,
-             testfold: int, folds: int, random_seed: int=666) -> int:
+             testfold: int, folds: Iterator[np.ndarray]) -> None:
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
         os.makedirs(test_directory)
     writer = _MultiFileWriter(output_directory, tag="train")
     test_writer = _MultiFileWriter(test_directory, tag="test")
-    rnd = np.random.RandomState(random_seed)
 
-    n_train = 0
-    for d in data:
-        train_batch, test_batch = _split_on_mask(d, rnd, testfold, folds)
-        n_train += len(train_batch)
+    for d, f in zip(data, folds):
+        train_batch, test_batch = _split_on_mask(d, f, testfold)
         writer.add(train_batch)
         test_writer.add(test_batch)
     writer.close()
     test_writer.close()
-    return n_train
 
 
 def _get_mb(path: str) -> int:
@@ -84,11 +80,9 @@ class _MultiFileWriter:
             raise RuntimeError("Cannot close a writer that isnt open")
 
 
-def _split_on_mask(data: List[bytes], rnd: np.random.RandomState,
-                   testfold: int, folds: int) \
+def _split_on_mask(data: List[bytes], folds: np.ndarray, testfold: int) \
         -> Tuple[List[bytes], List[bytes]]:
-    n = len(data)
-    mask = rnd.randint(1, folds + 1, size=(n,)) != testfold
+    mask = folds != testfold
     nmask = ~mask
     train_batch = [data[i] for i, m in enumerate(mask) if m]
     test_batch = [data[i] for i, m in enumerate(nmask) if m]

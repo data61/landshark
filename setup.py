@@ -22,13 +22,14 @@ setup(
             "landshark = landshark.scripts.cli:cli",
             "skshark = landshark.scripts.skcli:cli",
             "landshark-import = landshark.scripts.importers:cli",
+            "landshark-dump = landshark.scripts.dumpers:cli",
         ]
     },
     install_requires=[
         "numpy>=1.13.3",
         "scipy>=1.0.0",
         "click>=6.7",
-        "GDAL==2.0.1",
+        "GDAL>=2.0.1",
         "rasterio>=1.0a10",
         "tables>=3.4.2",
         "pyshp>=1.2.12",

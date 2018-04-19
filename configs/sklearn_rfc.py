@@ -2,12 +2,13 @@
 import numpy as np
 from sklearn.preprocessing import Imputer, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
+from typing import Tuple
 
-NTREES = 100
+NTREES = 10
 
 
 class SKModel:
-    def __init__(self, metadata, random_seed):
+    def __init__(self, metadata, random_seed) -> None:
         self.ord_imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
                                verbose=0, copy=True)
         self.cat_imp = Imputer(missing_values=-1,
@@ -24,7 +25,7 @@ class SKModel:
         self.est = RandomForestClassifier(n_estimators=NTREES,
                                           random_state=random_seed)
 
-    def fit(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array):
+    def fit(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array) -> None:
         X_list = []
         if Xc is not None:
             Xc.data[Xc.mask] = -1
@@ -39,7 +40,8 @@ class SKModel:
         self.est.fit(X, Y)
 
 
-    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray):
+    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray,
+                percentiles: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
         X_list = []
         if Xc is not None:
             Xc.data[Xc.mask] = -1

@@ -1,8 +1,11 @@
 """Multiprocessing task queue implementation."""
 
+# Note there's a problem with the mypy annotations for multiprocessing
+# so some types must be ignored or set to Any in this file
+
 import queue
 import logging
-from multiprocessing import Process, Queue, Pipe  # type: ignore
+from multiprocessing import Process, Queue, Pipe
 from typing import List, Dict, Iterator, Any
 
 from landshark.basetypes import Reader, Worker
@@ -23,7 +26,7 @@ class _Task(Process):
 
     def __init__(self, datasrc: Reader,
                  f: Worker, in_queue: Queue,
-                 out_queue: Queue, shutdown: Pipe,
+                 out_queue: Queue, shutdown: Any,
                  blocktime: float=0.1) -> None:
         self.in_queue = in_queue
         self.out_queue = out_queue
@@ -42,7 +45,7 @@ class _Task(Process):
 
                 try:
                     task_id, req = self.in_queue.get(True, self._blocktime)
-                    data = self.datasrc(req)
+                    data: Any = self.datasrc(req)
                     out_data = self.f(data)
                     self.out_queue.put((task_id, out_data))
                 except queue.Empty:
@@ -63,7 +66,7 @@ def _task_list_0(task_list: List[Any], reader: Reader,
     with reader:
         with tqdm(total=total) as pbar:
             for t in task_list:
-                data = reader(t)
+                data: Any = reader(t)
                 output = worker(data)
                 yield output
                 pbar.update()
@@ -71,8 +74,8 @@ def _task_list_0(task_list: List[Any], reader: Reader,
 
 def _task_list_multi(task_list: List[Any], reader: Reader, worker: Worker,
                      n_workers: int) -> Iterator[Any]:
-    req_queue = Queue(REQ_QUEUE_SIZE)
-    result_queue = Queue(RESULT_QUEUE_SIZE)
+    req_queue: Queue = Queue(REQ_QUEUE_SIZE)
+    result_queue: Queue = Queue(RESULT_QUEUE_SIZE)
     shutdown_recv, shutdown_send = Pipe(False)
     worker_procs = [_Task(reader, worker, req_queue, result_queue,
                           shutdown_recv)

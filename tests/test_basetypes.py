@@ -9,17 +9,14 @@ def test_fixedslice():
     x = basetypes.FixedSlice(4, 8)
     assert x.start == 4
     assert x.stop == 8
-    assert x.as_slice == slice(4, 8)
 
 
 def test_featurevalues(mocker):
     ord_src = mocker.Mock()
     cat_src = mocker.Mock()
-    coord_src = mocker.Mock()
-    x = basetypes.FeatureValues(ord_src, cat_src, coord_src)
+    x = basetypes.FeatureValues(ord_src, cat_src)
     assert x.ordinal is ord_src
     assert x.categorical is cat_src
-    assert x.coordinates is coord_src
 
 
 class NpyCatArraySource(basetypes.CategoricalArraySource):
