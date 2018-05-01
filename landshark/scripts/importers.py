@@ -42,8 +42,8 @@ def cli(verbosity: str) -> int:
     return 0
 
 
-def _tifnames(directories: Optional[str]) -> Optional[List[str]]:
-    names = []
+def _tifnames(directories: Optional[str]) -> List[str]:
+    names: List[str] = []
     if directories is None:
         return names
     for d in directories:
