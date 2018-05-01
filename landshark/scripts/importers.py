@@ -7,7 +7,7 @@ from multiprocessing import cpu_count
 
 import tables
 import click
-from typing import List
+from typing import List, Optional
 
 from landshark.tifread import shared_image_spec, OrdinalStackSource, \
     CategoricalStackSource
@@ -42,22 +42,22 @@ def cli(verbosity: str) -> int:
     return 0
 
 
-def _tifnames(directory: str) -> List[str]:
-    if directory is not None:
+def _tifnames(directories: Optional[str]) -> List[str]:
+    names: List[str] = []
+    if directories is None:
+        return names
+    for d in directories:
         file_types = ("tif", "gtif")
-        names = []
         for t in file_types:
-            glob_pattern = os.path.join(directory, "**", "*.{}".format(t))
+            glob_pattern = os.path.join(d, "**", "*.{}".format(t))
             names.extend(glob(glob_pattern, recursive=True))
-    else:
-        names = None
     return names
 
 
 @cli.command()
 @click.option("--batchsize", type=int, default=100)
-@click.option("--categorical", type=click.Path(exists=True))
-@click.option("--ordinal", type=click.Path(exists=True))
+@click.option("--categorical", type=click.Path(exists=True), multiple=True)
+@click.option("--ordinal", type=click.Path(exists=True), multiple=True)
 @click.option("--nonormalise", is_flag=True)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
