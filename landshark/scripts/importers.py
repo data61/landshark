@@ -19,7 +19,9 @@ from landshark.scripts.logger import configure_logging
 from landshark.hread import read_image_spec, \
     CategoricalH5ArraySource, OrdinalH5ArraySource
 from landshark.trainingdata import write_trainingdata, write_querydata
-from landshark.metadata import from_files, write_metadata
+from landshark.metadata import from_files, OrdinalFeatureMetadata, \
+    CategoricalFeatureMetadata, FeatureSetMetadata
+from landshark.featurewrite import write_feature_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.trainingdata import setup_training
@@ -73,31 +75,54 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames, ignore_crs)
-
+    cat_meta, ord_meta = None, None
+    N =  None
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
         write_imagespec(spec, outfile)
 
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
+            N = ord_source.shape[0] * ord_source.shape[1]
             log.info("Ordinal missing value is {}".format(ord_source.missing))
+            mean, var = None, None
             if normalise:
-                stats = get_stats(ord_source, batchsize)
-                zvar = stats[1] == 0.0
+                mean, var = get_stats(ord_source, batchsize)
+                zvar = var == 0.0
                 if any(zvar):
                     zsrcs = [c for z, c in zip(zvar, ord_source.columns) if z]
                     msg = 'The following sources have zero variance: {}'
                     raise ValueError(msg.format(zsrcs))
 
             log.info("Writing normalised ordinal data to output file")
-            write_ordinal(ord_source, outfile, nworkers, batchsize, stats)
+            ord_meta = OrdinalFeatureMetadata(D=ord_source.shape[-1],
+                                              labels=ord_source.columns,
+                                              missing=ord_source.missing,
+                                              means=mean,
+                                              variances=var)
+            write_ordinal(ord_source, outfile, nworkers, batchsize)
 
         if categorical:
             cat_source = CategoricalStackSource(spec, cat_filenames)
+            if N is not None:
+                N = cat_source.shape[0] * cat_source.shape[1]
             log.info("Categorical missing value is {}".format(
                 cat_source.missing))
-            maps = get_maps(cat_source, batchsize)
+            catdata = get_maps(cat_source, batchsize)
+            maps, counts = catdata.mappings, catdata.counts
+            ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
-            write_categorical(cat_source, outfile, nworkers, batchsize, maps)
+            cat_meta = CategoricalFeatureMetadata(D=cat_source.shape[-1],
+                                                  labels=cat_source.columns,
+                                                  missing=cat_source.missing,
+                                                  ncategories=ncats,
+                                                  mappings=maps,
+                                                  counts=counts)
+            write_categorical(cat_source, outfile, nworkers, batchsize)
+
+        assert N is not None
+        meta = FeatureSetMetadata(ordinal=ord_meta, categorical=cat_meta,
+                                  image=spec, N=N)
+        write_feature_metadata(meta, outfile)
 
     log.info("GTiff import complete")
 

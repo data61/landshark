@@ -6,29 +6,92 @@ import tables
 import numpy as np
 from typing import NamedTuple, List, Optional, cast
 
+import numpy as np
+
 from landshark.image import ImageSpec
 from landshark.basetypes import OrdinalType, CategoricalType
 
 
-class TrainingMetadata(NamedTuple):
-    """Metadata that training alogrithms need to know."""
+class TargetMetadata:
+    def __init__(self, N: int, labels: List[str]) -> None:
+        self.N = N
+        self.labels = labels
 
-    ntargets: int
-    target_dtype: np.dtype
-    nfeatures_ord: int
-    nfeatures_cat: int
-    halfwidth: int
+class OrdinalTargetMetadata(TargetMetadata):
+    pass
+
+class CategoricalTargetMetadata(TargetMetadata):
+    def __init__(self, N: int, labels: List[str], ncategories: np.ndarray,
+                 mappings: np.ndarray, counts: np.ndarray) -> None:
+        super().__init__(N, labels)
+        self.ncategories = ncategories
+        self.mappings = mappings
+        self.counts = counts
+
+class FeatureMetadata:
+    def __init__(self, D: int, labels: List[str]) -> None:
+        self.D = D
+        self.labels = labels
+
+class OrdinalFeatureMetadata(FeatureMetadata):
+    def __init__(self, D: int, labels: List[str],
+                 missing: Optional[OrdinalType]=None,
+                 means: Optional[np.ndarray]=None,
+                 variances: Optional[np.ndarray]=None) -> None:
+        super().__init__(D, labels)
+        self.missing = missing
+        self.means = means
+        self.variances = variances
+
+class CategoricalFeatureMetadata(FeatureMetadata):
+    def __init__(self, D: int, labels: List[str],
+                 ncategories: np.ndarray,
+                 mappings: np.ndarray,
+                 counts: np.ndarray,
+                 missing: Optional[CategoricalType]=None) -> None:
+        super().__init__(D, labels)
+        self.missing = missing
+        self.mappings = mappings
+        self.ncategories = ncategories
+        self.counts = counts
+
+
+class FeatureSetMetadata(NamedTuple):
     N: int
-    target_labels: List[str]
-    image_spec: ImageSpec
-    ncategories: Optional[List[int]]
-    ncategories_patched: Optional[List[int]]
-    target_map: Optional[np.ndarray]
-    target_counts: Optional[List[List[int]]]
-    folds: int
-    testfold: int
-    missing_ord: Optional[OrdinalType]
-    missing_cat: Optional[CategoricalType]
+    ordinal: Optional[OrdinalFeatureMetadata]
+    categorical: Optional[CategoricalFeatureMetadata]
+    image: ImageSpec
+
+class TrainingMetadata(NamedTuple):
+    targets: TargetMetadata
+    features: FeatureSetMetadata
+    nfolds: int
+    fold_counts: np.ndarray
+
+class QueryMetadata(NamedTuple):
+    targets: TargetMetadata
+    features: FeatureSetMetadata
+
+
+# class TrainingMetadata(NamedTuple):
+#     """Metadata that training alogrithms need to know."""
+
+#     ntargets: int
+#     target_dtype: np.dtype
+#     nfeatures_ord: int
+#     nfeatures_cat: int
+#     halfwidth: int
+#     N: int
+#     target_labels: List[str]
+#     image_spec: ImageSpec
+#     ncategories: Optional[List[int]]
+#     ncategories_patched: Optional[List[int]]
+#     target_map: Optional[np.ndarray]
+#     target_counts: Optional[List[List[int]]]
+#     folds: int
+#     testfold: int
+#     missing_ord: Optional[OrdinalType]
+#     missing_cat: Optional[CategoricalType]
 
 
 def from_files(feature_file: str,

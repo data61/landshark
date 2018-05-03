@@ -14,6 +14,8 @@ from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
 from landshark.category import CategoryMapper, CategoryInfo
 from landshark.normalise import Normaliser
+from landshark.metadata import OrdinalFeatureMetadata, \
+    CategoricalFeatureMetadata, FeatureSetMetadata
 
 log = logging.getLogger(__name__)
 
@@ -26,29 +28,43 @@ def _cat(it: Iterator[Iterator[T]]) -> List[T]:
     return result
 
 
+def write_feature_metadata(meta: FeatureSetMetadata, hfile: tables.File) -> None:
+    hfile.root._v_attrs.N = meta.N
+    write_imagespec(meta.image, hfile)
+    if meta.ordinal:
+        write_ordinal_meta(meta.ordinal, hfile)
+    if meta.categorical:
+        write_categorical_meta(meta.categorical, hfile)
+
+
+def write_ordinal_meta(meta: OrdinalFeatureMetadata,
+                       hfile: tables.File) -> None:
+    hfile.root.ordinal_data.attrs.missing = meta.missing
+    hfile.root.ordinal_data.attrs.D = meta.D
+    _make_str_vlarray(hfile, "ordinal_labels", meta.labels)
+    hfile.root.ordinal_data.attrs.mean = meta.means
+    hfile.root.ordinal_data.attrs.variance = meta.variances
+
+
+def write_categorical_meta(meta: CategoricalFeatureMetadata,
+                           hfile: tables.File) -> None:
+
+    hfile.root.categorical_data.attrs.missing = meta.missing
+    hfile.root.categorical_data.attrs.D = meta.D
+    _make_str_vlarray(hfile, "categorical_labels", meta.labels)
+    hfile.create_array(hfile.root, name="ncategories",
+                       obj=meta.ncategories)
+    if meta.mappings:
+        _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
+        _make_int_vlarray(hfile, "categorical_counts", meta.counts)
+
+
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:
     hfile.root._v_attrs.crs = spec.crs
     hfile.create_array(hfile.root, name="x_coordinates",
                        obj=spec.x_coordinates)
     hfile.create_array(hfile.root, name="y_coordinates",
                        obj=spec.y_coordinates)
-
-
-def _write_stats(stats: Optional[Tuple[np.ndarray, np.ndarray]],
-                 hfile: tables.File) -> None:
-    if stats is not None:
-        mean, variance = stats
-    else:
-        mean, variance = None, None
-    hfile.root.ordinal_data.attrs.mean = mean
-    hfile.root.ordinal_data.attrs.variance = variance
-
-
-def _write_maps(maps: Optional[CategoryInfo],
-                hfile: tables.File) -> None:
-    if maps is not None:
-        _make_int_vlarray(hfile, "categorical_mappings", maps.mappings)
-        _make_int_vlarray(hfile, "categorical_counts", maps.counts)
 
 
 def write_ordinal(source: OrdinalArraySource,
@@ -61,7 +77,6 @@ def write_ordinal(source: OrdinalArraySource,
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
                   "ordinal_data", transform, n_workers, batchsize)
-    _write_stats(stats, hfile)
 
 
 def write_categorical(source: CategoricalArraySource,
@@ -74,7 +89,6 @@ def write_categorical(source: CategoricalArraySource,
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
                   "categorical_data", transform, n_workers, batchsize)
-    _write_maps(maps, hfile)
 
 
 def _write_source(src: ArraySource,
