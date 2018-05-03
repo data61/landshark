@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 import tables
-from typing import List, Iterator, TypeVar, Optional, Tuple
+from typing import List, Iterator, TypeVar, Optional, Tuple, Union
 
 from landshark.basetypes import (ArraySource, OrdinalArraySource,
                                  CategoricalArraySource, CoordinateArraySource,
@@ -14,8 +14,8 @@ from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
 from landshark.category import CategoryMapper, CategoryInfo
 from landshark.normalise import Normaliser
-from landshark.metadata import OrdinalFeatureMetadata, \
-    CategoricalFeatureMetadata, FeatureSetMetadata
+from landshark.metadata import OrdinalMetadata, CategoricalMetadata, \
+    FeatureSetMetadata
 
 log = logging.getLogger(__name__)
 
@@ -28,17 +28,19 @@ def _cat(it: Iterator[Iterator[T]]) -> List[T]:
     return result
 
 
-def write_feature_metadata(meta: FeatureSetMetadata, hfile: tables.File) -> None:
+def write_feature_metadata(meta: FeatureSetMetadata,
+                           hfile: tables.File) -> None:
     hfile.root._v_attrs.N = meta.N
     write_imagespec(meta.image, hfile)
     if meta.ordinal:
-        write_ordinal_meta(meta.ordinal, hfile)
+        write_ordinal_metadata(meta.ordinal, hfile)
     if meta.categorical:
-        write_categorical_meta(meta.categorical, hfile)
+        write_categorical_metadata(meta.categorical, hfile)
 
 
-def write_ordinal_meta(meta: OrdinalFeatureMetadata,
-                       hfile: tables.File) -> None:
+def write_ordinal_metadata(meta: OrdinalMetadata,
+                           hfile: tables.File) -> None:
+    hfile.root._v_attrs.ordinal_N = meta.N
     hfile.root.ordinal_data.attrs.missing = meta.missing
     hfile.root.ordinal_data.attrs.D = meta.D
     _make_str_vlarray(hfile, "ordinal_labels", meta.labels)
@@ -46,9 +48,10 @@ def write_ordinal_meta(meta: OrdinalFeatureMetadata,
     hfile.root.ordinal_data.attrs.variance = meta.variances
 
 
-def write_categorical_meta(meta: CategoricalFeatureMetadata,
-                           hfile: tables.File) -> None:
+def write_categorical_metadata(meta: CategoricalMetadata,
+                               hfile: tables.File) -> None:
 
+    hfile.root._v_attrs.categorical_N = meta.N
     hfile.root.categorical_data.attrs.missing = meta.missing
     hfile.root.categorical_data.attrs.D = meta.D
     _make_str_vlarray(hfile, "categorical_labels", meta.labels)
@@ -56,7 +59,7 @@ def write_categorical_meta(meta: CategoricalFeatureMetadata,
                        obj=meta.ncategories)
     if meta.mappings:
         _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
-        _make_int_vlarray(hfile, "categorical_counts", meta.counts)
+        _make_int_vlarray(hfile, "categorical_counts", meta.ncategories)
 
 
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:

@@ -4,7 +4,7 @@ import os.path
 import pickle
 import tables
 import numpy as np
-from typing import NamedTuple, List, Optional, cast
+from typing import NamedTuple, List, Optional, cast, Union
 
 import numpy as np
 
@@ -12,55 +12,67 @@ from landshark.image import ImageSpec
 from landshark.basetypes import OrdinalType, CategoricalType
 
 
-class TargetMetadata:
-    def __init__(self, N: int, labels: List[str]) -> None:
+class Array2DMetadata:
+    def __init__(self, N: int, D: int, labels: List[str],
+                 missing: Optional[Union[OrdinalType, CategoricalType]]) -> None:
         self.N = N
-        self.labels = labels
-
-class OrdinalTargetMetadata(TargetMetadata):
-    pass
-
-class CategoricalTargetMetadata(TargetMetadata):
-    def __init__(self, N: int, labels: List[str], ncategories: np.ndarray,
-                 mappings: np.ndarray, counts: np.ndarray) -> None:
-        super().__init__(N, labels)
-        self.ncategories = ncategories
-        self.mappings = mappings
-        self.counts = counts
-
-class FeatureMetadata:
-    def __init__(self, D: int, labels: List[str]) -> None:
         self.D = D
         self.labels = labels
-
-class OrdinalFeatureMetadata(FeatureMetadata):
-    def __init__(self, D: int, labels: List[str],
-                 missing: Optional[OrdinalType]=None,
-                 means: Optional[np.ndarray]=None,
-                 variances: Optional[np.ndarray]=None) -> None:
-        super().__init__(D, labels)
         self.missing = missing
+
+class OrdinalMetadata(Array2DMetadata):
+    def __init__(self, N: int, D: int, labels: List[str],
+                 missing: Optional[OrdinalType], means: Optional[np.ndarray],
+                 variances: Optional[np.ndarray]) -> None:
+        super().__init__(N, D , labels, missing)
         self.means = means
         self.variances = variances
 
-class CategoricalFeatureMetadata(FeatureMetadata):
-    def __init__(self, D: int, labels: List[str],
-                 ncategories: np.ndarray,
-                 mappings: np.ndarray,
-                 counts: np.ndarray,
-                 missing: Optional[CategoricalType]=None) -> None:
-        super().__init__(D, labels)
-        self.missing = missing
-        self.mappings = mappings
+class CategoricalMetadata(Array2DMetadata):
+    def __init__(self, N: int, D: int, labels: List[str],
+                 missing: Optional[CategoricalType], ncategories: np.ndarray,
+                 mappings: np.ndarray, counts: np.ndarray) -> None:
+        super().__init__(N, D, labels, missing)
         self.ncategories = ncategories
+        self.mappings = mappings
         self.counts = counts
 
 
-class FeatureSetMetadata(NamedTuple):
-    N: int
-    ordinal: Optional[OrdinalFeatureMetadata]
-    categorical: Optional[CategoricalFeatureMetadata]
-    image: ImageSpec
+class OrdinalTargetMetadata(OrdinalMetadata):
+    pass
+
+class CategoricalTargetMetadata(CategoricalMetadata):
+    pass
+
+class OrdinalFeatureMetadata(OrdinalMetadata):
+    pass
+
+class CategoricalFeatureMetadata(CategoricalMetadata):
+    pass
+
+
+class FeatureSetMetadata:
+
+    def __init__(self,
+                 ordinal: Optional[OrdinalFeatureMetadata],
+                 categorical: Optional[CategoricalFeatureMetadata],
+                 image: ImageSpec) -> None:
+        assert not(ordinal is None and categorical is None)
+        if ordinal and not categorical:
+            self.N = ordinal.N
+        elif categorical and not ordinal:
+            self.N = categorical.N
+        elif categorical and ordinal:
+            assert ordinal.N == categorical.N
+            self.N = ordinal.N
+        else:
+            raise ValueError("Must have at least 1 of ordinal or categorical")
+        self.ordinal = ordinal
+        self.categorical = categorical
+        self.image = image
+
+
+TargetMetadata = Union[OrdinalTargetMetadata, CategoricalTargetMetadata]
 
 class TrainingMetadata(NamedTuple):
     targets: TargetMetadata

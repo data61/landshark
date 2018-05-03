@@ -20,8 +20,10 @@ from landshark.hread import read_image_spec, \
     CategoricalH5ArraySource, OrdinalH5ArraySource
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import from_files, OrdinalFeatureMetadata, \
-    CategoricalFeatureMetadata, FeatureSetMetadata
-from landshark.featurewrite import write_feature_metadata
+    CategoricalFeatureMetadata, FeatureSetMetadata, CategoricalTargetMetadata,\
+    OrdinalTargetMetadata
+from landshark.featurewrite import write_feature_metadata, \
+    write_ordinal_metadata, write_categorical_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.trainingdata import setup_training
@@ -153,14 +155,30 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
         if categorical:
             cat_source = CategoricalShpArraySource(
                 shapefile, targets, random_seed)
-            maps = get_maps(cat_source, batchsize)
-            write_categorical(cat_source, h5file, nworkers, batchsize, maps)
+            catdata = get_maps(cat_source, batchsize)
+            mappings, counts = catdata.mappings, catdata.counts
+            ncats = np.array([len(m) for m in mappings])
+            write_categorical(cat_source, h5file, nworkers, batchsize)
+            cat_meta = CategoricalTargetMetadata(N=cat_source.shape[0],
+                                             D=cat_source.shape[-1],
+                                             labels=cat_source.columns,
+                                             ncategories=ncats,
+                                             mappings=mappings,
+                                             counts=counts,
+                                             missing=None)
+            write_categorical_metadata(cat_meta, h5file)
         else:
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
-            stats = get_stats(ord_source, batchsize) \
-                if normalise else None
-            write_ordinal(ord_source, h5file, nworkers, batchsize, stats)
-
+            mean, var = get_stats(ord_source, batchsize) \
+                if normalise else None, None
+            write_ordinal(ord_source, h5file, nworkers, batchsize)
+            ord_meta = OrdinalTargetMetadata(N=ord_source.shape[0],
+                                         D=ord_source.shape[-1],
+                                         labels=ord_source.columns,
+                                         means=mean,
+                                         variances=var,
+                                         missing=None)
+            write_ordinal_metadata(ord_meta, h5file)
     log.info("Target import complete")
 
     return 0
