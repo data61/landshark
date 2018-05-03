@@ -22,6 +22,8 @@ from landshark.image import indices_strip, world_to_image, ImageSpec
 from landshark.hread import read_image_spec
 from landshark.serialise import serialise
 from landshark.kfold import KFolds
+from landshark.metadata import CategoricalMetadata, FeatureSetMetadata, \
+    TargetMetadata
 
 log = logging.getLogger(__name__)
 
@@ -239,23 +241,22 @@ class SourceMetadata(NamedTuple):
     halfwidth: int
     folds: KFolds
 
-def setup_training(features: str, targets: str, folds: int, random_seed: int,
+def setup_training(feature_path: str, feature_meta: FeatureSetMetadata,
+                   target_path: str, target_meta: TargetMetadata,
+                   folds: int, random_seed: int,
                    halfwidth: int) \
         -> SourceMetadata:
-    name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
-        os.path.basename(targets).rsplit("_targets.")[0]
+    name = os.path.basename(feature_path).rsplit("_features.")[0] + "-" + \
+        os.path.basename(target_path).rsplit("_targets.")[0]
 
-    # read the target file
-    with tables.open_file(targets, "r") as tfile:
-        categorical = hasattr(tfile.root, "categorical_data")
-    target_src = CategoricalH5ArraySource(targets) if categorical \
-        else OrdinalH5ArraySource(targets)
+    target_src = CategoricalH5ArraySource(target_path) \
+        if isinstance(target_meta, CategoricalMetadata) \
+            else OrdinalH5ArraySource(target_path)
 
     n_rows = len(target_src)
-    image_spec = read_image_spec(features)
     kfolds = KFolds(n_rows, folds, random_seed)
-    result = SourceMetadata(name, features, target_src, image_spec,
-                            halfwidth, kfolds)
+    result = SourceMetadata(name, feature_path, target_src,
+                            feature_meta.image, halfwidth, kfolds)
     return result
 
 

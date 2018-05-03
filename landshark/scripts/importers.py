@@ -19,11 +19,12 @@ from landshark.scripts.logger import configure_logging
 from landshark.hread import read_image_spec, \
     CategoricalH5ArraySource, OrdinalH5ArraySource
 from landshark.trainingdata import write_trainingdata, write_querydata
-from landshark.metadata import from_files, OrdinalFeatureMetadata, \
-    CategoricalFeatureMetadata, FeatureSetMetadata, CategoricalTargetMetadata,\
-    OrdinalTargetMetadata
+from landshark.metadata import OrdinalMetadata, \
+    CategoricalMetadata, FeatureSetMetadata, TrainingMetadata, \
+    QueryMetadata, pickle_metadata
 from landshark.featurewrite import write_feature_metadata, \
-    write_ordinal_metadata, write_categorical_metadata
+    write_ordinal_metadata, write_categorical_metadata, read_featureset_metadata, \
+    read_target_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.trainingdata import setup_training
@@ -96,7 +97,8 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
                     raise ValueError(msg.format(zsrcs))
 
             log.info("Writing normalised ordinal data to output file")
-            ord_meta = OrdinalFeatureMetadata(D=ord_source.shape[-1],
+            ord_meta = OrdinalMetadata(N=N,
+                                            D=ord_source.shape[-1],
                                               labels=ord_source.columns,
                                               missing=ord_source.missing,
                                               means=mean,
@@ -113,7 +115,8 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
             maps, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
-            cat_meta = CategoricalFeatureMetadata(D=cat_source.shape[-1],
+            cat_meta = CategoricalMetadata(N=N,
+                                           D=cat_source.shape[-1],
                                                   labels=cat_source.columns,
                                                   missing=cat_source.missing,
                                                   ncategories=ncats,
@@ -123,7 +126,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 
         assert N is not None
         meta = FeatureSetMetadata(ordinal=ord_meta, categorical=cat_meta,
-                                  image=spec, N=N)
+                                  image=spec)
         write_feature_metadata(meta, outfile)
 
     log.info("GTiff import complete")
@@ -159,7 +162,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             mappings, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in mappings])
             write_categorical(cat_source, h5file, nworkers, batchsize)
-            cat_meta = CategoricalTargetMetadata(N=cat_source.shape[0],
+            cat_meta = CategoricalMetadata(N=cat_source.shape[0],
                                              D=cat_source.shape[-1],
                                              labels=cat_source.columns,
                                              ncategories=ncats,
@@ -172,7 +175,7 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             mean, var = get_stats(ord_source, batchsize) \
                 if normalise else None, None
             write_ordinal(ord_source, h5file, nworkers, batchsize)
-            ord_meta = OrdinalTargetMetadata(N=ord_source.shape[0],
+            ord_meta = OrdinalMetadata(N=ord_source.shape[0],
                                          D=ord_source.shape[-1],
                                          labels=ord_source.columns,
                                          means=mean,
@@ -197,15 +200,18 @@ def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
                  random_seed: int) -> int:
     """Get training data."""
-
-    tinfo = setup_training(features, targets, folds, random_seed, halfwidth)
+    feature_metadata = read_featureset_metadata(features)
+    target_metadata = read_target_metadata(targets)
+    tinfo = setup_training(features, feature_metadata,
+                           targets, target_metadata, folds,
+                           random_seed, halfwidth)
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), tinfo.name +
                              "_traintest{}of{}".format(testfold, folds))
-    metadata = from_files(features, targets, tinfo.image_spec,
-                          halfwidth, n_train, folds, testfold)
     write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
-    write_metadata(directory, metadata)
+    training_metadata = TrainingMetadata(target_metadata, feature_metadata,
+                                         folds, tinfo.folds.counts)
+    pickle_metadata(directory, training_metadata)
     log.info("Training import complete")
     return 0
 
@@ -230,9 +236,12 @@ def querydata(features: str, batchsize: int, nworkers: int,
     except FileExistsError:
         pass
 
-    image_spec = read_image_spec(features)
+    feature_metadata = read_featureset_metadata(features)
     tag = "query.{}of{}".format(strip, totalstrips)
-    write_querydata(features, image_spec, strip, totalstrips,
+    write_querydata(features, feature_metadata.image, strip, totalstrips,
                     batchsize, halfwidth, nworkers, directory, tag)
+    # TODO other info here like strips and windows
+    query_metadata = QueryMetadata(feature_metadata)
+    pickle_metadata(directory, query_metadata)
     log.info("Query import complete")
     return 0
