@@ -81,10 +81,12 @@ def predict(
         upper: int,
         gpu: bool) -> int:
     """Predict using a learned model."""
-    metadata, query_records = setup_query(modeldir, querydir)
+    train_metadata, query_metadata, query_records \
+        = setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
 
+    import IPython; IPython.embed(); import sys; sys.exit()
     strip, nstrips = get_strips(query_records)
     strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
     md_dict = metadata._asdict()

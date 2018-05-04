@@ -4,7 +4,7 @@ import os
 import logging
 import sys
 from landshark.metadata import unpickle_training_metadata, \
-    pickle_metadata, TrainingMetadata
+    pickle_metadata, TrainingMetadata, unpickle_query_metadata
 from typing import Tuple, List
 
 log = logging.getLogger(__name__)
@@ -56,10 +56,13 @@ def setup_training(config: str, directory: str) -> \
 
 def setup_query(modeldir: str, querydir: str) \
         -> Tuple[TrainingMetadata, List[str]]:
-    metadata = load_metadata(os.path.join(modeldir, "METADATA.bin"))
+    train_metadata = unpickle_training_metadata(os.path.join(modeldir,
+                                                "METADATA.bin"))
+    query_metadata = unpickle_query_metadata(os.path.join(querydir,
+                                                          "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
-    return metadata, query_records
+    return train_metadata, query_metadata, query_records
 
 
 def get_strips(records: List[str]) -> Tuple[int, int]:

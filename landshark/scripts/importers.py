@@ -8,10 +8,11 @@ from multiprocessing import cpu_count
 import tables
 import click
 from typing import List, Optional
+import numpy as np
 
 from landshark.tifread import shared_image_spec, OrdinalStackSource, \
     CategoricalStackSource
-from landshark.featurewrite import write_imagespec, write_ordinal, \
+from landshark.featurewrite import write_ordinal, \
     write_categorical, write_coordinates
 from landshark.shpread import OrdinalShpArraySource, \
     CategoricalShpArraySource, CoordinateShpArraySource
@@ -81,8 +82,6 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     cat_meta, ord_meta = None, None
     N =  None
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
-        write_imagespec(spec, outfile)
-
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
             N = ord_source.shape[0] * ord_source.shape[1]
