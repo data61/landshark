@@ -4,7 +4,7 @@ import os
 import logging
 import sys
 from landshark.metadata import unpickle_training_metadata, \
-    pickle_metadata, TrainingMetadata, unpickle_query_metadata
+    pickle_metadata, TrainingMetadata, unpickle_query_metadata, QueryMetadata
 from typing import Tuple, List
 
 log = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def setup_training(config: str, directory: str) -> \
 
 
 def setup_query(modeldir: str, querydir: str) \
-        -> Tuple[TrainingMetadata, List[str]]:
+        -> Tuple[TrainingMetadata, QueryMetadata, List[str]]:
     train_metadata = unpickle_training_metadata(os.path.join(modeldir,
                                                 "METADATA.bin"))
     query_metadata = unpickle_query_metadata(os.path.join(querydir,

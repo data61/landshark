@@ -2,6 +2,7 @@
 import sys
 import logging
 from typing import Optional
+from copy import deepcopy
 
 import click
 
@@ -86,13 +87,12 @@ def predict(
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
 
-    import IPython; IPython.embed(); import sys; sys.exit()
     strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
-    md_dict = metadata._asdict()
-    md_dict["image_spec"] = strip_imspec
-    strip_metadata = TrainingMetadata(**md_dict)
+    strip_imspec = strip_image_spec(strip, nstrips,
+                                    train_metadata.features.image)
 
+    strip_metadata = deepcopy(train_metadata)
+    strip_metadata.features.image = strip_imspec
     y_dash_it = model.predict(modeldir, strip_metadata, query_records, params)
     write_geotiffs(y_dash_it, modeldir, strip_metadata,
                    list(params.percentiles),

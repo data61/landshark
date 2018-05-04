@@ -73,7 +73,7 @@ def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
     N = hfile.root._v_attrs.ordinal_N
     missing = hfile.root.ordinal_data.attrs.missing
     D = hfile.root.ordinal_data.attrs.D
-    labels = hfile.root.ordinal_labels.read()
+    labels = [k.decode() for k in hfile.root.ordinal_labels.read()]
     mean = hfile.root.ordinal_data.attrs.mean
     var = hfile.root.ordinal_data.attrs.variance
     m = OrdinalMetadata(N, D, labels, missing, mean, var)
@@ -95,7 +95,7 @@ def read_categorical_metadata(hfile: tables.File) -> CategoricalMetadata:
     N = hfile.root._v_attrs.categorical_N
     missing = hfile.root.categorical_data.attrs.missing
     D = hfile.root.categorical_data.attrs.D
-    labels = hfile.root.categorical_labels.read()
+    labels = [k.decode() for k in hfile.root.categorical_labels.read()]
     ncats = hfile.root.ncategories.read()
     mappings = hfile.root.categorical_mappings.read()
     counts = hfile.root.categorical_counts.read()
@@ -153,9 +153,6 @@ def _write_source(src: ArraySource,
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = hfile.create_carray(hfile.root, name=name,
                                 atom=atom, shape=front_shape, filters=filters)
-    _make_str_vlarray(hfile, name + "_columns", src.columns)
-    array.attrs.missing = src.missing
-
     batchsize = batchsize if batchsize else src.native
     log.info("Writing {} to HDF5 in {}-row batches".format(name, batchsize))
     _write(src, array, batchsize, n_workers, transform)

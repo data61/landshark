@@ -199,8 +199,8 @@ def predict(model: str,
             res = _fix_samples(graph, sess, eval_list, feed_dict)
             res_obj = to_obj(*res)
 
-            total_size = (metadata.image_spec.height *
-                          metadata.image_spec.width) // params.batchsize
+            total_size = (metadata.features.image.height *
+                          metadata.features.image.width) // params.batchsize
             with tqdm(total=total_size) as pbar:
                 # Yield prediction result from fixing samples
                 yield res_obj
