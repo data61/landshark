@@ -134,8 +134,8 @@ def write_categorical(source: CategoricalArraySource,
                       hfile: tables.File,
                       n_workers: int,
                       batchsize: Optional[int]=None,
-                      maps: Optional[CategoryInfo]=None) -> None:
-    transform = CategoryMapper(maps.mappings, source.missing) \
+                      maps: Optional[np.ndarray]=None) -> None:
+    transform = CategoryMapper(maps, source.missing) \
         if maps else IdWorker()
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),

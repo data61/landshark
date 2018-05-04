@@ -122,7 +122,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
                                                   ncategories=ncats,
                                                   mappings=maps,
                                                   counts=counts)
-            write_categorical(cat_source, outfile, nworkers, batchsize)
+            write_categorical(cat_source, outfile, nworkers, batchsize, maps)
 
         assert N is not None
         meta = FeatureSetMetadata(ordinal=ord_meta, categorical=cat_meta,
@@ -161,7 +161,8 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             catdata = get_maps(cat_source, batchsize)
             mappings, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in mappings])
-            write_categorical(cat_source, h5file, nworkers, batchsize)
+            write_categorical(cat_source, h5file, nworkers, batchsize,
+                              mappings)
             cat_meta = CategoricalMetadata(N=cat_source.shape[0],
                                              D=cat_source.shape[-1],
                                              labels=cat_source.columns,
@@ -209,8 +210,12 @@ def trainingdata(features: str, targets: str, testfold: int,
     directory = os.path.join(os.getcwd(), tinfo.name +
                              "_traintest{}of{}".format(testfold, folds))
     write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
-    training_metadata = TrainingMetadata(target_metadata, feature_metadata,
-                                         folds, tinfo.folds.counts)
+    training_metadata = TrainingMetadata(targets=target_metadata,
+                                         features=feature_metadata,
+                                         halfwidth=halfwidth,
+                                         nfolds=folds,
+                                         testfold=testfold,
+                                         fold_counts=tinfo.folds.counts)
     pickle_metadata(directory, training_metadata)
     log.info("Training import complete")
     return 0

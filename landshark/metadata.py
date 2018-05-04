@@ -63,7 +63,9 @@ TargetMetadata = Union[OrdinalMetadata, CategoricalMetadata]
 class TrainingMetadata(NamedTuple):
     targets: TargetMetadata
     features: FeatureSetMetadata
+    halfwidth: int
     nfolds: int
+    testfold: int
     fold_counts: Dict[int, int]
 
 class QueryMetadata(NamedTuple):

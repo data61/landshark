@@ -6,7 +6,7 @@ import tensorflow as tf
 import numpy as np
 
 from landshark.basetypes import OrdinalType
-from landshark.metadata import TrainingMetadata
+from landshark.metadata import TrainingMetadata, CategoricalMetadata
 
 
 #
@@ -53,8 +53,8 @@ def deserialise(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
     str_features = iterator.get_next()
     raw_features = tf.parse_example(str_features, features=_FDICT)
     npatch = (2 * metadata.halfwidth + 1) ** 2
-    y_type = tf.float32 if metadata.target_dtype == np.float32 \
-        else tf.int32
+    categorical = isinstance(metadata.targets, CategoricalMetadata)
+    y_type = tf.int32 if categorical else tf.float32
     with tf.name_scope("Inputs"):
         x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -64,11 +64,17 @@ def deserialise(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
         y = tf.decode_raw(raw_features["y"], y_type)
 
-        x_ord.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_ord_mask.set_shape((None, npatch * metadata.nfeatures_ord))
-        x_cat.set_shape((None, npatch * metadata.nfeatures_cat))
-        x_cat_mask.set_shape((None, npatch * metadata.nfeatures_cat))
-        y.set_shape((None, metadata.ntargets))
+        nfeatures_ord = metadata.features.ordinal.D \
+            if metadata.features.ordinal else 0
+        nfeatures_cat = metadata.features.categorical.D \
+            if metadata.features.categorical else 0
+        ntargets = metadata.targets.D
+
+        x_ord.set_shape((None, npatch * nfeatures_ord))
+        x_ord_mask.set_shape((None, npatch * nfeatures_ord))
+        x_cat.set_shape((None, npatch * nfeatures_cat))
+        x_cat_mask.set_shape((None, npatch * nfeatures_cat))
+        y.set_shape((None, ntargets))
 
     return x_ord, x_ord_mask, x_cat, x_cat_mask, y
 

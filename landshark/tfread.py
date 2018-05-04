@@ -3,7 +3,8 @@ from glob import glob
 import os
 import logging
 import sys
-from landshark.metadata import load_metadata, write_metadata, TrainingMetadata
+from landshark.metadata import unpickle_training_metadata, \
+    pickle_metadata, TrainingMetadata
 from typing import Tuple, List
 
 log = logging.getLogger(__name__)
@@ -35,17 +36,17 @@ def setup_training(config: str, directory: str) -> \
 
     # Get metadata for feeding to the model
     metadata_path = os.path.join(directory, "METADATA.bin")
-    metadata = load_metadata(metadata_path)
+    metadata = unpickle_training_metadata(metadata_path)
 
     # Write the metadata
     name = os.path.basename(config).rsplit(".")[0] + \
-        "_model_{}of{}".format(metadata.testfold, metadata.folds)
+        "_model_{}of{}".format(metadata.testfold, metadata.nfolds)
     model_dir = os.path.join(os.getcwd(), name)
     try:
         os.makedirs(model_dir)
     except FileExistsError:
         pass
-    write_metadata(model_dir, metadata)
+    pickle_metadata(model_dir, metadata)
 
     # Load the model
     module_name = load_model(config)
