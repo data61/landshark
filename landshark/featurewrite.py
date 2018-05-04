@@ -57,7 +57,7 @@ def write_ordinal(source: OrdinalArraySource,
                   batchsize: Optional[int]=None,
                   stats: Optional[Tuple[np.ndarray, np.ndarray]]=None) \
         -> None:
-    transform = Normaliser(*stats) if stats else IdWorker()
+    transform = Normaliser(*stats, source.missing) if stats else IdWorker()
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
                   "ordinal_data", transform, n_workers, batchsize)

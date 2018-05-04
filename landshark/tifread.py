@@ -116,7 +116,6 @@ class _ImageStackSource(ArraySource):
             data = np.moveaxis(data, 0, -1)
             out_array[..., start_band:stop_band] = data
             start_band = stop_band
-
         return out_array
 
 

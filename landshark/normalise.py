@@ -2,10 +2,10 @@ import numpy as np
 import logging
 
 from tqdm import tqdm
-from typing import Tuple
+from typing import Tuple, Optional
 
 from landshark import iteration
-from landshark.basetypes import OrdinalArraySource, Worker
+from landshark.basetypes import OrdinalArraySource, Worker, OrdinalType
 from landshark.util import to_masked
 
 log = logging.getLogger(__name__)
@@ -61,14 +61,17 @@ class StatCounter:
 
 class Normaliser(Worker):
 
-    def __init__(self, mean: np.ndarray, var: np.ndarray) -> None:
+    def __init__(self, mean: np.ndarray, var: np.ndarray,
+                 missing: Optional[OrdinalType]) -> None:
         self._mean = mean
-        self._var = var
+        self._std = np.sqrt(var)
+        self._missing = missing
 
-    def __call__(self, x: np.ma.MaskedArray) -> np.ma.MaskedArray:
-        x0 = x - self._mean
-        xw = x0 / self._var
-        return xw
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        xm = to_masked(x, self._missing)
+        xm -= self._mean
+        xm /= self._std
+        return xm.data
 
 
 def get_stats(src: OrdinalArraySource, batchsize: int) \
