@@ -80,7 +80,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames, ignore_crs)
     cat_meta, ord_meta = None, None
-    N =  None
+    N = None
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
         if ordinal:
             ord_source = OrdinalStackSource(spec, ord_filenames)
@@ -106,7 +106,7 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 
         if categorical:
             cat_source = CategoricalStackSource(spec, cat_filenames)
-            if N is not None:
+            if N is None:
                 N = cat_source.shape[0] * cat_source.shape[1]
             log.info("Categorical missing value is {}".format(
                 cat_source.missing))

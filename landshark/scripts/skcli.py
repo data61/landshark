@@ -3,6 +3,7 @@
 import logging
 import os
 from shutil import copyfile
+from copy import deepcopy
 
 from typing import Optional
 import click
@@ -60,18 +61,20 @@ def predict(modeldir: str, querydir: str, batchsize: int,
             lower: int, upper: int,) -> int:
     """Predict using a learned model."""
 
+    train_metadata, query_metadata, query_records \
+        = setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     load_model(os.path.join(modeldir, "config.py"))
-    metadata, query_records = setup_query(modeldir, querydir)
-    y_dash_it = skmodel.predict(modeldir, metadata, query_records,
-                                batchsize, percentiles)
 
     strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
-    md_dict = metadata._asdict()
-    md_dict["image_spec"] = strip_imspec
+    strip, nstrips = get_strips(query_records)
+    strip_imspec = strip_image_spec(strip, nstrips,
+                                    train_metadata.features.image)
+    strip_metadata = deepcopy(train_metadata)
+    strip_metadata.features.image = strip_imspec
 
-    strip_metadata = TrainingMetadata(**md_dict)
+    y_dash_it = skmodel.predict(modeldir, strip_metadata, query_records,
+                                batchsize, percentiles)
     write_geotiffs(y_dash_it, modeldir, strip_metadata,
                    list(percentiles), tag="{}of{}".format(strip, nstrips))
     return 0

@@ -12,7 +12,6 @@ embed_dim = 3
 
 def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
     noise = tf.Variable(noise0 * np.ones(metadata.targets.D, dtype=np.float32))
-    slices = patch_slices(metadata)
 
     arg_dict = {}
     layer_list = []
@@ -27,6 +26,7 @@ def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
         embed_layers = [ab.EmbedMAP(embed_dim, k + 1, l1_reg=1e-5, l2_reg=0.)
                         for k in metadata.features.categorical.ncategories]
 
+        slices = patch_slices(metadata)
         cat_net = input_layer >> ab.PerFeature(*embed_layers, slices=slices)
         layer_list.append(cat_net)
         arg_dict["Xc"] = Xc

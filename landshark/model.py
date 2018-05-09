@@ -256,8 +256,9 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
 def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
         Tuple[np.array, np.array]:
     """Calculate the samples weights and labels for classification."""
-    assert metadata.target_map is not None
-    nlabels = len(metadata.target_map[0])
+    assert isinstance(metadata.targets, CategoricalMetadata)
+    # Currently we only support single-task classification problems
+    nlabels = metadata.targets.ncategories[0]
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)
     weights = np.zeros_like(counts, dtype=float)
