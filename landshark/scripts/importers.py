@@ -4,6 +4,7 @@ import logging
 import os.path
 from glob import glob
 from multiprocessing import cpu_count
+from copy import deepcopy
 
 import tables
 import click
@@ -29,6 +30,7 @@ from landshark.featurewrite import write_feature_metadata, \
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.trainingdata import setup_training
+from landshark.image import strip_image_spec
 
 log = logging.getLogger(__name__)
 
@@ -241,11 +243,15 @@ def querydata(features: str, batchsize: int, nworkers: int,
         pass
 
     feature_metadata = read_featureset_metadata(features)
+    strip_imspec = strip_image_spec(strip, totalstrips,
+                                    feature_metadata.image)
+    strip_metadata = deepcopy(feature_metadata)
+    strip_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip, totalstrips)
     write_querydata(features, feature_metadata.image, strip, totalstrips,
                     batchsize, halfwidth, nworkers, directory, tag)
     # TODO other info here like strips and windows
-    query_metadata = QueryMetadata(feature_metadata)
+    query_metadata = QueryMetadata(strip_metadata)
     pickle_metadata(directory, query_metadata)
     log.info("Query import complete")
     return 0

@@ -8,16 +8,17 @@ from landshark.multiproc import task_list
 from landshark.featurewrite import write_imagespec
 from landshark.hread import H5Features
 from landshark.trainingdata import SourceMetadata
-from landshark.metadata import TrainingMetadata
+from landshark.metadata import TrainingMetadata, CategoricalMetadata,\
+    QueryMetadata
 
 
 def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                   fname: str, batchsize: int, nworkers: int) -> None:
 
-    n_rows = len(tinfo.target_src)
-    has_ord = metadata.nfeatures_ord is not None
-    has_cat = metadata.nfeatures_cat is not None
-    cat_targets = metadata.target_counts is not None
+    n_rows = metadata.targets.N
+    has_ord = metadata.features.ordinal is not None
+    has_cat = metadata.features.categorical is not None
+    cat_targets = isinstance(metadata.targets, CategoricalMetadata)
     patchwidth = metadata.halfwidth * 2 + 1
 
     worker = TrainingDataProcessor(tinfo.image_spec, tinfo.feature_path,
@@ -31,21 +32,21 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
 
     with tables.open_file(fname, mode="w", title=tinfo.name) as outfile:
         if has_ord:
-            ord_shape = (n_rows, metadata.nfeatures_ord,
+            ord_shape = (n_rows, metadata.features.ordinal.D,
                          patchwidth, patchwidth)
             ord_array = outfile.create_carray(outfile.root, name="ordinal",
                                               atom=tables.Float32Atom(),
                                               shape=ord_shape, filters=filters)
-            ord_array.attrs.missing = metadata.missing_ord
+            ord_array.attrs.missing = metadata.features.ordinal.missing
         if has_cat:
-            cat_shape = (n_rows, metadata.nfeatures_cat,
+            cat_shape = (n_rows, metadata.features.categorical.D,
                          patchwidth, patchwidth)
             cat_array = outfile.create_carray(outfile.root, name="categorical",
                                               atom=tables.Int32Atom(),
                                               shape=cat_shape, filters=filters)
-            cat_array.attrs.missing = metadata.missing_cat
+            cat_array.attrs.missing = metadata.features.categorical.missing
 
-        target_shape = (n_rows, metadata.ntargets)
+        target_shape = (n_rows, metadata.targets.D)
         target_array = outfile.create_carray(outfile.root, name="targets",
                                              atom=target_atom,
                                              shape=target_shape,
@@ -79,11 +80,12 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
         folds_array.flush()
 
 
-def dump_query(feature_path: str, image_spec: ImageSpec, strip: int,
+def dump_query(feature_path: str, metadata: QueryMetadata, strip: int,
                totalstrips: int, batchsize: int, halfwidth: int,
                nworkers: int, name: str, fname: str) -> None:
 
-    true_batchsize = batchsize * image_spec.width
+    image_spec = metadata.features.image
+    true_batchsize = batchsize * metadata.features.image.width
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, totalstrips,
                                 true_batchsize)
