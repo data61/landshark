@@ -8,7 +8,7 @@ from copy import deepcopy
 
 import tables
 import click
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import numpy as np
 
 from landshark.tifread import shared_image_spec, OrdinalStackSource, \
@@ -62,25 +62,42 @@ def _tifnames(directories: Optional[str]) -> List[str]:
     return names
 
 
+def match_counts(countdata, match_map):
+    init_map = countdata.mappings
+    count_dict = {k: v for k, v in zip(countdata.mappings, countdata.counts)}
+    new_counts = [count_dict[k] for k in match_map]
+    return new_counts
+
+
 @cli.command()
 @click.option("--batchsize", type=int, default=100)
 @click.option("--categorical", type=click.Path(exists=True), multiple=True)
 @click.option("--ordinal", type=click.Path(exists=True), multiple=True)
-@click.option("--nonormalise", is_flag=True)
+@click.option("--normalise/--no-normalise", is_flag=True, default=True)
 @click.option("--name", type=str, required=True,
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--ignore-crs/--no-ignore-crs", is_flag=True, default=False)
-def tifs(categorical: str, ordinal: str, nonormalise: bool,
-         name: str, nworkers: int, batchsize: int, ignore_crs: bool) -> int:
+@click.option("--match", type=click.Path(exists=True))
+def tifs(categorical: str, ordinal: str, normalise: bool,
+         name: str, nworkers: int, batchsize: int, ignore_crs: bool,
+         match: str) -> int:
     """Build a tif stack from a set of input files."""
-    normalise = not nonormalise
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
     ord_filenames = _tifnames(ordinal) if ordinal else []
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames, ignore_crs)
+
+    mean, var = None, None
+    if match:
+        feature_metadata = read_featureset_metadata(match)
+        maps = feature_metadata.categorical.mappings
+        counts = feature_metadata.categorical.counts
+        mean = feature_metadata.ordinal.means
+        var = feature_metadata.ordinal.variances
+
     cat_meta, ord_meta = None, None
     N = None
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
@@ -88,9 +105,9 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
             ord_source = OrdinalStackSource(spec, ord_filenames)
             N = ord_source.shape[0] * ord_source.shape[1]
             log.info("Ordinal missing value is {}".format(ord_source.missing))
-            mean, var = None, None
             if normalise:
-                mean, var = get_stats(ord_source, batchsize)
+                if not match:
+                    mean, var = get_stats(ord_source, batchsize)
                 zvar = var == 0.0
                 if any(zvar):
                     zsrcs = [c for z, c in zip(zvar, ord_source.columns) if z]
@@ -99,11 +116,11 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
 
             log.info("Writing normalised ordinal data to output file")
             ord_meta = OrdinalMetadata(N=N,
-                                            D=ord_source.shape[-1],
-                                              labels=ord_source.columns,
-                                              missing=ord_source.missing,
-                                              means=mean,
-                                              variances=var)
+                                       D=ord_source.shape[-1],
+                                       labels=ord_source.columns,
+                                       missing=ord_source.missing,
+                                       means=mean,
+                                       variances=var)
             write_ordinal(ord_source, outfile, nworkers, batchsize)
 
         if categorical:
@@ -113,16 +130,19 @@ def tifs(categorical: str, ordinal: str, nonormalise: bool,
             log.info("Categorical missing value is {}".format(
                 cat_source.missing))
             catdata = get_maps(cat_source, batchsize)
-            maps, counts = catdata.mappings, catdata.counts
+            if match:
+                counts = match_counts(catdata, maps)
+            else:
+                maps, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
             cat_meta = CategoricalMetadata(N=N,
                                            D=cat_source.shape[-1],
-                                                  labels=cat_source.columns,
-                                                  missing=cat_source.missing,
-                                                  ncategories=ncats,
-                                                  mappings=maps,
-                                                  counts=counts)
+                                           labels=cat_source.columns,
+                                           missing=cat_source.missing,
+                                           ncategories=ncats,
+                                           mappings=maps,
+                                           counts=counts)
             write_categorical(cat_source, outfile, nworkers, batchsize, maps)
 
         assert N is not None
@@ -227,10 +247,12 @@ def trainingdata(features: str, targets: str, testfold: int,
 @click.option("--batchsize", type=int, default=1)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=1)
-@click.argument("strip", type=int)
-@click.argument("totalstrips", type=int)
+@click.option("--strip", type=int, nargs=2, default=(1, 1))
 def querydata(features: str, batchsize: int, nworkers: int,
-              halfwidth: int, strip: int, totalstrips: int) -> int:
+              halfwidth: int, strip: Optional[Tuple[int]]) -> int:
+    strip, totalstrips = strip
+    assert strip > 0 and strip <= totalstrips
+
     """Grab a chunk for prediction."""
     log.info("Using {} worker processes".format(nworkers))
 

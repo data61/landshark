@@ -82,19 +82,11 @@ def predict(
         upper: int,
         gpu: bool) -> int:
     """Predict using a learned model."""
-    train_metadata, query_metadata, query_records \
-        = setup_query(modeldir, querydir)
+    query_metadata, query_records = setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
-
-    strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips,
-                                    train_metadata.features.image)
-
-    strip_metadata = deepcopy(train_metadata)
-    strip_metadata.features.image = strip_imspec
-    y_dash_it = model.predict(modeldir, strip_metadata, query_records, params)
-    write_geotiffs(y_dash_it, modeldir, strip_metadata,
+    y_dash_it = model.predict(modeldir, query_metadata, query_records, params)
+    write_geotiffs(y_dash_it, modeldir, query_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
     return 0

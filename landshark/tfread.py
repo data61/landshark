@@ -55,14 +55,12 @@ def setup_training(config: str, directory: str) -> \
 
 
 def setup_query(modeldir: str, querydir: str) \
-        -> Tuple[TrainingMetadata, QueryMetadata, List[str]]:
-    train_metadata = unpickle_training_metadata(os.path.join(modeldir,
-                                                "METADATA.bin"))
+        -> Tuple[QueryMetadata, List[str]]:
     query_metadata = unpickle_query_metadata(os.path.join(querydir,
                                                           "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
-    return train_metadata, query_metadata, query_records
+    return query_metadata, query_records
 
 
 def get_strips(records: List[str]) -> Tuple[int, int]:

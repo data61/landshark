@@ -2,7 +2,6 @@
 
 import os.path
 import pickle
-import tables
 import numpy as np
 from typing import NamedTuple, List, Optional, cast, Union, Dict, Any
 

@@ -61,20 +61,11 @@ def predict(modeldir: str, querydir: str, batchsize: int,
             lower: int, upper: int,) -> int:
     """Predict using a learned model."""
 
-    train_metadata, query_metadata, query_records \
-        = setup_query(modeldir, querydir)
+    query_metadata, query_records = setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     load_model(os.path.join(modeldir, "config.py"))
-
-    strip, nstrips = get_strips(query_records)
-    strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips,
-                                    train_metadata.features.image)
-    strip_metadata = deepcopy(train_metadata)
-    strip_metadata.features.image = strip_imspec
-
-    y_dash_it = skmodel.predict(modeldir, strip_metadata, query_records,
+    y_dash_it = skmodel.predict(modeldir, query_metadata, query_records,
                                 batchsize, percentiles)
-    write_geotiffs(y_dash_it, modeldir, strip_metadata,
+    write_geotiffs(y_dash_it, modeldir, query_metadata,
                    list(percentiles), tag="{}of{}".format(strip, nstrips))
     return 0
