@@ -30,7 +30,7 @@ class OrdinalMetadata(Array2DMetadata):
 class CategoricalMetadata(Array2DMetadata):
     def __init__(self, N: int, D: int, labels: List[str],
                  missing: Optional[CategoricalType], ncategories: np.ndarray,
-                 mappings: np.ndarray, counts: np.ndarray) -> None:
+                 mappings: List[np.ndarray], counts: List[np.ndarray]) -> None:
         super().__init__(N, D, labels, missing)
         self.ncategories = ncategories
         self.mappings = mappings

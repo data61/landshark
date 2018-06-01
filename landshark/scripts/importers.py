@@ -249,6 +249,45 @@ def parse_withlist(listfile: str) -> List[str]:
     return noempty
 
 
+def _subset_ord_meta(m: OrdinalMetadata, active_ords: np.ndarray) \
+        -> OrdinalMetadata:
+    N = m.N
+    D = np.sum(active_ords.astype(int))
+    labels = [l for l, f in zip(m.labels, active_ords) if f]
+    missing = m.missing
+    means = m.means[active_ords] if m.means is not None else None
+    variances = m.variances[active_ords] if m.variances is not None else None
+    new_m = OrdinalMetadata(N, D, labels, missing, means, variances)
+    return new_m
+
+
+def _subset_cat_meta(m: CategoricalMetadata, active_cats: np.ndarray) \
+        -> CategoricalMetadata:
+    N = m.N
+    D = np.sum(active_cats.astype(int))
+    labels = [l for l, f in zip(m.labels, active_cats) if f]
+    missing = m.missing
+    ncategories = m.ncategories[active_cats]
+    mappings = [e for e, f in zip(m.mappings, active_cats) if f]
+    counts = [e for e, f in zip(m.counts, active_cats) if f]
+    new_m = CategoricalMetadata(N, D, labels, missing, ncategories,
+                                mappings, counts)
+    return new_m
+
+
+def active_column_metadata(m: FeatureSetMetadata, active_ords: np.ndarray,
+                           active_cats: np.ndarray) -> FeatureSetMetadata:
+    new_ordinal: Optional[OrdinalMetadata] = None
+    new_categorical: Optional[CategoricalMetadata] = None
+    if m.ordinal is not None and len(active_ords) > 0:
+        new_ordinal = _subset_ord_meta(m.ordinal, active_ords)
+    if m.categorical is not None and len(active_cats) > 0:
+        new_categorical = _subset_cat_meta(m.categorical, active_cats)
+
+    new_m = FeatureSetMetadata(new_ordinal, new_categorical, m.image)
+    return new_m
+
+
 @cli.command()
 @click.argument("features", type=click.Path(exists=True))
 @click.argument("targets", type=click.Path(exists=True))
@@ -271,6 +310,11 @@ def trainingdata(features: str, targets: str, testfold: int,
 
     active_feats_ord, active_feats_cat = get_active_features(
         feature_metadata, withfeat, withoutfeat, withlist)
+
+    reduced_feature_metadata = active_column_metadata(feature_metadata,
+                                                      active_feats_ord,
+                                                      active_feats_cat)
+
     tinfo = setup_training(features, feature_metadata,
                            targets, target_metadata, folds,
                            random_seed, halfwidth, active_feats_ord,
@@ -281,7 +325,7 @@ def trainingdata(features: str, targets: str, testfold: int,
                              "_traintest{}of{}".format(testfold, folds))
     write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
     training_metadata = TrainingMetadata(targets=target_metadata,
-                                         features=feature_metadata,
+                                         features=reduced_feature_metadata,
                                          halfwidth=halfwidth,
                                          nfolds=folds,
                                          testfold=testfold,
