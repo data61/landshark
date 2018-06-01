@@ -71,8 +71,11 @@ class H5Features:
     """
     Note unlike the array classes this isn't picklable.
     """
-    def __init__(self, h5file: str) -> None:
+    def __init__(self, h5file: str, active_ords: np.ndarray,
+                 active_cats: np.ndarray) -> None:
 
+        self._ordcols = active_ords
+        self._catcols = active_cats
         self.ordinal, self.categorical, self.coordinates = None, None, None
         self._hfile = tables.open_file(h5file, "r")
         if hasattr(self._hfile.root, "ordinal_data"):
@@ -102,9 +105,11 @@ class H5Features:
         ord_data = None
         cat_data = None
         if self.ordinal:
-            ord_data = self.ordinal[rows.start:rows.stop]
+            ord_data = self.ordinal[rows.start:rows.stop, ...,
+                                    self._ordcols]
         if self.categorical:
-            cat_data = self.categorical[rows.start:rows.stop]
+            cat_data = self.categorical[rows.start:rows.stop, ...,
+                                        self._catcols]
         return FeatureValues(ord_data, cat_data)
 
     def __del__(self) -> None:

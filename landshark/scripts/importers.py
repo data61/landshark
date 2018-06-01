@@ -8,7 +8,7 @@ from copy import deepcopy
 
 import tables
 import click
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 import numpy as np
 
 from landshark.tifread import shared_image_spec, OrdinalStackSource, \
@@ -25,8 +25,8 @@ from landshark.metadata import OrdinalMetadata, \
     CategoricalMetadata, FeatureSetMetadata, TrainingMetadata, \
     QueryMetadata, pickle_metadata
 from landshark.featurewrite import write_feature_metadata, \
-    write_ordinal_metadata, write_categorical_metadata, read_featureset_metadata, \
-    read_target_metadata
+    write_ordinal_metadata, write_categorical_metadata, \
+    read_featureset_metadata, read_target_metadata
 from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.trainingdata import setup_training
@@ -62,13 +62,6 @@ def _tifnames(directories: Optional[str]) -> List[str]:
     return names
 
 
-def match_counts(countdata, match_map):
-    init_map = countdata.mappings
-    count_dict = {k: v for k, v in zip(countdata.mappings, countdata.counts)}
-    new_counts = [count_dict[k] for k in match_map]
-    return new_counts
-
-
 @cli.command()
 @click.option("--batchsize", type=int, default=100)
 @click.option("--categorical", type=click.Path(exists=True), multiple=True)
@@ -78,10 +71,8 @@ def match_counts(countdata, match_map):
               help="Name of output file")
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--ignore-crs/--no-ignore-crs", is_flag=True, default=False)
-@click.option("--match", type=click.Path(exists=True))
 def tifs(categorical: str, ordinal: str, normalise: bool,
-         name: str, nworkers: int, batchsize: int, ignore_crs: bool,
-         match: str) -> int:
+         name: str, nworkers: int, batchsize: int, ignore_crs: bool) -> int:
     """Build a tif stack from a set of input files."""
     log.info("Using {} worker processes".format(nworkers))
     out_filename = os.path.join(os.getcwd(), name + "_features.hdf5")
@@ -89,14 +80,6 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
     cat_filenames = _tifnames(categorical) if categorical else []
     all_filenames = ord_filenames + cat_filenames
     spec = shared_image_spec(all_filenames, ignore_crs)
-
-    mean, var = None, None
-    if match:
-        feature_metadata = read_featureset_metadata(match)
-        maps = feature_metadata.categorical.mappings
-        counts = feature_metadata.categorical.counts
-        mean = feature_metadata.ordinal.means
-        var = feature_metadata.ordinal.variances
 
     cat_meta, ord_meta = None, None
     N = None
@@ -106,8 +89,7 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
             N = ord_source.shape[0] * ord_source.shape[1]
             log.info("Ordinal missing value is {}".format(ord_source.missing))
             if normalise:
-                if not match:
-                    mean, var = get_stats(ord_source, batchsize)
+                mean, var = get_stats(ord_source, batchsize)
                 zvar = var == 0.0
                 if any(zvar):
                     zsrcs = [c for z, c in zip(zvar, ord_source.columns) if z]
@@ -130,10 +112,7 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
             log.info("Categorical missing value is {}".format(
                 cat_source.missing))
             catdata = get_maps(cat_source, batchsize)
-            if match:
-                counts = match_counts(catdata, maps)
-            else:
-                maps, counts = catdata.mappings, catdata.counts
+            maps, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
             cat_meta = CategoricalMetadata(N=N,
@@ -185,12 +164,12 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
             write_categorical(cat_source, h5file, nworkers, batchsize,
                               mappings)
             cat_meta = CategoricalMetadata(N=cat_source.shape[0],
-                                             D=cat_source.shape[-1],
-                                             labels=cat_source.columns,
-                                             ncategories=ncats,
-                                             mappings=mappings,
-                                             counts=counts,
-                                             missing=None)
+                                           D=cat_source.shape[-1],
+                                           labels=cat_source.columns,
+                                           ncategories=ncats,
+                                           mappings=mappings,
+                                           counts=counts,
+                                           missing=None)
             write_categorical_metadata(cat_meta, h5file)
         else:
             ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
@@ -198,15 +177,76 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
                 if normalise else None, None
             write_ordinal(ord_source, h5file, nworkers, batchsize)
             ord_meta = OrdinalMetadata(N=ord_source.shape[0],
-                                         D=ord_source.shape[-1],
-                                         labels=ord_source.columns,
-                                         means=mean,
-                                         variances=var,
-                                         missing=None)
+                                       D=ord_source.shape[-1],
+                                       labels=ord_source.columns,
+                                       means=mean,
+                                       variances=var,
+                                       missing=None)
             write_ordinal_metadata(ord_meta, h5file)
     log.info("Target import complete")
 
     return 0
+
+
+def get_active_features(feature_metadata: FeatureSetMetadata,
+                        withfeat: List[str], withoutfeat: List[str],
+                        withlist: str) -> Tuple[np.ndarray, np.ndarray]:
+    if len(withfeat) > 0 and len(withoutfeat) > 0:
+        raise ValueError("Cant specificy withfeat and withoutfeat "
+                         "at the same time")
+    if withlist is not None and (len(withfeat) > 0 or len(withoutfeat) > 0):
+        raise ValueError("Can't specify a feature list and command line "
+                         "feature additions or subtractions")
+
+    all_features: Set[str] = set()
+    ncats = 0
+    nords = 0
+    if feature_metadata.ordinal is not None:
+        all_features = all_features.union(set(feature_metadata.ordinal.labels))
+        nords = len(feature_metadata.ordinal.labels)
+    if feature_metadata.categorical is not None:
+        all_features = all_features.union(
+            set(feature_metadata.categorical.labels))
+        ncats = len(feature_metadata.categorical.labels)
+    if withlist is not None:
+        feature_list = parse_withlist(withlist)
+    elif withfeat is not None:
+        feature_list = withfeat
+    elif withoutfeat is not None:
+        feature_list = list(all_features - set(withoutfeat))
+    feature_set = set(feature_list)
+    if not feature_set.issubset(all_features):
+        print("Error, the following requested features do not appear "
+              " in the data:\n{}\n Possible features are:\n{}".format(
+                  set(feature_list).difference(all_features), all_features))
+        raise ValueError("Requested features not in data")
+
+    ord_array = np.zeros(nords, dtype=bool)
+    cat_array = np.zeros(ncats, dtype=bool)
+    for f in feature_set:
+        if feature_metadata.ordinal is not None:
+            try:
+                idx = feature_metadata.ordinal.labels.index(f)
+                ord_array[idx] = 1
+            except ValueError:
+                pass
+        if feature_metadata.categorical is not None:
+            try:
+                idx = feature_metadata.categorical.labels.index(f)
+                cat_array[idx] = 1
+            except ValueError:
+                pass
+    return ord_array, cat_array
+
+
+def parse_withlist(listfile: str) -> List[str]:
+    with open(listfile, "r") as f:
+        lines = f.readlines()
+    # remove the comment lines
+    nocomments = [l.split("#")[0] for l in lines]
+    stripped = [l.strip().rstrip() for l in nocomments]
+    noempty = [l for l in stripped if l is not ""]
+    return noempty
 
 
 @cli.command()
@@ -218,15 +258,24 @@ def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
 @click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
 @click.option("--batchsize", type=click.IntRange(1, None), default=100)
 @click.option("--random_seed", type=int, default=666)
+@click.option("--withfeat", type=str, multiple=True)
+@click.option("--withoutfeat", type=str, multiple=True)
+@click.option("--withlist", type=click.Path(exists=True))
 def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int) -> int:
+                 random_seed: int, withfeat: List[str],
+                 withoutfeat: List[str], withlist: str) -> int:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
+
+    active_feats_ord, active_feats_cat = get_active_features(
+        feature_metadata, withfeat, withoutfeat, withlist)
     tinfo = setup_training(features, feature_metadata,
                            targets, target_metadata, folds,
-                           random_seed, halfwidth)
+                           random_seed, halfwidth, active_feats_ord,
+                           active_feats_cat)
+    # TODO check this is being used correctly in the tensorflow regulariser
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), tinfo.name +
                              "_traintest{}of{}".format(testfold, folds))

@@ -168,19 +168,33 @@ def _process_query(indices: Tuple[np.ndarray, np.ndarray],
     return ord_marray, cat_marray
 
 
+class SourceMetadata(NamedTuple):
+    name: str
+    feature_path: str
+    target_src: ArraySource
+    image_spec: ImageSpec
+    halfwidth: int
+    folds: KFolds
+    active_ords: np.ndarray
+    active_cats: np.ndarray
+
+
 class TrainingDataProcessor(Worker):
 
-    def __init__(self, image_spec: ImageSpec, feature_path: str,
-                 halfwidth: int) -> None:
-        self.feature_path = feature_path
-        self.halfwidth = halfwidth
-        self.image_spec = image_spec
+    def __init__(self, tinfo: SourceMetadata) -> None:
+        self.feature_path = tinfo.feature_path
+        self.halfwidth = tinfo.halfwidth
+        self.image_spec = tinfo.image_spec
         self.feature_source: Optional[H5Features] = None
+        self.active_ords = tinfo.active_ords
+        self.active_cats = tinfo.active_cats
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
             Tuple[np.ma.MaskedArray, np.ma.MaskedArray, np.ndarray]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_path)
+            self.feature_source = H5Features(self.feature_path,
+                                             self.active_ords,
+                                             self.active_cats)
         targets, coords = values
         ord_marray, cat_marray = _process_training(coords, self.feature_source,
                                                    self.image_spec,
@@ -190,9 +204,8 @@ class TrainingDataProcessor(Worker):
 
 class SerialisingTrainingDataProcessor(Worker):
 
-    def __init__(self, image_spec: ImageSpec, feature_path:str,
-                 halfwidth: int) -> None:
-        self.proc = TrainingDataProcessor(image_spec, feature_path, halfwidth)
+    def __init__(self, tinfo: SourceMetadata) -> None:
+        self.proc = TrainingDataProcessor(tinfo)
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
@@ -233,18 +246,11 @@ class SerialisingQueryDataProcessor(Worker):
         return strings
 
 
-class SourceMetadata(NamedTuple):
-    name: str
-    feature_path: str
-    target_src: ArraySource
-    image_spec: ImageSpec
-    halfwidth: int
-    folds: KFolds
-
 def setup_training(feature_path: str, feature_meta: FeatureSetMetadata,
                    target_path: str, target_meta: TargetMetadata,
                    folds: int, random_seed: int,
-                   halfwidth: int) \
+                   halfwidth: int, active_ords: np.ndarray,
+                   active_cats: np.ndarray) \
         -> SourceMetadata:
     name = os.path.basename(feature_path).rsplit("_features.")[0] + "-" + \
         os.path.basename(target_path).rsplit("_targets.")[0]
@@ -256,7 +262,8 @@ def setup_training(feature_path: str, feature_meta: FeatureSetMetadata,
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
     result = SourceMetadata(name, feature_path, target_src,
-                            feature_meta.image, halfwidth, kfolds)
+                            feature_meta.image, halfwidth, kfolds,
+                            active_ords, active_cats)
     return result
 
 
@@ -271,9 +278,7 @@ def write_trainingdata(tinfo: SourceMetadata,
     log.info("Writing training data to tfrecord in {}-point batches".format(
         batchsize))
     n_rows = len(tinfo.target_src)
-    worker = SerialisingTrainingDataProcessor(tinfo.image_spec,
-                                              tinfo.feature_path,
-                                              tinfo.halfwidth)
+    worker = SerialisingTrainingDataProcessor(tinfo)
     tasks = list(batch_slices(batchsize, n_rows))
     out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
     fold_it = tinfo.folds.iterator(batchsize)

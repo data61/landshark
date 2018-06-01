@@ -171,9 +171,9 @@ def _names(band_list: List[Band]) -> List[str]:
     """Generate a list of band names."""
     band_names = []
     for im, band_idx in band_list:
-        basename = os.path.basename(im.name)
+        basename = "".join(os.path.basename(im.name).split(".")[:-1])
         if im.count > 1:
-            name = basename + "_{}".format(band_idx)
+            name = basename + ".band{}".format(band_idx)
         else:
             name = basename
         band_names.append(name)
