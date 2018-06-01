@@ -140,7 +140,7 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
 @click.option("--batchsize", type=int, default=100)
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
-@click.option("--categorical", is_flag=True)
+@click.option("--categorical/--ordinal", is_flag=True, required=True)
 @click.option("--normalise", is_flag=True)
 @click.option("--random_seed", type=int, default=666)
 def targets(shapefile: str, batchsize: int, targets: List[str], name: str,
@@ -210,10 +210,12 @@ def get_active_features(feature_metadata: FeatureSetMetadata,
         ncats = len(feature_metadata.categorical.labels)
     if withlist is not None:
         feature_list = parse_withlist(withlist)
-    elif withfeat is not None:
+    elif len(withfeat) > 0:
         feature_list = withfeat
-    elif withoutfeat is not None:
-        feature_list = list(all_features - set(withoutfeat))
+    elif len(withoutfeat) > 0:
+        feature_list = list(all_features.difference(set(withoutfeat)))
+    else:
+        feature_list = list(all_features)
     feature_set = set(feature_list)
     if not feature_set.issubset(all_features):
         print("Error, the following requested features do not appear "
@@ -236,6 +238,11 @@ def get_active_features(feature_metadata: FeatureSetMetadata,
                 cat_array[idx] = 1
             except ValueError:
                 pass
+
+    log.info("Selecting {} of {} ordinal features".format(
+        np.sum(ord_array), nords))
+    log.info("Selecting {} of {} categorical features".format(
+        np.sum(cat_array), ncats))
     return ord_array, cat_array
 
 
@@ -300,10 +307,11 @@ def active_column_metadata(m: FeatureSetMetadata, active_ords: np.ndarray,
 @click.option("--withfeat", type=str, multiple=True)
 @click.option("--withoutfeat", type=str, multiple=True)
 @click.option("--withlist", type=click.Path(exists=True))
+@click.option("--name", type=str, required=True)
 def trainingdata(features: str, targets: str, testfold: int,
                  folds: int, halfwidth: int, batchsize: int, nworkers: int,
                  random_seed: int, withfeat: List[str],
-                 withoutfeat: List[str], withlist: str) -> int:
+                 withoutfeat: List[str], withlist: str, name: str) -> int:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
@@ -321,7 +329,7 @@ def trainingdata(features: str, targets: str, testfold: int,
                            active_feats_cat)
     # TODO check this is being used correctly in the tensorflow regulariser
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
-    directory = os.path.join(os.getcwd(), tinfo.name +
+    directory = os.path.join(os.getcwd(), name +
                              "_traintest{}of{}".format(testfold, folds))
     write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
     training_metadata = TrainingMetadata(targets=target_metadata,
@@ -344,18 +352,18 @@ def trainingdata(features: str, targets: str, testfold: int,
 @click.option("--withfeat", type=str, multiple=True)
 @click.option("--withoutfeat", type=str, multiple=True)
 @click.option("--withlist", type=click.Path(exists=True))
+@click.option("--name", type=str, required=True)
 def querydata(features: str, batchsize: int, nworkers: int,
               halfwidth: int, strip: Tuple[int, int],
               withfeat: List[str], withoutfeat: List[str],
-              withlist: str) -> int:
+              withlist: str, name: str) -> int:
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 
     """Grab a chunk for prediction."""
     log.info("Using {} worker processes".format(nworkers))
 
-    dirname = os.path.basename(features).rsplit(".")[0] + \
-        "_query{}of{}".format(strip_idx, totalstrips)
+    dirname = name + "_query{}of{}".format(strip_idx, totalstrips)
     directory = os.path.join(os.getcwd(), dirname)
     try:
         os.makedirs(directory)
