@@ -341,16 +341,21 @@ def trainingdata(features: str, targets: str, testfold: int,
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=1)
 @click.option("--strip", type=int, nargs=2, default=(1, 1))
+@click.option("--withfeat", type=str, multiple=True)
+@click.option("--withoutfeat", type=str, multiple=True)
+@click.option("--withlist", type=click.Path(exists=True))
 def querydata(features: str, batchsize: int, nworkers: int,
-              halfwidth: int, strip: Optional[Tuple[int]]) -> int:
-    strip, totalstrips = strip
-    assert strip > 0 and strip <= totalstrips
+              halfwidth: int, strip: Tuple[int, int],
+              withfeat: List[str], withoutfeat: List[str],
+              withlist: str) -> int:
+    strip_idx, totalstrips = strip
+    assert strip_idx > 0 and strip_idx <= totalstrips
 
     """Grab a chunk for prediction."""
     log.info("Using {} worker processes".format(nworkers))
 
     dirname = os.path.basename(features).rsplit(".")[0] + \
-        "_query{}of{}".format(strip, totalstrips)
+        "_query{}of{}".format(strip_idx, totalstrips)
     directory = os.path.join(os.getcwd(), dirname)
     try:
         os.makedirs(directory)
@@ -358,15 +363,21 @@ def querydata(features: str, batchsize: int, nworkers: int,
         pass
 
     feature_metadata = read_featureset_metadata(features)
-    strip_imspec = strip_image_spec(strip, totalstrips,
+    active_ord, active_cat = get_active_features(feature_metadata, withfeat,
+                                                 withoutfeat, withlist)
+    reduced_metadata = active_column_metadata(feature_metadata,
+                                              active_ord,
+                                              active_cat)
+
+    strip_imspec = strip_image_spec(strip_idx, totalstrips,
                                     feature_metadata.image)
-    strip_metadata = deepcopy(feature_metadata)
-    strip_metadata.image = strip_imspec
-    tag = "query.{}of{}".format(strip, totalstrips)
-    write_querydata(features, feature_metadata.image, strip, totalstrips,
-                    batchsize, halfwidth, nworkers, directory, tag)
+    reduced_metadata.image = strip_imspec
+    tag = "query.{}of{}".format(strip_idx, totalstrips)
+    write_querydata(features, feature_metadata.image, strip_idx, totalstrips,
+                    batchsize, halfwidth, nworkers, directory, tag, active_ord,
+                    active_cat)
     # TODO other info here like strips and windows
-    query_metadata = QueryMetadata(strip_metadata)
+    query_metadata = QueryMetadata(reduced_metadata)
     pickle_metadata(directory, query_metadata)
     log.info("Query import complete")
     return 0

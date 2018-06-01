@@ -217,16 +217,21 @@ class SerialisingTrainingDataProcessor(Worker):
 class QueryDataProcessor(Worker):
 
     def __init__(self, image_spec: ImageSpec, feature_path: str,
-                 halfwidth: int) -> None:
+                 halfwidth: int, active_ord: np.ndarray,
+                 active_cat: np.ndarray) -> None:
         self.feature_path = feature_path
         self.halfwidth = halfwidth
         self.image_spec = image_spec
         self.feature_source: Optional[H5Features] = None
+        self.active_ord = active_ord
+        self.active_cat = active_cat
 
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_path)
+            self.feature_source = H5Features(self.feature_path,
+                                             self.active_ord,
+                                             self.active_cat)
         ord_marray, cat_marray = _process_query(indices, self.feature_source,
                                                 self.image_spec,
                                                 self.halfwidth)
@@ -236,8 +241,10 @@ class QueryDataProcessor(Worker):
 class SerialisingQueryDataProcessor(Worker):
 
     def __init__(self, image_spec: ImageSpec, feature_path: str,
-                 halfwidth: int) -> None:
-        self.proc = QueryDataProcessor(image_spec, feature_path, halfwidth)
+                 halfwidth: int, active_ord: np.ndarray,
+                 active_cat: np.ndarray) -> None:
+        self.proc = QueryDataProcessor(image_spec, feature_path, halfwidth,
+                                       active_ord, active_cat)
 
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
@@ -293,14 +300,17 @@ def write_querydata(feature_path: str,
                     halfwidth: int,
                     n_workers: int,
                     output_directory: str,
-                    tag: str) -> None:
+                    tag: str,
+                    active_ord: np.ndarray,
+                    active_cat: np.ndarray) -> None:
     true_batchsize = batchsize * image_spec.width
     log.info("Writing query data to tfrecord in {}-row batches".format(
         batchsize))
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, total_strips,
                                 true_batchsize)
-    worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth)
+    worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth,
+                                           active_ord, active_cat)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, n_workers)
     tfwrite.query(out_it, n_total, output_directory, tag)
