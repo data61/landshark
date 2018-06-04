@@ -32,18 +32,20 @@ def _direct_read(array: tables.CArray,
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int) -> np.ma.MaskedArray:
+                 patchwidth: int,
+                 active_cols: np.ndarray) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
-    nfeatures = array.atom.shape[0]
+    assert active_cols.shape[0] == array.atom.shape[0]
+    nfeatures = np.sum(active_cols)
     dtype = array.atom.dtype.base
     patch_data = np.zeros((npatches, nfeatures, patchwidth, patchwidth),
                           dtype=dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
-        patch_data[r.idx, :, r.yp, r.xp] = array[r.y, r.x].T
+        patch_data[r.idx, :, r.yp, r.xp] = array[r.y, r.x][active_cols].T
 
     for m in mask_reads:
         patch_mask[m.idx, :, m.yp, m.xp] = True
@@ -60,11 +62,13 @@ def _cached_read(row_dict: Dict[int, np.ndarray],
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int) -> np.ma.MaskedArray:
+                 patchwidth: int,
+                 active_cols: np.ndarray) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
-    nfeatures = array.atom.shape[0]
+    assert active_cols.shape[0] == array.atom.shape[0]
+    nfeatures = np.sum(active_cols)
     dtype = array.atom.dtype.base
     patch_data = np.zeros((npatches, nfeatures, patchwidth, patchwidth),
                           dtype=dtype)
@@ -102,10 +106,10 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     return slices
 
 
-def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
-        -> Dict[int, np.ndarray]:
+def _get_rows(slices: List[FixedSlice], array: tables.CArray,
+              active_cols: np.ndarray) -> Dict[int, np.ndarray]:
     # TODO make faster
-    data_slices = [array[s.start:s.stop] for s in slices]
+    data_slices = [array[s.start:s.stop][..., active_cols] for s in slices]
     data = {}
     for s, d in zip(slices, data_slices):
         for i, d_io in zip(range(s[0], s[1]), d):
@@ -153,18 +157,20 @@ def _process_query(indices: Tuple[np.ndarray, np.ndarray],
     ord_marray, cat_marray = None, None
     if feature_source.ordinal:
         ord_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.ordinal)
+                                   feature_source.ordinal,
+                                   active_ord)
         ord_marray = _cached_read(ord_data_cache,
                                   feature_source.ordinal,
                                   patch_reads, mask_reads, npatches,
-                                  patchwidth)
+                                  patchwidth, active_ord)
     if feature_source.categorical:
         cat_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.categorical)
+                                   feature_source.categorical,
+                                   active_cat)
         cat_marray = _cached_read(cat_data_cache,
                                   feature_source.categorical,
                                   patch_reads, mask_reads, npatches,
-                                  patchwidth)
+                                  patchwidth, active_cat)
     return ord_marray, cat_marray
 
 
@@ -192,9 +198,7 @@ class TrainingDataProcessor(Worker):
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
             Tuple[np.ma.MaskedArray, np.ma.MaskedArray, np.ndarray]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_path,
-                                             self.active_ords,
-                                             self.active_cats)
+            self.feature_source = H5Features(self.feature_path)
         targets, coords = values
         ord_marray, cat_marray = _process_training(coords, self.feature_source,
                                                    self.image_spec,
@@ -229,9 +233,7 @@ class QueryDataProcessor(Worker):
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.feature_path,
-                                             self.active_ord,
-                                             self.active_cat)
+            self.feature_source = H5Features(self.feature_path)
         ord_marray, cat_marray = _process_query(indices, self.feature_source,
                                                 self.image_spec,
                                                 self.halfwidth)
