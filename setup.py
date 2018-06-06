@@ -27,7 +27,7 @@ setup(
     },
     install_requires=[
         "numpy>=1.13.3",
-        "scipy>=1.0.0",
+        "scipy>=0.19",
         "click>=6.7",
         "GDAL>=2.0.1",
         "rasterio>=1.0a10",

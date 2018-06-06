@@ -2,7 +2,6 @@
 import logging
 from multiprocessing import cpu_count
 import os
-from copy import deepcopy
 
 import click
 
@@ -46,7 +45,7 @@ def trainingdata(features: str, targets: str, folds: int,
     tinfo = setup_training(features, feature_metadata,
                            targets, target_metadata, folds,
                            random_seed, halfwidth)
-    outfile_name = os.path.join(os.getcwd(), tinfo.name + "_traintest.hdf5")
+    outfile_name = os.path.join(os.getcwd(), "dump_" + tinfo.name + "_traintest.hdf5")
     training_metadata = TrainingMetadata(targets=target_metadata,
                                          features=feature_metadata,
                                          halfwidth=halfwidth,
@@ -76,7 +75,7 @@ def querydata(features: str, batchsize: int, nworkers: int,
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit(".")[0] + \
         "_query{}of{}".format(strip, totalstrips)
-    fname = os.path.join(os.getcwd(), name + ".hdf5")
+    fname = os.path.join(os.getcwd(), "dump_" + name + ".hdf5")
     query_metadata = QueryMetadata(strip_metadata)
     dump_query(features, query_metadata, strip, totalstrips, batchsize,
                halfwidth, nworkers, name, fname)
