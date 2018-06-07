@@ -95,6 +95,8 @@ def tifs(categorical: str, ordinal: str, normalise: bool,
                     zsrcs = [c for z, c in zip(zvar, ord_source.columns) if z]
                     msg = 'The following sources have zero variance: {}'
                     raise ValueError(msg.format(zsrcs))
+            else:
+                stats = None
 
             log.info("Writing normalised ordinal data to output file")
             ord_meta = OrdinalMetadata(N=N,
