@@ -39,7 +39,7 @@ def trainingdata(features: str, targets: str, folds: int,
 
     testfold = 1  # ignored really -- all data written in and fold assignments
     tinfo = setup_training(features, targets, folds, random_seed, halfwidth)
-    outfile_name = os.path.join(os.getcwd(), tinfo.name + "_traintest.hdf5")
+    outfile_name = os.path.join(os.getcwd(), "dump_" + tinfo.name + "_traintest.hdf5")
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     metadata = from_files(features, targets, tinfo.image_spec,
                           halfwidth, n_train, folds, testfold)
@@ -61,7 +61,7 @@ def querydata(features: str, batchsize: int, nworkers: int,
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit(".")[0] + \
         "_query{}of{}".format(strip, totalstrips)
-    fname = os.path.join(os.getcwd(), name + ".hdf5")
+    fname = os.path.join(os.getcwd(), "dump_" + name + ".hdf5")
     image_spec = read_image_spec(features)
     dump_query(features, image_spec, strip, totalstrips, batchsize,
                halfwidth, nworkers, name, fname)
