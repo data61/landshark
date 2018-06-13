@@ -15,8 +15,8 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                   fname: str, batchsize: int, nworkers: int) -> None:
 
     n_rows = len(tinfo.target_src)
-    has_ord = metadata.nfeatures_ord is not None
-    has_cat = metadata.nfeatures_cat is not None
+    has_ord = metadata.nfeatures_ord > 0
+    has_cat = metadata.nfeatures_cat > 0
     cat_targets = metadata.target_counts is not None
     patchwidth = metadata.halfwidth * 2 + 1
 
