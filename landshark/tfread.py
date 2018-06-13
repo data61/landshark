@@ -3,7 +3,8 @@ from glob import glob
 import os
 import logging
 import sys
-from landshark.metadata import load_metadata, write_metadata, TrainingMetadata
+from landshark.metadata import unpickle_training_metadata, \
+    pickle_metadata, TrainingMetadata, unpickle_query_metadata, QueryMetadata
 from typing import Tuple, List
 
 log = logging.getLogger(__name__)
@@ -35,17 +36,17 @@ def setup_training(config: str, directory: str) -> \
 
     # Get metadata for feeding to the model
     metadata_path = os.path.join(directory, "METADATA.bin")
-    metadata = load_metadata(metadata_path)
+    metadata = unpickle_training_metadata(metadata_path)
 
     # Write the metadata
     name = os.path.basename(config).rsplit(".")[0] + \
-        "_model_{}of{}".format(metadata.testfold, metadata.folds)
+        "_model_{}of{}".format(metadata.testfold, metadata.nfolds)
     model_dir = os.path.join(os.getcwd(), name)
     try:
         os.makedirs(model_dir)
     except FileExistsError:
         pass
-    write_metadata(model_dir, metadata)
+    pickle_metadata(model_dir, metadata)
 
     # Load the model
     module_name = load_model(config)
@@ -54,11 +55,14 @@ def setup_training(config: str, directory: str) -> \
 
 
 def setup_query(modeldir: str, querydir: str) \
-        -> Tuple[TrainingMetadata, List[str]]:
-    metadata = load_metadata(os.path.join(modeldir, "METADATA.bin"))
+        -> Tuple[TrainingMetadata, QueryMetadata, List[str]]:
+    query_metadata = unpickle_query_metadata(os.path.join(querydir,
+                                                          "METADATA.bin"))
+    training_metadata = unpickle_training_metadata(
+        os.path.join(modeldir, "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
-    return metadata, query_records
+    return training_metadata, query_metadata, query_records
 
 
 def get_strips(records: List[str]) -> Tuple[int, int]:

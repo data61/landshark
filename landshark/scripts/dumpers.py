@@ -8,8 +8,11 @@ import click
 from landshark.scripts.logger import configure_logging
 from landshark.trainingdata import setup_training
 from landshark.dump import dump_training, dump_query
-from landshark.metadata import from_files
-from landshark.hread import read_image_spec
+from landshark.featurewrite import read_featureset_metadata, \
+    read_target_metadata
+from landshark.metadata import TrainingMetadata, QueryMetadata
+from landshark.image import strip_image_spec
+
 
 log = logging.getLogger(__name__)
 
@@ -36,14 +39,20 @@ def trainingdata(features: str, targets: str, folds: int,
                  halfwidth: int, batchsize: int, nworkers: int,
                  random_seed: int) -> int:
     """Get training data."""
-
+    feature_metadata = read_featureset_metadata(features)
+    target_metadata = read_target_metadata(targets)
     testfold = 1  # ignored really -- all data written in and fold assignments
-    tinfo = setup_training(features, targets, folds, random_seed, halfwidth)
+    tinfo = setup_training(features, feature_metadata,
+                           targets, target_metadata, folds,
+                           random_seed, halfwidth)
     outfile_name = os.path.join(os.getcwd(), "dump_" + tinfo.name + "_traintest.hdf5")
-    n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
-    metadata = from_files(features, targets, tinfo.image_spec,
-                          halfwidth, n_train, folds, testfold)
-    dump_training(tinfo, metadata, outfile_name, batchsize, nworkers)
+    training_metadata = TrainingMetadata(targets=target_metadata,
+                                         features=feature_metadata,
+                                         halfwidth=halfwidth,
+                                         nfolds=folds,
+                                         testfold=testfold,
+                                         fold_counts=tinfo.folds.counts)
+    dump_training(tinfo, training_metadata, outfile_name, batchsize, nworkers)
     log.info("Training dump complete")
     return 0
 
@@ -58,12 +67,17 @@ def trainingdata(features: str, targets: str, folds: int,
 def querydata(features: str, batchsize: int, nworkers: int,
               halfwidth: int, strip: int, totalstrips: int) -> int:
     """Grab a chunk for prediction."""
+    feature_metadata = read_featureset_metadata(features)
+    strip_imspec = strip_image_spec(strip, totalstrips,
+                                    feature_metadata.image)
+    strip_metadata = deepcopy(feature_metadata)
+    strip_metadata.image = strip_imspec
     log.info("Using {} worker processes".format(nworkers))
     name = os.path.basename(features).rsplit(".")[0] + \
         "_query{}of{}".format(strip, totalstrips)
     fname = os.path.join(os.getcwd(), "dump_" + name + ".hdf5")
-    image_spec = read_image_spec(features)
-    dump_query(features, image_spec, strip, totalstrips, batchsize,
+    query_metadata = QueryMetadata(strip_metadata)
+    dump_query(features, query_metadata, strip, totalstrips, batchsize,
                halfwidth, nworkers, name, fname)
-    log.info("Query import complete")
+    log.info("Query dump complete")
     return 0

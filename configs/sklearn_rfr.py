@@ -14,10 +14,10 @@ class SKModel:
         self.cat_imp = Imputer(missing_values=-1,
                                strategy="most_frequent",
                                axis=0, verbose=0, copy=True)
-
         psize = (2 * metadata.halfwidth + 1)**2
-        if metadata.ncategories:
-            n_values = [k for k in metadata.ncategories for _ in range(psize)]
+        if metadata.features.categorical:
+            n_values = [k for k in metadata.features.categorical.ncategories
+                        for _ in range(psize)]
             self.enc = OneHotEncoder(n_values=n_values,
                                      categorical_features="all",
                                      dtype=np.float32, sparse=False)

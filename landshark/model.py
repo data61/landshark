@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, log_loss, r2_score, \
     confusion_matrix
 
 from landshark.basetypes import ClassificationPrediction, RegressionPrediction
-from landshark.metadata import TrainingMetadata
+from landshark.metadata import TrainingMetadata, CategoricalMetadata
 from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def train_test(records_train: List[str],
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
 
-    classification = metadata.target_dtype != np.float32
+    classification = isinstance(metadata.targets, CategoricalMetadata)
 
     # Placeholders
     _query_records = tf.placeholder_with_default(
@@ -158,7 +158,7 @@ def predict(model: str,
             records: List[str],
             params: QueryConfig) -> Generator:
     """Load a model and predict results for record inputs."""
-    classification = metadata.target_dtype != np.float32
+    classification = isinstance(metadata.targets, CategoricalMetadata)
 
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
@@ -199,8 +199,8 @@ def predict(model: str,
             res = _fix_samples(graph, sess, eval_list, feed_dict)
             res_obj = to_obj(*res)
 
-            total_size = (metadata.image_spec.height *
-                          metadata.image_spec.width) // params.batchsize
+            total_size = (metadata.features.image.height *
+                          metadata.features.image.width) // params.batchsize
             with tqdm(total=total_size) as pbar:
                 # Yield prediction result from fixing samples
                 yield res_obj
@@ -219,13 +219,22 @@ def predict(model: str,
 
 def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     """Get slices into the covariates corresponding to patches."""
+    assert metadata.features.categorical
     npatch = (metadata.halfwidth * 2 + 1) ** 2
-    dim = npatch * metadata.nfeatures_cat
+    dim = npatch * metadata.features.categorical.D
     begin = range(0, dim, npatch)
     end = range(npatch, dim + npatch, npatch)
     slices = [slice(b, e) for b, e in zip(begin, end)]
     return slices
 
+def patch_categories(metadata: TrainingMetadata) -> List[int]:
+    """Get the number of categories including the extra patch columns"""
+    assert metadata.features.categorical
+    bmul = (2 * metadata.halfwidth + 1) ** 2
+    ncats_nested = [[k] * bmul for k in
+                    metadata.features.categorical.ncategories]
+    ncategories_patched = [e for l in ncats_nested for e in l]
+    return ncategories_patched
 
 def train_data(records: List[str], batch_size: int, epochs: int=1,
                random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:
@@ -247,8 +256,9 @@ def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
 def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
         Tuple[np.array, np.array]:
     """Calculate the samples weights and labels for classification."""
-    assert metadata.target_map is not None
-    nlabels = len(metadata.target_map[0])
+    assert isinstance(metadata.targets, CategoricalMetadata)
+    # Currently we only support single-task classification problems
+    nlabels = metadata.targets.ncategories[0]
     labels = np.arange(nlabels)
     counts = np.bincount(Ys, minlength=nlabels)
     weights = np.zeros_like(counts, dtype=float)
@@ -339,6 +349,7 @@ class _BestScoreSaver:
 def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\
         -> Any:
     """Train using an intialised Dataset iterator."""
+    step = 0
     try:
         while not sess.should_stop():
             _, step = sess.run([train, global_step])
@@ -398,7 +409,7 @@ def _regress_test_loop(Y: tf.Tensor, Ey: tf.Tensor, logprob: tf.Tensor,
     EYs = np.vstack(EYs)
     lp = float(np.concatenate(LP, axis=1).mean())
     r2 = list(r2_score(Ys, EYs, multioutput="raw_values"))
-    _vector_summary(r2, sess, "r-square", metadata.target_labels, step)
+    _vector_summary(r2, sess, "r-square", metadata.targets.labels, step)
     _scalar_summary(lp, sess, "mean log prob", step)
     scores = {"r2": r2, "lp": lp}
     return scores

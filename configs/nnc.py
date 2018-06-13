@@ -2,15 +2,14 @@
 import tensorflow as tf
 import aboleth as ab
 
-from landshark.model import patch_slices
+from landshark.model import patch_slices, patch_categories
 
 ab.set_hyperseed(666)
 embed_dim = 3
 
 
 def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
-    slices = patch_slices(metadata)
-    target_ncats = len(metadata.target_map[0])
+    target_ncats = metadata.targets.ncategories[0]
     arg_dict = {}
     layer_list = []
     # Categorical features
@@ -18,12 +17,14 @@ def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
 
         input_layer = ab.ExtraCategoryImpute(
             ab.InputLayer(name="Xc", n_samples=samples),
-            ab.MaskInputLayer(name="Xcm"), metadata.ncategories_patched)
+            ab.MaskInputLayer(name="Xcm"), patch_categories(metadata))
 
         # Note the +1 because of the extra category imputation
         embed_layers = [ab.EmbedMAP(embed_dim, k + 1, l1_reg=1e-5, l2_reg=0.)
-                        for k in metadata.ncategories]
+                        for k in metadata.features.categorical.ncategories]
 
+
+        slices = patch_slices(metadata)
         cat_net = input_layer >> ab.PerFeature(*embed_layers, slices=slices)
         layer_list.append(cat_net)
         arg_dict["Xc"] = Xc

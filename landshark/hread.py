@@ -14,6 +14,7 @@ from landshark.category import CategoryInfo
 class H5ArraySource(ArraySource):
 
     _array_name = ""
+    _label_name = ""
 
     def __init__(self, path: str) -> None:
         self._path = path
@@ -22,7 +23,7 @@ class H5ArraySource(ArraySource):
             self._shape = tuple(list(carray.shape) +
                                 [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
-            array_cols = hfile.get_node("/" + self._array_name + "_columns")
+            array_cols = hfile.get_node("/" + self._label_name)
             self._columns = [s.decode() for s in array_cols.read()]
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
@@ -58,10 +59,12 @@ class H5ArraySource(ArraySource):
 
 class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
     _array_name = "ordinal_data"
+    _label_name = "ordinal_labels"
 
 
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
     _array_name = "categorical_data"
+    _label_name = "categorical_labels"
 
 
 class H5Features:
@@ -95,14 +98,14 @@ class H5Features:
     def __len__(self) -> int:
         return self._n
 
-    def rows(self, rows: FixedSlice) -> FeatureValues:
-        ord_data = None
-        cat_data = None
-        if self.ordinal:
-            ord_data = self.ordinal[rows.start:rows.stop]
-        if self.categorical:
-            cat_data = self.categorical[rows.start:rows.stop]
-        return FeatureValues(ord_data, cat_data)
+    # def rows(self, rows: FixedSlice) -> FeatureValues:
+    #     ord_data = None
+    #     cat_data = None
+    #     if self.ordinal:
+    #         ord_data = self.ordinal[rows.start:rows.stop]
+    #     if self.categorical:
+    #         cat_data = self.categorical[rows.start:rows.stop]
+    #     return FeatureValues(ord_data, cat_data)
 
     def __del__(self) -> None:
         self._hfile.close()

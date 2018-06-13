@@ -103,7 +103,7 @@ def _query_it(records_query: List[str], batch_size: int,
               metadata: TrainingMetadata) \
         -> Iterator[Tuple[np.ma.MaskedArray, np.ma.MaskedArray]]:
 
-    total_size = metadata.image_spec.height * metadata.image_spec.width
+    total_size = metadata.features.image.height * metadata.features.image.width
     dataset = test_data(records_query, batch_size)
     iterator = dataset.make_one_shot_iterator()
     Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
@@ -163,7 +163,7 @@ def train_test(config_module: str, records_train: List[str],
                model_dir: str, maxpoints: Optional[int], batchsize: int,
                random_seed: int) -> None:
 
-    classification = metadata.target_dtype != OrdinalType
+    classification = hasattr(metadata.targets, "categorical")
 
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
@@ -182,13 +182,12 @@ def train_test(config_module: str, records_train: List[str],
     res = _convert_res(res)
 
     if classification:
-        assert metadata.target_map is not None
         EYs, pys = res
         sample_weights, labels = sample_weights_labels(metadata, EYs)
         acc = accuracy_score(y_array_test, EYs)
         bacc = accuracy_score(y_array_test, EYs, sample_weight=sample_weights)
         conf = confusion_matrix(y_array_test, EYs)
-        nlabels = len(metadata.target_map[0])
+        nlabels = metadata.targets.D
         labels = np.arange(nlabels)
         lp = -1 * log_loss(y_array_test, pys, labels=labels)
         log.info("Sklearn acc: {:.5f}, lp: {:.5f}".format(acc, lp))

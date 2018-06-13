@@ -3,8 +3,9 @@
 import logging
 import os
 from shutil import copyfile
+from copy import deepcopy
 
-from typing import Optional
+from typing import Optional, Tuple
 import click
 
 from landshark import skmodel
@@ -49,6 +50,7 @@ def train(directory: str, config: str, batchsize: int,
 
 
 @cli.command()
+@click.option("--strip", type=int, nargs=2, default=(1, 1))
 @click.argument("modeldir", type=click.Path(exists=True))
 @click.argument("querydir", type=click.Path(exists=True))
 @click.option("--batchsize", type=int, default=100000)
@@ -57,21 +59,16 @@ def train(directory: str, config: str, batchsize: int,
 @click.option("--upper", type=click.IntRange(min=0, max=100), default=90,
               help="Upper percentile of the predictive density to output")
 def predict(modeldir: str, querydir: str, batchsize: int,
-            lower: int, upper: int,) -> int:
+            lower: int, upper: int, strip: Tuple[int, int]) -> int:
     """Predict using a learned model."""
 
+    strip, nstrips = strip
+    train_metadata, query_metadata, query_records = \
+        setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     load_model(os.path.join(modeldir, "config.py"))
-    metadata, query_records = setup_query(modeldir, querydir)
-    y_dash_it = skmodel.predict(modeldir, metadata, query_records,
+    y_dash_it = skmodel.predict(modeldir, train_metadata, query_records,
                                 batchsize, percentiles)
-
-    strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
-    md_dict = metadata._asdict()
-    md_dict["image_spec"] = strip_imspec
-
-    strip_metadata = TrainingMetadata(**md_dict)
-    write_geotiffs(y_dash_it, modeldir, strip_metadata,
+    write_geotiffs(y_dash_it, modeldir, train_metadata,
                    list(percentiles), tag="{}of{}".format(strip, nstrips))
     return 0

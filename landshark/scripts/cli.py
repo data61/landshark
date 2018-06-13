@@ -1,7 +1,8 @@
 """Main landshark commands."""
 import sys
 import logging
-from typing import Optional
+from typing import Optional, Tuple
+from copy import deepcopy
 
 import click
 
@@ -64,6 +65,7 @@ def train(directory: str, config: str, epochs: int, batchsize: int,
 @cli.command()
 @click.argument("modeldir", type=click.Path(exists=True))
 @click.argument("querydir", type=click.Path(exists=True))
+@click.option("--strip", type=int, nargs=2, default=(1, 1))
 @click.option("--batchsize", type=int, default=100000)
 @click.option("--gpu/--no-gpu", default=False)
 @click.option("--samples", type=click.IntRange(min=1), default=20,
@@ -79,20 +81,16 @@ def predict(
         samples: int,
         lower: int,
         upper: int,
+        strip: Tuple[int, int],
         gpu: bool) -> int:
     """Predict using a learned model."""
-    metadata, query_records = setup_query(modeldir, querydir)
+    strip, nstrips = strip
+    train_metadata, query_metadata, query_records = \
+        setup_query(modeldir, querydir)
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
-
-    strip, nstrips = get_strips(query_records)
-    strip_imspec = strip_image_spec(strip, nstrips, metadata.image_spec)
-    md_dict = metadata._asdict()
-    md_dict["image_spec"] = strip_imspec
-    strip_metadata = TrainingMetadata(**md_dict)
-
-    y_dash_it = model.predict(modeldir, strip_metadata, query_records, params)
-    write_geotiffs(y_dash_it, modeldir, strip_metadata,
+    y_dash_it = model.predict(modeldir, train_metadata, query_records, params)
+    write_geotiffs(y_dash_it, modeldir, train_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
     return 0
