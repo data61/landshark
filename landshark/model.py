@@ -83,8 +83,6 @@ def train_test(records_train: List[str],
     test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
     Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
 
-    import IPython; IPython.embed(); import sys; sys.exit()
-
     # Model
     with tf.name_scope("Deepnet"):
         F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)

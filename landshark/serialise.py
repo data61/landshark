@@ -37,8 +37,6 @@ def serialise(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
         # TODO dont know the dtype so this is a bit dodgy
         y = repeat(np.array([], dtype=OrdinalType))
 
-    print("serialising {}, {}".format(x_ord.shape, x_cat.shape))
-
     string_list = []
     for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):
         fdict = _make_features(xo_i, xc_i, y_i)

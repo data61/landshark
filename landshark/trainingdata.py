@@ -45,7 +45,7 @@ def _direct_read(array: tables.CArray,
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
-        patch_data[r.idx, :, r.yp, r.xp] = array[r.y, r.x][active_cols].T
+        patch_data[r.idx, :, r.yp, r.xp] = array[r.y, r.x][:, active_cols].T
 
     for m in mask_reads:
         patch_mask[m.idx, :, m.yp, m.xp] = True
@@ -119,7 +119,8 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray,
 
 def _process_training(coords: np.ndarray,
                       feature_source: H5Features, image_spec: ImageSpec,
-                      halfwidth: int) -> \
+                      halfwidth: int, active_ords: np.ndarray,
+                      active_cats: np.ndarray) -> \
         Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
     coords_x, coords_y = coords.T
     indices_x = world_to_image(coords_x, image_spec.x_coordinates)
@@ -134,11 +135,11 @@ def _process_training(coords: np.ndarray,
     if feature_source.ordinal:
         ord_marray = _direct_read(feature_source.ordinal,
                                   patch_reads, mask_reads,
-                                  npatches, patchwidth)
+                                  npatches, patchwidth, active_ords)
     if feature_source.categorical:
         cat_marray = _direct_read(feature_source.categorical,
                                   patch_reads, mask_reads,
-                                  npatches, patchwidth)
+                                  npatches, patchwidth, active_cats)
     return ord_marray, cat_marray
 
 
@@ -202,7 +203,9 @@ class TrainingDataProcessor(Worker):
         targets, coords = values
         ord_marray, cat_marray = _process_training(coords, self.feature_source,
                                                    self.image_spec,
-                                                   self.halfwidth)
+                                                   self.halfwidth,
+                                                   self.active_ords,
+                                                   self.active_cats)
         return ord_marray, cat_marray, targets
 
 
