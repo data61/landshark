@@ -145,7 +145,8 @@ def _process_training(coords: np.ndarray,
 
 def _process_query(indices: Tuple[np.ndarray, np.ndarray],
                    feature_source: H5Features,
-                   image_spec: ImageSpec, halfwidth: int) \
+                   image_spec: ImageSpec, halfwidth: int,
+                   active_ord: np.ndarray, active_cat: np.ndarray) \
         -> Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
     indices_x, indices_y = indices
     patch_reads, mask_reads = patch.patches(indices_x, indices_y,
@@ -239,7 +240,9 @@ class QueryDataProcessor(Worker):
             self.feature_source = H5Features(self.feature_path)
         ord_marray, cat_marray = _process_query(indices, self.feature_source,
                                                 self.image_spec,
-                                                self.halfwidth)
+                                                self.halfwidth,
+                                                self.active_ord,
+                                                self.active_cat)
         return ord_marray, cat_marray
 
 
