@@ -261,27 +261,6 @@ class SerialisingQueryDataProcessor(Worker):
         return strings
 
 
-def setup_training(feature_path: str, feature_meta: FeatureSetMetadata,
-                   target_path: str, target_meta: TargetMetadata,
-                   folds: int, random_seed: int,
-                   halfwidth: int, active_ords: np.ndarray,
-                   active_cats: np.ndarray) \
-        -> SourceMetadata:
-    name = os.path.basename(feature_path).rsplit("_features.")[0] + "-" + \
-        os.path.basename(target_path).rsplit("_targets.")[0]
-
-    target_src = CategoricalH5ArraySource(target_path) \
-        if isinstance(target_meta, CategoricalMetadata) \
-            else OrdinalH5ArraySource(target_path)
-
-    n_rows = len(target_src)
-    kfolds = KFolds(n_rows, folds, random_seed)
-    result = SourceMetadata(name, feature_path, target_src,
-                            feature_meta.image, halfwidth, kfolds,
-                            active_ords, active_cats)
-    return result
-
-
 def write_trainingdata(tinfo: SourceMetadata,
                        output_directory: str,
                        testfold: int,
