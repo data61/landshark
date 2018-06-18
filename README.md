@@ -71,8 +71,8 @@ often come across are custom likelihood functions in Bayesian algorithms.
 
 ## Usage Example
 
-We have say a dozen ".tif" covariates stored between our 'ord_images' and 'cat_images'
-folder. We have a target shapefile in our 'targets' folder.
+We have say a dozen ".tif" covariates stored between our 'ord_images' and
+'cat_images' folder. We have a target shapefile in our 'targets' folder.
 
 1. Import the data
 
@@ -81,7 +81,7 @@ $ landshark-import tifs --ordinal ord_images/ --categorical cat_images --name my
 
 now landshark runs and spits out "myfeats_features.hdf5". Similarly for our
 targets, we run
-$ landshark-import targets --name mytarg --categorical ROCK_CLASS ROCK_TYPE
+$ landshark-import targets --name mytarg --dtype categorical --record ROCK_CLASS --record ROCK_TYPE
 
 This command indicates that we're interested in the ROCK_CLASS and ROCK_TYPE
 records in our shapefile, and that these values are categorical. This command

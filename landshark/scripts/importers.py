@@ -68,8 +68,9 @@ def tifs(ctx: click.Context, categorical: Tuple[str, ...],
     batchsize = ctx.obj.batchsize
     cat_list = list(categorical)
     ord_list = list(ordinal)
-    errors.catch_and_exit(tifs_entrypoint)(
-        nworkers, batchsize, cat_list, ord_list, normalise, name, ignore_crs)
+    catching_f = errors.catch_and_exit(tifs_entrypoint)
+    catching_f(nworkers, batchsize, cat_list,
+               ord_list, normalise, name, ignore_crs)
 
 
 def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
@@ -79,10 +80,10 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
     out_filename = os.path.join(os.getcwd(), "features_{}.hdf5".format(name))
 
     ord_filenames = tifnames(list(ordinal))
-    log.info("Found {} ordinal TIF files".format(len(ord_filenames)))
-    has_ord = len(ord_filenames) > 0
     cat_filenames = tifnames(list(categorical))
+    log.info("Found {} ordinal TIF files".format(len(ord_filenames)))
     log.info("Found {} categorical TIF files".format(len(cat_filenames)))
+    has_ord = len(ord_filenames) > 0
     has_cat = len(cat_filenames) > 0
     all_filenames = ord_filenames + cat_filenames
     if not len(all_filenames) > 0:
@@ -138,7 +139,7 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
 
 
 @cli.command()
-@click.argument("targets", type=str, nargs=-1)
+@click.option("--record", type=str, multiple=True)
 @click.option("--shapefile", type=click.Path(exists=True), required=True)
 @click.option("--name", type=str, required=True)
 @click.option("--every", type=int, default=1)
@@ -147,18 +148,19 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
 @click.option("--normalise", is_flag=True)
 @click.option("--random_seed", type=int, default=666)
 @click.pass_context
-def targets(ctx: click.Context, shapefile: str, targets: List[str],
+def targets(ctx: click.Context, shapefile: str, record: Tuple[str, ...],
             name: str, every: int, dtype: str, normalise: bool,
             random_seed: int) -> None:
     """Build target file from shapefile."""
+    record_list = list(record)
     categorical = dtype == "categorical"
     batchsize = ctx.obj.batchsize
-    errors.catch_and_exit(targets_entrypoint)(
-        batchsize, shapefile, targets, name, every, categorical,
-        normalise, random_seed)
+    catching_f = errors.catch_and_exit(targets_entrypoint)
+    catching_f(batchsize, shapefile, record_list, name, every, categorical,
+               normalise, random_seed)
 
 
-def targets_entrypoint(batchsize: int, shapefile: str, targets: List[str],
+def targets_entrypoint(batchsize: int, shapefile: str, records: List[str],
                        name: str, every: int, categorical: bool,
                        normalise: bool, random_seed: int) -> None:
     """Targets entrypoint without click cruft."""
@@ -172,7 +174,7 @@ def targets_entrypoint(batchsize: int, shapefile: str, targets: List[str],
 
         if categorical:
             cat_source = CategoricalShpArraySource(
-                shapefile, targets, random_seed)
+                shapefile, records, random_seed)
             catdata = get_maps(cat_source, batchsize)
             mappings, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in mappings])
@@ -187,7 +189,7 @@ def targets_entrypoint(batchsize: int, shapefile: str, targets: List[str],
                                            missing=None)
             write_categorical_metadata(cat_meta, h5file)
         else:
-            ord_source = OrdinalShpArraySource(shapefile, targets, random_seed)
+            ord_source = OrdinalShpArraySource(shapefile, records, random_seed)
             mean, var = get_stats(ord_source, batchsize) \
                 if normalise else None, None
             write_ordinal(ord_source, h5file, nworkers, batchsize)
