@@ -17,9 +17,9 @@ model_files = {"regression": {"landshark": "nnr.py",
                                   "skshark": "sklearn_rfc.py"}}
 
 target_files = {"regression": {"target": "Na_ppm_i_1",
-                               "args": []},
+                               "args": ["--dtype", "ordinal"]},
                 "classification": {"target": "SAMPLETYPE",
-                                   "args": ["--categorical"]}}
+                                   "args": ["--dtype", "categorical"]}}
 
 training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
                  "skshark": []}
@@ -36,6 +36,10 @@ def whichproblem(request):
 
 @pytest.fixture(params=[0, 1])
 def number_of_cpus(request):
+    return request.param
+
+@pytest.fixture(params=[0, 1])
+def half_width(request):
     return request.param
 
 
@@ -62,10 +66,10 @@ def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
     if feature_string == "ordinal-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
-        tif_import_args = tif_import_args[:2]
-    _run(runner, importers.cli, ["tifs", "--nworkers", ncpus,
+        tif_import_args = tif_import_args[:2] + ["--ignore-crs"]
+    _run(runner, importers.cli, ["--nworkers", ncpus, "tifs",
                                  "--name", "sirsam"] + tif_import_args)
-    feature_file = "sirsam_features.hdf5"
+    feature_file = "features_sirsam.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
 
@@ -75,50 +79,50 @@ def import_targets(runner, target_dir, target_name, target_flags, ncpus):
     target_file = os.path.join(target_dir, "geochem_sites.shp")
     _run(runner, importers.cli, ["targets", "--shapefile", target_file,
                                  "--name", target_name] +
-         target_flags + [target_name])
-    target_file = "{}_targets.hdf5".format(target_name)
+         target_flags + ["--record", target_name])
+    target_file = "targets_{}.hdf5".format(target_name)
     assert os.path.isfile(target_file)
     return target_file
 
 
-def import_training_data(runner, target_file, target_name, ncpus):
-    # Import training data
-    _run(runner, importers.cli,
-         ["trainingdata", "--nworkers", ncpus, "--testfold", 1, "--folds", 10,
-          "sirsam_features.hdf5", target_file])
-    trainingdata_folder = "sirsam-{}_traintest1of10".format(target_name)
-    assert os.path.isdir(trainingdata_folder)
-    return trainingdata_folder
+# def import_training_data(runner, target_file, target_name, ncpus):
+#     # Import training data
+#     _run(runner, importers.cli,
+#          ["trainingdata", "--nworkers", ncpus, "--testfold", 1, "--folds", 10,
+#           "sirsam_features.hdf5", target_file])
+#     trainingdata_folder = "sirsam-{}_traintest1of10".format(target_name)
+#     assert os.path.isdir(trainingdata_folder)
+#     return trainingdata_folder
 
 
-def import_query_data(runner, feature_file, ncpus):
-    # Import query data
-    _run(runner, importers.cli, ["querydata", "--nworkers", ncpus,
-                                 "--features", feature_file, "5", "10"])
-    querydata_folder = "sirsam_features_query5of10"
-    assert os.path.isdir(querydata_folder)
-    return querydata_folder
+# def import_query_data(runner, feature_file, ncpus):
+#     # Import query data
+#     _run(runner, importers.cli, ["querydata", "--nworkers", ncpus,
+#                                  "--features", feature_file, "5", "10"])
+#     querydata_folder = "sirsam_features_query5of10"
+#     assert os.path.isdir(querydata_folder)
+#     return querydata_folder
 
-def train(runner, module, model_dir, model_filename, trainingdata_folder,
-          training_args):
-    model_file = os.path.join(model_dir, model_filename)
-    _run(runner, module.cli, ["train"] +
-         training_args + [trainingdata_folder, model_file])
-    trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
-    assert os.path.isdir(trained_model_dir)
-    return trained_model_dir
+# def train(runner, module, model_dir, model_filename, trainingdata_folder,
+#           training_args):
+#     model_file = os.path.join(model_dir, model_filename)
+#     _run(runner, module.cli, ["train"] +
+#          training_args + [trainingdata_folder, model_file])
+#     trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
+#     assert os.path.isdir(trained_model_dir)
+#     return trained_model_dir
 
 
-def predict(runner, module, model_dir, trained_model_dir,
-            querydata_folder, target_name):
-    _run(runner, module.cli, ["predict", trained_model_dir, querydata_folder])
-    image_filename = "{}_5of10.tif".format(target_name)
-    image_path = os.path.join(trained_model_dir, image_filename)
-    assert os.path.isfile(image_path)
+# def predict(runner, module, model_dir, trained_model_dir,
+#             querydata_folder, target_name):
+#     _run(runner, module.cli, ["predict", trained_model_dir, querydata_folder])
+#     image_filename = "{}_5of10.tif".format(target_name)
+#     image_path = os.path.join(trained_model_dir, image_filename)
+#     assert os.path.isfile(image_path)
 
 
 def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
-                       number_of_cpus):
+                       number_of_cpus, half_width):
     ord_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     ncpus = number_of_cpus
 
@@ -140,20 +144,20 @@ def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
                                    ncpus)
         target_file = import_targets(runner, target_dir, target_name,
                                      target_flags, ncpus)
-        trainingdata_folder = import_training_data(runner, target_file,
-                                                   target_name, ncpus)
-        querydata_folder = import_query_data(runner, feature_file, ncpus)
-        trained_model_dir = train(runner, module, model_dir, model_filename,
-                                  trainingdata_folder, train_args)
-        predict(runner, module, model_dir, trained_model_dir,
-                querydata_folder, target_name)
+        # trainingdata_folder = import_training_data(runner, target_file,
+        #                                            target_name, ncpus)
+        # querydata_folder = import_query_data(runner, feature_file, ncpus)
+        # trained_model_dir = train(runner, module, model_dir, model_filename,
+        #                           trainingdata_folder, train_args)
+        # predict(runner, module, model_dir, trained_model_dir,
+        #         querydata_folder, target_name)
 
-        this_result_dir = os.path.join(result_dir, thisrun)
-        shutil.rmtree(this_result_dir, ignore_errors=True)
-        os.makedirs(this_result_dir)
+        # this_result_dir = os.path.join(result_dir, thisrun)
+        # shutil.rmtree(this_result_dir, ignore_errors=True)
+        # os.makedirs(this_result_dir)
 
-        images = glob(os.path.join(trained_model_dir, "*.tif"))
-        for im in images:
-            shutil.move(im, this_result_dir)
-        shutil.rmtree(trained_model_dir, ignore_errors=True)
+        # images = glob(os.path.join(trained_model_dir, "*.tif"))
+        # for im in images:
+        #     shutil.move(im, this_result_dir)
+        # shutil.rmtree(trained_model_dir, ignore_errors=True)
 

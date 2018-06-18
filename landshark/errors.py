@@ -20,7 +20,6 @@ def catch_and_exit(f):
             f(*args, **kwargs)
         except Error as e:
             log.error(e.message)
-        finally:
             sys.exit()
 
     return wrapped

@@ -90,6 +90,7 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
         raise errors.NoTifFilesFound()
 
     N_ord, N_cat = None, None
+    ord_meta, cat_meta = None, None
     spec = shared_image_spec(all_filenames, ignore_crs)
 
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
