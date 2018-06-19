@@ -8,7 +8,7 @@ from click.testing import CliRunner
 import pytest
 import tensorflow as tf
 
-from landshark.scripts import importers, cli, skcli
+from landshark.scripts import importers, extractors, cli, skcli
 
 
 model_files = {"regression": {"landshark": "nnr.py",
@@ -60,7 +60,6 @@ def _run(runner, cmd, args):
 
 
 def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
-    # Import tifs
     tif_import_args = ["--categorical", cat_dir, "--ordinal", ord_dir,
                        "--ignore-crs"]
     if feature_string == "ordinal-only":
@@ -75,7 +74,6 @@ def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
 
 
 def import_targets(runner, target_dir, target_name, target_flags, ncpus):
-    # Import targets
     target_file = os.path.join(target_dir, "geochem_sites.shp")
     _run(runner, importers.cli, ["targets", "--shapefile", target_file,
                                  "--name", target_name] +
@@ -85,23 +83,22 @@ def import_targets(runner, target_dir, target_name, target_flags, ncpus):
     return target_file
 
 
-# def import_training_data(runner, target_file, target_name, ncpus):
-#     # Import training data
-#     _run(runner, importers.cli,
-#          ["trainingdata", "--nworkers", ncpus, "--testfold", 1, "--folds", 10,
-#           "sirsam_features.hdf5", target_file])
-#     trainingdata_folder = "sirsam-{}_traintest1of10".format(target_name)
-#     assert os.path.isdir(trainingdata_folder)
-#     return trainingdata_folder
+def extract_training_data(runner, target_file, target_name, ncpus):
+    _run(runner, extractors.cli,
+         ["--nworkers", ncpus, "--features", "features_sirsam.hdf5",
+          "trainingdata", "--split", 1, 10, "--targets", target_file,
+          "--name", "sirsam"])
+    trainingdata_folder = "traintest_sirsam_fold1of10"
+    assert os.path.isdir(trainingdata_folder)
+    return trainingdata_folder
 
 
-# def import_query_data(runner, feature_file, ncpus):
-#     # Import query data
-#     _run(runner, importers.cli, ["querydata", "--nworkers", ncpus,
-#                                  "--features", feature_file, "5", "10"])
-#     querydata_folder = "sirsam_features_query5of10"
-#     assert os.path.isdir(querydata_folder)
-#     return querydata_folder
+def extract_query_data(runner, feature_file, ncpus):
+    _run(runner, extractors.cli, ["querydata", "--nworkers", ncpus,
+                                 "--features", feature_file, "5", "10"])
+    querydata_folder = "sirsam_features_query5of10"
+    assert os.path.isdir(querydata_folder)
+    return querydata_folder
 
 # def train(runner, module, model_dir, model_filename, trainingdata_folder,
 #           training_args):

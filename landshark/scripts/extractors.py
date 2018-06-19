@@ -2,22 +2,37 @@
 
 import os
 import click
-import numpy as np
 import logging
+from typing import NamedTuple, List, Optional
 from landshark.scripts.logger import configure_logging
 from multiprocessing import cpu_count
 from landshark.featurewrite import read_featureset_metadata, \
     read_target_metadata
 
 from landshark.trainingdata import write_trainingdata, write_querydata
-from landshark.metadata import OrdinalMetadata, \
-    CategoricalMetadata, FeatureSetMetadata, TrainingMetadata, \
-    QueryMetadata, pickle_metadata
-from landshark.trainingdata import setup_training
+from landshark.metadata import TrainingMetadata, \
+    QueryMetadata, pickle_metadata, CategoricalMetadata
 from landshark.image import strip_image_spec
-from typing import List, Tuple, Set, Optional
+from typing import List, Tuple, Optional
+from landshark import errors
+from landshark.extract import get_active_features, active_column_metadata
+from landshark.trainingdata import CategoricalH5ArraySource, \
+    OrdinalH5ArraySource, SourceMetadata
+from landshark.kfold import KFolds
 
 log = logging.getLogger(__name__)
+
+
+class CliArgs(NamedTuple):
+    """Arguments passed from the base command."""
+
+    nworkers: int
+    batchsize: int
+    features: str
+    halfwidth: int
+    withfeat: List[str]
+    withoutfeat: List[str]
+    withlist: Optional[str]
 
 
 @click.group()
@@ -28,24 +43,41 @@ log = logging.getLogger(__name__)
 @click.option("--batchsize", type=int, default=1)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=1)
-def cli(verbosity: str) -> int:
+@click.option("--withfeat", type=str, multiple=True)
+@click.option("--withoutfeat", type=str, multiple=True)
+@click.option("--withlist", type=click.Path(exists=True))
+@click.pass_context
+def cli(ctx: click.Context, verbosity: str, features: str,
+        batchsize: int, nworkers: int, halfwidth: int,
+        withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
+        withlist: Optional[str]) -> int:
     """Parse the command line arguments."""
+    ctx.obj = CliArgs(nworkers, batchsize, features, halfwidth, list(withfeat),
+                      list(withoutfeat), withlist)
     configure_logging(verbosity)
     return 0
 
+
 @cli.command()
-@click.argument("targets", type=click.Path(exists=True))
+@click.option("--targets", type=click.Path(exists=True), required=True)
 @click.option("--folds", type=click.IntRange(2, None), default=10)
 @click.option("--testfold", type=click.IntRange(1, None), default=1)
 @click.option("--random_seed", type=int, default=666)
 @click.option("--name", type=str, required=True)
-@click.option("--withfeat", type=str, multiple=True)
-@click.option("--withoutfeat", type=str, multiple=True)
-@click.option("--withlist", type=click.Path(exists=True))
-def trainingdata(features: str, targets: str, testfold: int,
-                 folds: int, halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int, withfeat: List[str],
-                 withoutfeat: List[str], withlist: str, name: str) -> int:
+@click.pass_context
+def trainingdata(ctx: click.Context, targets: str, testfold: int,
+                 folds: int, random_seed: int, name: str) -> int:
+    catching_f = errors.catch_and_exit(trainingdata_entrypoint)
+    catching_f(targets, testfold, folds, random_seed, ctx.obj.withfeat,
+               ctx.obj.withoutfeat, ctx.obj.withlist, name, ctx.obj.halfwidth,
+               ctx.obj.nworkers, ctx.obj.features, ctx.obj.batchsize)
+
+
+def trainingdata_entrypoint(targets: str, testfold: int, folds: int,
+                            random_seed: int, withfeat: List[str],
+                            withoutfeat: List[str], withlist: Optional[str],
+                            name: str, halfwidth: int, nworkers: int,
+                            features: str, batchsize: int) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
@@ -56,22 +88,20 @@ def trainingdata(features: str, targets: str, testfold: int,
     reduced_feature_metadata = active_column_metadata(feature_metadata,
                                                       active_feats_ord,
                                                       active_feats_cat)
-    name = os.path.basename(features).rsplit("_features.")[0] + "-" + \
-        os.path.basename(targets).rsplit("_targets.")[0]
 
     target_src = CategoricalH5ArraySource(targets) \
-        if isinstance(target_meta, CategoricalMetadata) \
-            else OrdinalH5ArraySource(targets)
+        if isinstance(target_metadata, CategoricalMetadata) \
+        else OrdinalH5ArraySource(targets)
 
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
     tinfo = SourceMetadata(name, features, target_src,
-                            feature_meta.image, halfwidth, kfolds,
-                            active_feats_ord, active_feats_cat)
+                           feature_metadata.image, halfwidth, kfolds,
+                           active_feats_ord, active_feats_cat)
     # TODO check this is being used correctly in the tensorflow regulariser
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
-    directory = os.path.join(os.getcwd(), name +
-                             "_traintest{}of{}".format(testfold, folds))
+    directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
+        name, testfold, folds))
     write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
     training_metadata = TrainingMetadata(targets=target_metadata,
                                          features=reduced_feature_metadata,
@@ -81,26 +111,30 @@ def trainingdata(features: str, targets: str, testfold: int,
                                          fold_counts=tinfo.folds.counts)
     pickle_metadata(directory, training_metadata)
     log.info("Training import complete")
-    return 0
 
 
 @cli.command()
 @click.option("--strip", type=int, nargs=2, default=(1, 1))
-@click.option("--withfeat", type=str, multiple=True)
-@click.option("--withoutfeat", type=str, multiple=True)
-@click.option("--withlist", type=click.Path(exists=True))
 @click.option("--name", type=str, required=True)
-def querydata(features: str, batchsize: int, nworkers: int,
-              halfwidth: int, strip: Tuple[int, int],
-              withfeat: List[str], withoutfeat: List[str],
-              withlist: str, name: str) -> int:
+@click.pass_context
+def querydata(ctx: click.Context, strip: Tuple[int, int], name: str) -> None:
+    catching_f = errors.catch_and_exit(querydata_entrypoint)
+    catching_f(ctx.obj.features, ctx.obj.batchsize, ctx.obj.nworkers,
+               ctx.obj.halfwidth, strip, ctx.obj.withfeat, ctx.obj.withoutfeat,
+               ctx.obj.withlist, name)
+
+
+def querydata_entrypoint(features: str, batchsize: int, nworkers: int,
+                         halfwidth: int, strip: Tuple[int, int],
+                         withfeat: List[str], withoutfeat: List[str],
+                         withlist: str, name: str) -> int:
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 
     """Grab a chunk for prediction."""
     log.info("Using {} worker processes".format(nworkers))
 
-    dirname = name + "_query{}of{}".format(strip_idx, totalstrips)
+    dirname = "query_{}_strip{}of{}".format(name, strip_idx, totalstrips)
     directory = os.path.join(os.getcwd(), dirname)
     try:
         os.makedirs(directory)
