@@ -60,24 +60,24 @@ def cli(ctx: click.Context, verbosity: str, features: str,
 
 @cli.command()
 @click.option("--targets", type=click.Path(exists=True), required=True)
-@click.option("--folds", type=click.IntRange(2, None), default=10)
-@click.option("--testfold", type=click.IntRange(1, None), default=1)
+@click.option("--split", type=int, nargs=2)
 @click.option("--random_seed", type=int, default=666)
 @click.option("--name", type=str, required=True)
 @click.pass_context
-def trainingdata(ctx: click.Context, targets: str, testfold: int,
-                 folds: int, random_seed: int, name: str) -> int:
-    catching_f = errors.catch_and_exit(trainingdata_entrypoint)
-    catching_f(targets, testfold, folds, random_seed, ctx.obj.withfeat,
+def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
+              random_seed: int, name: str) -> int:
+    fold, nfolds = split
+    catching_f = errors.catch_and_exit(traintest_entrypoint)
+    catching_f(targets, fold, nfolds, random_seed, ctx.obj.withfeat,
                ctx.obj.withoutfeat, ctx.obj.withlist, name, ctx.obj.halfwidth,
                ctx.obj.nworkers, ctx.obj.features, ctx.obj.batchsize)
 
 
-def trainingdata_entrypoint(targets: str, testfold: int, folds: int,
-                            random_seed: int, withfeat: List[str],
-                            withoutfeat: List[str], withlist: Optional[str],
-                            name: str, halfwidth: int, nworkers: int,
-                            features: str, batchsize: int) -> None:
+def traintest_entrypoint(targets: str, testfold: int, folds: int,
+                         random_seed: int, withfeat: List[str],
+                         withoutfeat: List[str], withlist: Optional[str],
+                         name: str, halfwidth: int, nworkers: int,
+                         features: str, batchsize: int) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
@@ -117,17 +117,17 @@ def trainingdata_entrypoint(targets: str, testfold: int, folds: int,
 @click.option("--strip", type=int, nargs=2, default=(1, 1))
 @click.option("--name", type=str, required=True)
 @click.pass_context
-def querydata(ctx: click.Context, strip: Tuple[int, int], name: str) -> None:
-    catching_f = errors.catch_and_exit(querydata_entrypoint)
+def query(ctx: click.Context, strip: Tuple[int, int], name: str) -> None:
+    catching_f = errors.catch_and_exit(query_entrypoint)
     catching_f(ctx.obj.features, ctx.obj.batchsize, ctx.obj.nworkers,
                ctx.obj.halfwidth, strip, ctx.obj.withfeat, ctx.obj.withoutfeat,
                ctx.obj.withlist, name)
 
 
-def querydata_entrypoint(features: str, batchsize: int, nworkers: int,
-                         halfwidth: int, strip: Tuple[int, int],
-                         withfeat: List[str], withoutfeat: List[str],
-                         withlist: str, name: str) -> int:
+def query_entrypoint(features: str, batchsize: int, nworkers: int,
+                     halfwidth: int, strip: Tuple[int, int],
+                     withfeat: List[str], withoutfeat: List[str],
+                     withlist: str, name: str) -> int:
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 

@@ -86,7 +86,7 @@ def import_targets(runner, target_dir, target_name, target_flags, ncpus):
 def extract_training_data(runner, target_file, target_name, ncpus):
     _run(runner, extractors.cli,
          ["--nworkers", ncpus, "--features", "features_sirsam.hdf5",
-          "trainingdata", "--split", 1, 10, "--targets", target_file,
+          "traintest", "--split", 1, 10, "--targets", target_file,
           "--name", "sirsam"])
     trainingdata_folder = "traintest_sirsam_fold1of10"
     assert os.path.isdir(trainingdata_folder)
@@ -94,9 +94,10 @@ def extract_training_data(runner, target_file, target_name, ncpus):
 
 
 def extract_query_data(runner, feature_file, ncpus):
-    _run(runner, extractors.cli, ["querydata", "--nworkers", ncpus,
-                                 "--features", feature_file, "5", "10"])
-    querydata_folder = "sirsam_features_query5of10"
+    _run(runner, extractors.cli, ["--nworkers", ncpus,
+                                  "--features", feature_file, "query",
+                                  "--strip", 5, 10, "--name", "sirsam"])
+    querydata_folder = "query_sirsam_strip5of10"
     assert os.path.isdir(querydata_folder)
     return querydata_folder
 
@@ -141,9 +142,9 @@ def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
                                    ncpus)
         target_file = import_targets(runner, target_dir, target_name,
                                      target_flags, ncpus)
-        # trainingdata_folder = import_training_data(runner, target_file,
-        #                                            target_name, ncpus)
-        # querydata_folder = import_query_data(runner, feature_file, ncpus)
+        trainingdata_folder = extract_training_data(runner, target_file,
+                                                    target_name, ncpus)
+        querydata_folder = extract_query_data(runner, feature_file, ncpus)
         # trained_model_dir = train(runner, module, model_dir, model_filename,
         #                           trainingdata_folder, train_args)
         # predict(runner, module, model_dir, trained_model_dir,
