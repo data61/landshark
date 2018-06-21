@@ -3,17 +3,14 @@
 import logging
 import os
 from shutil import copyfile
-from copy import deepcopy
 
-from typing import Optional, Tuple
+from typing import Optional
 import click
 
 from landshark import skmodel
 from landshark.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
-from landshark.image import strip_image_spec
-from landshark.tfread import setup_training, get_strips, setup_query, load_model
-from landshark.metadata import TrainingMetadata
+from landshark.tfread import setup_training, setup_query, load_model
 
 log = logging.getLogger(__name__)
 
@@ -29,17 +26,17 @@ def cli(verbosity: str) -> int:
 
 
 @cli.command()
-@click.argument("directory", type=click.Path(exists=True))
-@click.argument("config", type=click.Path(exists=True))
+@click.option("--data", type=click.Path(exists=True), required=True)
+@click.option("--config", type=click.Path(exists=True), required=True)
 @click.option("--batchsize", type=click.IntRange(min=1), default=1000,
               help="Training batch size")
 @click.option("--maxpoints", type=int, default=None)
 @click.option("--random_seed", type=int, default=666)
-def train(directory: str, config: str, batchsize: int,
+def train(data: str, config: str, batchsize: int,
           maxpoints: Optional[int], random_seed: int) -> int:
     """Train a model specified by an input configuration."""
     training_records, testing_records, metadata, model_dir, cf = \
-        setup_training(config, directory)
+        setup_training(config, data)
 
     # copy the model spec to the model dir
     copyfile(config, os.path.join(model_dir, "config.py"))
@@ -50,25 +47,22 @@ def train(directory: str, config: str, batchsize: int,
 
 
 @cli.command()
-@click.option("--strip", type=int, nargs=2, default=(1, 1))
-@click.argument("modeldir", type=click.Path(exists=True))
-@click.argument("querydir", type=click.Path(exists=True))
+@click.option("--model", type=click.Path(exists=True), required=True)
+@click.option("--data", type=click.Path(exists=True), required=True)
 @click.option("--batchsize", type=int, default=100000)
 @click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
               help="Lower percentile of the predictive density to output")
 @click.option("--upper", type=click.IntRange(min=0, max=100), default=90,
               help="Upper percentile of the predictive density to output")
-def predict(modeldir: str, querydir: str, batchsize: int,
-            lower: int, upper: int, strip: Tuple[int, int]) -> int:
+def predict(model: str, data: str, batchsize: int,
+            lower: int, upper: int) -> int:
     """Predict using a learned model."""
-
-    strip, nstrips = strip
-    train_metadata, query_metadata, query_records = \
-        setup_query(modeldir, querydir)
+    train_metadata, query_metadata, query_records, strip, nstrips = \
+        setup_query(model, data)
     percentiles = (float(lower), float(upper))
-    load_model(os.path.join(modeldir, "config.py"))
-    y_dash_it = skmodel.predict(modeldir, train_metadata, query_records,
+    load_model(os.path.join(model, "config.py"))
+    y_dash_it = skmodel.predict(model, train_metadata, query_records,
                                 batchsize, percentiles)
-    write_geotiffs(y_dash_it, modeldir, train_metadata,
+    write_geotiffs(y_dash_it, model, train_metadata,
                    list(percentiles), tag="{}of{}".format(strip, nstrips))
     return 0

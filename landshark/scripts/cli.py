@@ -1,35 +1,40 @@
 """Main landshark commands."""
 import sys
 import logging
-from typing import Optional, Tuple
-from copy import deepcopy
+from typing import Optional, NamedTuple
 
 import click
 
-from landshark import model
 from landshark.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
-from landshark.image import strip_image_spec
-from landshark.model import TrainingConfig, QueryConfig
-from landshark.tfread import setup_training, setup_query, get_strips
-from landshark.metadata import TrainingMetadata
+from landshark.model import TrainingConfig, QueryConfig, predict, train_test
+from landshark.tfread import setup_training, setup_query
 
 log = logging.getLogger(__name__)
 
 
+class CliArgs(NamedTuple):
+    """Arguments passed from the base command."""
+
+    gpu: bool
+
+
 @click.group()
+@click.option("--gpu/--no-gpu", default=False)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
-def cli(verbosity: str) -> int:
+@click.pass_context
+def cli(ctx: click.Context, gpu: bool, verbosity: str) -> int:
     """Parse the command line arguments."""
+    ctx.obj = CliArgs(gpu=gpu)
     configure_logging(verbosity)
     return 0
 
 
 @cli.command()
-@click.argument("directory", type=click.Path(exists=True))
-@click.argument("config", type=click.Path(exists=True))
+@click.option("--data", type=click.Path(exists=True), required=True)
+@click.option("--config", type=click.Path(exists=True), required=True)
 @click.option("--epochs", type=click.IntRange(min=1), default=1,
               help="Epochs between testing the model.")
 @click.option("--batchsize", type=click.IntRange(min=1), default=1000,
@@ -45,52 +50,51 @@ def cli(verbosity: str) -> int:
               help="Testing batch size")
 @click.option("--iterations", type=click.IntRange(min=1), default=None,
               help="number of training/testing iterations.")
-@click.option("--gpu/--no-gpu", default=False)
-def train(directory: str, config: str, epochs: int, batchsize: int,
-          test_batchsize: int, samples: int, test_samples: int,
+@click.pass_context
+def train(ctx: click.Context, data: str, config: str, epochs: int,
+          batchsize: int, test_batchsize: int, samples: int, test_samples: int,
           gpu: bool, iterations: Optional[int], learnrate: float) -> int:
     """Train a model specified by an input configuration."""
+    gpu = ctx.obj.gpu
     training_records, testing_records, metadata, model_dir, cf = \
-        setup_training(config, directory)
+        setup_training(config, data)
 
     # Train
     training_params = TrainingConfig(epochs, batchsize, samples,
                                      test_batchsize, test_samples, gpu,
                                      learnrate)
-    model.train_test(training_records, testing_records, metadata, model_dir,
-                     sys.modules[cf], training_params, iterations)
+    train_test(training_records, testing_records, metadata, model_dir,
+               sys.modules[cf], training_params, iterations)
     return 0
 
 
 @cli.command()
-@click.argument("modeldir", type=click.Path(exists=True))
-@click.argument("querydir", type=click.Path(exists=True))
-@click.option("--strip", type=int, nargs=2, default=(1, 1))
+@click.option("--model", type=click.Path(exists=True), required=True)
+@click.option("--data", type=click.Path(exists=True), required=True)
 @click.option("--batchsize", type=int, default=100000)
-@click.option("--gpu/--no-gpu", default=False)
 @click.option("--samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for prediction")
 @click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
               help="Lower percentile of the predictive density to output")
 @click.option("--upper", type=click.IntRange(min=0, max=100), default=90,
               help="Upper percentile of the predictive density to output")
+@click.pass_context
 def predict(
-        modeldir: str,
-        querydir: str,
+        ctx: click.Context,
+        model: str,
+        data: str,
         batchsize: int,
         samples: int,
         lower: int,
-        upper: int,
-        strip: Tuple[int, int],
-        gpu: bool) -> int:
+        upper: int) -> int:
     """Predict using a learned model."""
-    strip, nstrips = strip
-    train_metadata, query_metadata, query_records = \
-        setup_query(modeldir, querydir)
+    gpu = ctx.obj.gpu
+    train_metadata, query_metadata, query_records, strip, nstrips = \
+        setup_query(model, data)
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
-    y_dash_it = model.predict(modeldir, train_metadata, query_records, params)
-    write_geotiffs(y_dash_it, modeldir, train_metadata,
+    y_dash_it = predict(model, train_metadata, query_records, params)
+    write_geotiffs(y_dash_it, model, train_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
     return 0
