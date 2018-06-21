@@ -101,22 +101,23 @@ def extract_query_data(runner, feature_file, ncpus):
     assert os.path.isdir(querydata_folder)
     return querydata_folder
 
-# def train(runner, module, model_dir, model_filename, trainingdata_folder,
-#           training_args):
-#     model_file = os.path.join(model_dir, model_filename)
-#     _run(runner, module.cli, ["train"] +
-#          training_args + [trainingdata_folder, model_file])
-#     trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
-#     assert os.path.isdir(trained_model_dir)
-#     return trained_model_dir
+def train(runner, module, model_dir, model_filename, trainingdata_folder,
+          training_args):
+    model_file = os.path.join(model_dir, model_filename)
+    _run(runner, module.cli, ["train"] +
+         training_args + ["--data", trainingdata_folder,
+                          "--config", model_file])
+    trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
+    assert os.path.isdir(trained_model_dir)
+    return trained_model_dir
 
-
-# def predict(runner, module, model_dir, trained_model_dir,
-#             querydata_folder, target_name):
-#     _run(runner, module.cli, ["predict", trained_model_dir, querydata_folder])
-#     image_filename = "{}_5of10.tif".format(target_name)
-#     image_path = os.path.join(trained_model_dir, image_filename)
-#     assert os.path.isfile(image_path)
+def predict(runner, module, model_dir, trained_model_dir,
+            querydata_folder, target_name):
+    _run(runner, module.cli, ["predict", "--model", trained_model_dir,
+                              "--data", querydata_folder])
+    image_filename = "{}_5of10.tif".format(target_name)
+    image_path = os.path.join(trained_model_dir, image_filename)
+    assert os.path.isfile(image_path)
 
 
 def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
@@ -145,17 +146,17 @@ def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
         trainingdata_folder = extract_training_data(runner, target_file,
                                                     target_name, ncpus)
         querydata_folder = extract_query_data(runner, feature_file, ncpus)
-        # trained_model_dir = train(runner, module, model_dir, model_filename,
-        #                           trainingdata_folder, train_args)
-        # predict(runner, module, model_dir, trained_model_dir,
-        #         querydata_folder, target_name)
+        trained_model_dir = train(runner, module, model_dir, model_filename,
+                                  trainingdata_folder, train_args)
+        predict(runner, module, model_dir, trained_model_dir,
+                querydata_folder, target_name)
 
-        # this_result_dir = os.path.join(result_dir, thisrun)
-        # shutil.rmtree(this_result_dir, ignore_errors=True)
-        # os.makedirs(this_result_dir)
+        this_result_dir = os.path.join(result_dir, thisrun)
+        shutil.rmtree(this_result_dir, ignore_errors=True)
+        os.makedirs(this_result_dir)
 
-        # images = glob(os.path.join(trained_model_dir, "*.tif"))
-        # for im in images:
-        #     shutil.move(im, this_result_dir)
-        # shutil.rmtree(trained_model_dir, ignore_errors=True)
+        images = glob(os.path.join(trained_model_dir, "*.tif"))
+        for im in images:
+            shutil.move(im, this_result_dir)
+        shutil.rmtree(trained_model_dir, ignore_errors=True)
 

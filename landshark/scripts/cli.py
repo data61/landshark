@@ -7,7 +7,8 @@ import click
 
 from landshark.tifwrite import write_geotiffs
 from landshark.scripts.logger import configure_logging
-from landshark.model import TrainingConfig, QueryConfig, predict, train_test
+from landshark.model import TrainingConfig, QueryConfig, train_test
+from landshark.model import predict as predict_fn
 from landshark.tfread import setup_training, setup_query
 
 log = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str) -> int:
 @click.pass_context
 def train(ctx: click.Context, data: str, config: str, epochs: int,
           batchsize: int, test_batchsize: int, samples: int, test_samples: int,
-          gpu: bool, iterations: Optional[int], learnrate: float) -> int:
+          iterations: Optional[int], learnrate: float) -> int:
     """Train a model specified by an input configuration."""
     gpu = ctx.obj.gpu
     training_records, testing_records, metadata, model_dir, cf = \
@@ -93,7 +94,7 @@ def predict(
         setup_query(model, data)
     percentiles = (float(lower), float(upper))
     params = QueryConfig(batchsize, samples, percentiles, gpu)
-    y_dash_it = predict(model, train_metadata, query_records, params)
+    y_dash_it = predict_fn(model, train_metadata, query_records, params)
     write_geotiffs(y_dash_it, model, train_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
