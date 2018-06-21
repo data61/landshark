@@ -87,6 +87,11 @@ This command indicates that we're interested in the ROCK_CLASS and ROCK_TYPE
 records in our shapefile, and that these values are categorical. This command
 outputs "mytarg_targets.hdf5".
 
+2. Extract train/test and query data
+
+We run
+$ landshark-extract --features features_myfeats.hdf5 traintest --split 1 10
+--halfwidth 0
 
 
 
