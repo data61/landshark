@@ -95,7 +95,7 @@ a shapefile. Note we can import as many records as we like using multiple
 `--record` flags:
 
 ```bash
-$ landshark-import targets --name sodium --dtype ordinal --record Na_conc --record meas_error
+$ landshark-import targets --name sodium --shapefile ./targets/Na.shp --dtype ordinal --record Na_conc --record meas_error
 ```
 
 We've also specified that the type of the records is ordinal (ie continuous).
@@ -109,8 +109,7 @@ Starting with a train/test set, we use the 'traintest' sub-command. Note that
 `landshark-extract` takes some options, and so does the subcommand:
 
 ```bash
-$ landshark-extract --features features_murray.hdf5 \
-traintest --targets targets_sodium.hdf5 --name myproblem
+$ landshark-extract --features features_murray.hdf5 traintest --targets targets_sodium.hdf5 --name myproblem
 ```
 
 This command will create a folder in the new directory called
@@ -125,8 +124,8 @@ $ landshark-extract --features features_murray.hdf5 query --name myproblem
 ```
 
 This command will create a folder in a new directory called
-`query_myproblem_split1of1`. The 'split1of1' indicates the whole image has been
-extracted. For large images it is possible to extract only a small (vertical)
+`query_myproblem_strip1of1`. The 'strip1of1' indicates the whole image has been
+extracted. For large images it is possible to extract only a small (horizontal)
 window of the image for iterative processing. See the landshark-extract docs
 for details on this.
 

@@ -40,9 +40,9 @@ class CliArgs(NamedTuple):
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1)
+@click.option("--batchsize", type=int, default=10)
 @click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--halfwidth", type=int, default=1)
+@click.option("--halfwidth", type=int, default=0)
 @click.option("--withfeat", type=str, multiple=True)
 @click.option("--withoutfeat", type=str, multiple=True)
 @click.option("--withlist", type=click.Path(exists=True))
@@ -60,7 +60,7 @@ def cli(ctx: click.Context, verbosity: str, features: str,
 
 @cli.command()
 @click.option("--targets", type=click.Path(exists=True), required=True)
-@click.option("--split", type=int, nargs=2)
+@click.option("--split", type=int, nargs=2, default=(1, 10))
 @click.option("--random_seed", type=int, default=666)
 @click.option("--name", type=str, required=True)
 @click.pass_context
