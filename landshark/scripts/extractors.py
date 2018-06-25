@@ -30,32 +30,20 @@ class CliArgs(NamedTuple):
 
     nworkers: int
     batchMB: int
-    features: str
-    halfwidth: int
-    withfeat: List[str]
-    withoutfeat: List[str]
-    withlist: Optional[str]
-
 
 @click.group()
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
-@click.option("--features", type=click.Path(exists=True), required=True)
 @click.option("--batch-mb", type=int, default=100)
 @click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--halfwidth", type=int, default=0)
-@click.option("--withfeat", type=str, multiple=True)
-@click.option("--withoutfeat", type=str, multiple=True)
-@click.option("--withlist", type=click.Path(exists=True))
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str, features: str,
         batch_mb: int, nworkers: int, halfwidth: int,
         withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
         withlist: Optional[str]) -> int:
     """Parse the command line arguments."""
-    ctx.obj = CliArgs(nworkers, batch_mb, features, halfwidth, list(withfeat),
-                      list(withoutfeat), withlist)
+    ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
     return 0
 
@@ -65,14 +53,21 @@ def cli(ctx: click.Context, verbosity: str, features: str,
 @click.option("--split", type=int, nargs=2, default=(1, 10))
 @click.option("--random_seed", type=int, default=666)
 @click.option("--name", type=str, required=True)
+@click.option("--features", type=click.Path(exists=True), required=True)
+@click.option("--halfwidth", type=int, default=0)
+@click.option("--withfeat", type=str, multiple=True)
+@click.option("--withoutfeat", type=str, multiple=True)
+@click.option("--withlist", type=click.Path(exists=True))
 @click.pass_context
 def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
-              random_seed: int, name: str) -> int:
+              random_seed: int, name: str, features: str,
+              withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
+              withlist: Optional[str], halfwidth: int) -> int:
     fold, nfolds = split
     catching_f = errors.catch_and_exit(traintest_entrypoint)
-    catching_f(targets, fold, nfolds, random_seed, ctx.obj.withfeat,
-               ctx.obj.withoutfeat, ctx.obj.withlist, name, ctx.obj.halfwidth,
-               ctx.obj.nworkers, ctx.obj.features, ctx.obj.batchMB)
+    catching_f(targets, fold, nfolds, random_seed, list(withfeat),
+               list(withoutfeat), withlist, name, halfwidth,
+               ctx.obj.nworkers, features, ctx.obj.batchMB)
 
 
 def traintest_entrypoint(targets: str, testfold: int, folds: int,
@@ -122,12 +117,19 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
 @cli.command()
 @click.option("--strip", type=int, nargs=2, default=(1, 1))
 @click.option("--name", type=str, required=True)
+@click.option("--features", type=click.Path(exists=True), required=True)
+@click.option("--halfwidth", type=int, default=0)
+@click.option("--withfeat", type=str, multiple=True)
+@click.option("--withoutfeat", type=str, multiple=True)
+@click.option("--withlist", type=click.Path(exists=True))
 @click.pass_context
-def query(ctx: click.Context, strip: Tuple[int, int], name: str) -> None:
+def query(ctx: click.Context, strip: Tuple[int, int], name: str,
+          features: str, halfwidth: int, withfeat: Tuple[str, ...],
+          withoutfeat: Tuple[str, ...], withlist: Optional[str]) -> None:
     catching_f = errors.catch_and_exit(query_entrypoint)
-    catching_f(ctx.obj.features, ctx.obj.batchMB, ctx.obj.nworkers,
-               ctx.obj.halfwidth, strip, ctx.obj.withfeat, ctx.obj.withoutfeat,
-               ctx.obj.withlist, name)
+    catching_f(features, ctx.obj.batchMB, ctx.obj.nworkers,
+               halfwidth, strip, list(withfeat), list(withoutfeat),
+               withlist, name)
 
 
 def query_entrypoint(features: str, batchMB: int, nworkers: int,

@@ -11,6 +11,7 @@ from landshark.model import TrainingConfig, QueryConfig, train_test
 from landshark.model import predict as predict_fn
 from landshark.tfread import setup_training, setup_query
 from landshark.util import mb_to_points
+from landshark import errors
 
 log = logging.getLogger(__name__)
 
@@ -19,17 +20,19 @@ class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
     gpu: bool
+    batchMB: int
 
 
 @click.group()
 @click.option("--gpu/--no-gpu", default=False)
+@click.option("--batch-mb", type=int, default=100)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.pass_context
-def cli(ctx: click.Context, gpu: bool, verbosity: str) -> int:
+def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: int) -> int:
     """Parse the command line arguments."""
-    ctx.obj = CliArgs(gpu=gpu)
+    ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb)
     configure_logging(verbosity)
     return 0
 
@@ -55,25 +58,31 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str) -> int:
 @click.pass_context
 def train(ctx: click.Context, data: str, config: str, epochs: int,
           batchsize: int, test_batchsize: int, samples: int, test_samples: int,
-          iterations: Optional[int], learnrate: float) -> int:
+          iterations: Optional[int], learnrate: float) -> None:
     """Train a model specified by an input configuration."""
-    gpu = ctx.obj.gpu
+    log.info("Ignoring batch-mb option, using specified or default batchsize")
+    catching_f = errors.catch_and_exit(train_entrypoint)
+    catching_f(data, config, epochs, batchsize, test_batchsize, samples,
+               test_samples, iterations, learnrate, ctx.obj.gpu)
+
+
+def train_entrypoint(data: str, config: str, epochs: int, batchsize: int,
+                     test_batchsize: int, samples: int, test_samples: int,
+                     iterations: Optional[int], learnrate: float,
+                     gpu: bool) -> None:
+    """Entry point for training function."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
-
-    # Train
     training_params = TrainingConfig(epochs, batchsize, samples,
                                      test_batchsize, test_samples, gpu,
                                      learnrate)
     train_test(training_records, testing_records, metadata, model_dir,
                sys.modules[cf], training_params, iterations)
-    return 0
 
 
 @cli.command()
 @click.option("--model", type=click.Path(exists=True), required=True)
 @click.option("--data", type=click.Path(exists=True), required=True)
-@click.option("--batch-mb", type=int, default=100)
 @click.option("--samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for prediction")
 @click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
@@ -88,9 +97,16 @@ def predict(
         batch_mb: int,
         samples: int,
         lower: int,
-        upper: int) -> int:
+        upper: int) -> None:
     """Predict using a learned model."""
-    gpu = ctx.obj.gpu
+    catching_f = errors.catch_and_exit(predict_entrypoint)
+    catching_f(model, data, ctx.obj.batchMB, samples,
+               lower, upper, ctx.obj.gpu)
+
+
+
+def predict_entrypoint(model: str, data: str, batchMB: int, samples: int,
+                       lower: int, upper: int, gpu: bool) -> None:
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)
     percentiles = (float(lower), float(upper))
@@ -98,11 +114,10 @@ def predict(
         if train_metadata.features.ordinal else 0
     ndims_cat = train_metadata.features.categorical.D \
         if train_metadata.features.categorical else 0
-    points_per_batch = mb_to_points(batch_mb, ndims_ord, ndims_cat,
+    points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
     params = QueryConfig(points_per_batch, samples, percentiles, gpu)
     y_dash_it = predict_fn(model, train_metadata, query_records, params)
     write_geotiffs(y_dash_it, model, train_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
-    return 0
