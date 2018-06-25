@@ -290,7 +290,7 @@ def indices_strip(image_spec: ImageSpec, strip: int, nstrips: int,
     nstrips : int
         The total number of strips into which to divide the image.
     batchsize : int
-        The (maximum) number of rows in each batch from the iterator.
+        The (maximum) number of points in each batch from the iterator.
 
     Returns
     -------

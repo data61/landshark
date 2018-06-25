@@ -24,6 +24,7 @@ from landshark.normalise import get_stats
 from landshark.category import get_maps
 from landshark.fileio import tifnames
 from landshark import errors
+from landshark.util import mb_to_points, mb_to_rows
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
     nworkers: int
-    batchsize: int
+    batchMB: int
 
 
 @click.group()
@@ -40,14 +41,13 @@ class CliArgs(NamedTuple):
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--batchsize", type=int, default=100)
+@click.option("--batch-mb", type=int, default=100)
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str,
-        nworkers: int, batchsize: int) -> int:
+        nworkers: int, batch_mb: int) -> int:
     """Parse the command line arguments."""
     log.info("Using a maximum of {} worker processes".format(nworkers))
-    log.info("Using a batchsize of {} rows".format(batchsize))
-    ctx.obj = CliArgs(nworkers, batchsize)
+    ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
     return 0
 
@@ -65,15 +65,15 @@ def tifs(ctx: click.Context, categorical: Tuple[str, ...],
          ignore_crs: bool) -> None:
     """Build a tif stack from a set of input files."""
     nworkers = ctx.obj.nworkers
-    batchsize = ctx.obj.batchsize
+    batchMB = ctx.obj.batchMB
     cat_list = list(categorical)
     ord_list = list(ordinal)
     catching_f = errors.catch_and_exit(tifs_entrypoint)
-    catching_f(nworkers, batchsize, cat_list,
+    catching_f(nworkers, batchMB, cat_list,
                ord_list, normalise, name, ignore_crs)
 
 
-def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
+def tifs_entrypoint(nworkers: int, batchMB: int, categorical: List[str],
                     ordinal: List[str], normalise: bool, name: str,
                     ignore_crs: bool) -> None:
     """Entrypoint for tifs without click cruft."""
@@ -96,12 +96,14 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
     with tables.open_file(out_filename, mode="w", title=name) as outfile:
         if has_ord:
             ord_source = OrdinalStackSource(spec, ord_filenames)
+            ndims_ord = ord_source.shape[-1]
+            ord_rows_per_batch = mb_to_rows(batchMB, spec.width, ndims_ord, 0)
             N_ord = ord_source.shape[0] * ord_source.shape[1]
             log.info("Ordinal missing value set to {}".format(
                 ord_source.missing))
             mean, var = None, None
             if normalise:
-                mean, var = get_stats(ord_source, batchsize)
+                mean, var = get_stats(ord_source, ord_rows_per_batch)
                 if any(var == 0.0):
                     raise errors.ZeroVariance(var, ord_source.columns)
             log.info("Writing normalised ordinal data to output file")
@@ -111,7 +113,7 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
                                        missing=ord_source.missing,
                                        means=mean,
                                        variances=var)
-            write_ordinal(ord_source, outfile, nworkers, batchsize)
+            write_ordinal(ord_source, outfile, nworkers, ord_rows_per_batch)
 
         if has_cat:
             cat_source = CategoricalStackSource(spec, cat_filenames)
@@ -119,9 +121,11 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
             if N_ord and N_cat != N_ord:
                 raise errors.OrdCatNMismatch(N_ord, N_cat)
 
+            ndims_cat = cat_source.shape[-1]
+            cat_rows_per_batch = mb_to_rows(batchMB, spec.width, 0, ndims_cat)
             log.info("Categorical missing value set to {}".format(
                 cat_source.missing))
-            catdata = get_maps(cat_source, batchsize)
+            catdata = get_maps(cat_source, cat_rows_per_batch)
             maps, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
@@ -132,7 +136,8 @@ def tifs_entrypoint(nworkers: int, batchsize: int, categorical: List[str],
                                            ncategories=ncats,
                                            mappings=maps,
                                            counts=counts)
-            write_categorical(cat_source, outfile, nworkers, batchsize, maps)
+            write_categorical(cat_source, outfile, nworkers,
+                              cat_rows_per_batch, maps)
         meta = FeatureSetMetadata(ordinal=ord_meta, categorical=cat_meta,
                                   image=spec)
         write_feature_metadata(meta, outfile)
@@ -155,13 +160,13 @@ def targets(ctx: click.Context, shapefile: str, record: Tuple[str, ...],
     """Build target file from shapefile."""
     record_list = list(record)
     categorical = dtype == "categorical"
-    batchsize = ctx.obj.batchsize
+    batchMB = ctx.obj.batchMB
     catching_f = errors.catch_and_exit(targets_entrypoint)
-    catching_f(batchsize, shapefile, record_list, name, every, categorical,
+    catching_f(batchMB, shapefile, record_list, name, every, categorical,
                normalise, random_seed)
 
 
-def targets_entrypoint(batchsize: int, shapefile: str, records: List[str],
+def targets_entrypoint(batchMB: int, shapefile: str, records: List[str],
                        name: str, every: int, categorical: bool,
                        normalise: bool, random_seed: int) -> None:
     """Targets entrypoint without click cruft."""
@@ -170,16 +175,22 @@ def targets_entrypoint(batchsize: int, shapefile: str, records: List[str],
     nworkers = 0  # shapefile reading breaks with concurrency
 
     with tables.open_file(out_filename, mode="w", title=name) as h5file:
+        log.info("Reading shapefile point coordinates")
         coord_src = CoordinateShpArraySource(shapefile, random_seed)
-        write_coordinates(coord_src, h5file, batchsize)
+        coord_batchsize = mb_to_points(batchMB, ndim_ord=0,
+                                       ndim_cat=0, ndim_coord=2)
+        write_coordinates(coord_src, h5file, coord_batchsize)
 
         if categorical:
+            log.info("Reading shapefile categorical records")
             cat_source = CategoricalShpArraySource(
                 shapefile, records, random_seed)
-            catdata = get_maps(cat_source, batchsize)
+            cat_batchsize = mb_to_points(batchMB, ndim_ord=0,
+                                         ndim_cat=cat_source.shape[-1])
+            catdata = get_maps(cat_source, cat_batchsize)
             mappings, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in mappings])
-            write_categorical(cat_source, h5file, nworkers, batchsize,
+            write_categorical(cat_source, h5file, nworkers, cat_batchsize,
                               mappings)
             cat_meta = CategoricalMetadata(N=cat_source.shape[0],
                                            D=cat_source.shape[-1],
@@ -190,10 +201,14 @@ def targets_entrypoint(batchsize: int, shapefile: str, records: List[str],
                                            missing=None)
             write_categorical_metadata(cat_meta, h5file)
         else:
+            log.info("Reading shapefile ordinal records")
             ord_source = OrdinalShpArraySource(shapefile, records, random_seed)
-            mean, var = get_stats(ord_source, batchsize) \
+            ord_batchsize = mb_to_points(batchMB,
+                                         ndim_ord=ord_source.shape[-1],
+                                         ndim_cat=0)
+            mean, var = get_stats(ord_source, ord_batchsize) \
                 if normalise else None, None
-            write_ordinal(ord_source, h5file, nworkers, batchsize)
+            write_ordinal(ord_source, h5file, nworkers, ord_batchsize)
             ord_meta = OrdinalMetadata(N=ord_source.shape[0],
                                        D=ord_source.shape[-1],
                                        labels=ord_source.columns,

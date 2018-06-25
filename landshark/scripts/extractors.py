@@ -8,6 +8,7 @@ from landshark.scripts.logger import configure_logging
 from multiprocessing import cpu_count
 from landshark.featurewrite import read_featureset_metadata, \
     read_target_metadata
+import numpy as np
 
 from landshark.trainingdata import write_trainingdata, write_querydata
 from landshark.metadata import TrainingMetadata, \
@@ -19,6 +20,7 @@ from landshark.extract import get_active_features, active_column_metadata
 from landshark.trainingdata import CategoricalH5ArraySource, \
     OrdinalH5ArraySource, SourceMetadata
 from landshark.kfold import KFolds
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
     nworkers: int
-    batchsize: int
+    batchMB: int
     features: str
     halfwidth: int
     withfeat: List[str]
@@ -40,7 +42,7 @@ class CliArgs(NamedTuple):
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=10)
+@click.option("--batch-mb", type=int, default=100)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("--halfwidth", type=int, default=0)
 @click.option("--withfeat", type=str, multiple=True)
@@ -48,11 +50,11 @@ class CliArgs(NamedTuple):
 @click.option("--withlist", type=click.Path(exists=True))
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str, features: str,
-        batchsize: int, nworkers: int, halfwidth: int,
+        batch_mb: int, nworkers: int, halfwidth: int,
         withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
         withlist: Optional[str]) -> int:
     """Parse the command line arguments."""
-    ctx.obj = CliArgs(nworkers, batchsize, features, halfwidth, list(withfeat),
+    ctx.obj = CliArgs(nworkers, batch_mb, features, halfwidth, list(withfeat),
                       list(withoutfeat), withlist)
     configure_logging(verbosity)
     return 0
@@ -70,14 +72,14 @@ def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
     catching_f = errors.catch_and_exit(traintest_entrypoint)
     catching_f(targets, fold, nfolds, random_seed, ctx.obj.withfeat,
                ctx.obj.withoutfeat, ctx.obj.withlist, name, ctx.obj.halfwidth,
-               ctx.obj.nworkers, ctx.obj.features, ctx.obj.batchsize)
+               ctx.obj.nworkers, ctx.obj.features, ctx.obj.batchMB)
 
 
 def traintest_entrypoint(targets: str, testfold: int, folds: int,
                          random_seed: int, withfeat: List[str],
                          withoutfeat: List[str], withlist: Optional[str],
                          name: str, halfwidth: int, nworkers: int,
-                         features: str, batchsize: int) -> None:
+                         features: str, batchMB: int) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
@@ -88,6 +90,10 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     reduced_feature_metadata = active_column_metadata(feature_metadata,
                                                       active_feats_ord,
                                                       active_feats_cat)
+    ndim_ord = np.sum(active_feats_ord)
+    ndim_cat = np.sum(active_feats_cat)
+    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+                                    halfwidth=halfwidth)
 
     target_src = CategoricalH5ArraySource(targets) \
         if isinstance(target_metadata, CategoricalMetadata) \
@@ -102,7 +108,7 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
-    write_trainingdata(tinfo, directory, testfold, batchsize, nworkers)
+    write_trainingdata(tinfo, directory, testfold, points_per_batch, nworkers)
     training_metadata = TrainingMetadata(targets=target_metadata,
                                          features=reduced_feature_metadata,
                                          halfwidth=halfwidth,
@@ -119,12 +125,12 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
 @click.pass_context
 def query(ctx: click.Context, strip: Tuple[int, int], name: str) -> None:
     catching_f = errors.catch_and_exit(query_entrypoint)
-    catching_f(ctx.obj.features, ctx.obj.batchsize, ctx.obj.nworkers,
+    catching_f(ctx.obj.features, ctx.obj.batchMB, ctx.obj.nworkers,
                ctx.obj.halfwidth, strip, ctx.obj.withfeat, ctx.obj.withoutfeat,
                ctx.obj.withlist, name)
 
 
-def query_entrypoint(features: str, batchsize: int, nworkers: int,
+def query_entrypoint(features: str, batchMB: int, nworkers: int,
                      halfwidth: int, strip: Tuple[int, int],
                      withfeat: List[str], withoutfeat: List[str],
                      withlist: str, name: str) -> int:
@@ -144,6 +150,11 @@ def query_entrypoint(features: str, batchsize: int, nworkers: int,
     feature_metadata = read_featureset_metadata(features)
     active_ord, active_cat = get_active_features(feature_metadata, withfeat,
                                                  withoutfeat, withlist)
+    ndim_ord = np.sum(active_ord)
+    ndim_cat = np.sum(active_cat)
+    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+                                    halfwidth=halfwidth)
+
     reduced_metadata = active_column_metadata(feature_metadata,
                                               active_ord,
                                               active_cat)
@@ -153,8 +164,8 @@ def query_entrypoint(features: str, batchsize: int, nworkers: int,
     reduced_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip_idx, totalstrips)
     write_querydata(features, feature_metadata.image, strip_idx, totalstrips,
-                    batchsize, halfwidth, nworkers, directory, tag, active_ord,
-                    active_cat)
+                    points_per_batch, halfwidth, nworkers, directory, tag,
+                    active_ord, active_cat)
     # TODO other info here like strips and windows
     query_metadata = QueryMetadata(reduced_metadata)
     pickle_metadata(directory, query_metadata)

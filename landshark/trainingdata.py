@@ -283,19 +283,16 @@ def write_querydata(feature_path: str,
                     image_spec: ImageSpec,
                     strip: int,
                     total_strips: int,
-                    batchsize: int,
+                    points_per_batch: int,
                     halfwidth: int,
                     n_workers: int,
                     output_directory: str,
                     tag: str,
                     active_ord: np.ndarray,
                     active_cat: np.ndarray) -> None:
-    true_batchsize = batchsize * image_spec.width
-    log.info("Writing query data to tfrecord in {}-row batches".format(
-        batchsize))
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, total_strips,
-                                true_batchsize)
+                                points_per_batch)
     worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth,
                                            active_ord, active_cat)
     tasks = list(it)

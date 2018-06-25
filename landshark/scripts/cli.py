@@ -10,6 +10,7 @@ from landshark.scripts.logger import configure_logging
 from landshark.model import TrainingConfig, QueryConfig, train_test
 from landshark.model import predict as predict_fn
 from landshark.tfread import setup_training, setup_query
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def train(ctx: click.Context, data: str, config: str, epochs: int,
 @cli.command()
 @click.option("--model", type=click.Path(exists=True), required=True)
 @click.option("--data", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=100000)
+@click.option("--batch-mb", type=int, default=100)
 @click.option("--samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for prediction")
 @click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
@@ -84,7 +85,7 @@ def predict(
         ctx: click.Context,
         model: str,
         data: str,
-        batchsize: int,
+        batch_mb: int,
         samples: int,
         lower: int,
         upper: int) -> int:
@@ -93,7 +94,13 @@ def predict(
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)
     percentiles = (float(lower), float(upper))
-    params = QueryConfig(batchsize, samples, percentiles, gpu)
+    ndims_ord = train_metadata.features.ordinal.D \
+        if train_metadata.features.ordinal else 0
+    ndims_cat = train_metadata.features.categorical.D \
+        if train_metadata.features.categorical else 0
+    points_per_batch = mb_to_points(batch_mb, ndims_ord, ndims_cat,
+                                    halfwidth=train_metadata.halfwidth)
+    params = QueryConfig(points_per_batch, samples, percentiles, gpu)
     y_dash_it = predict_fn(model, train_metadata, query_records, params)
     write_geotiffs(y_dash_it, model, train_metadata,
                    list(params.percentiles),
