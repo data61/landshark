@@ -81,7 +81,7 @@ We have say a dozen `.tif` covariates stored between our `./ord_images` and
 We're going to use the `landshark-import` command to get our data into a format
 useable by landshark.
 
-### Import the data
+### 1. Import the data
 
 We start by creating a tiff stack called "murray".
 
@@ -101,15 +101,14 @@ $ landshark-import targets --name sodium --shapefile ./targets/Na.shp --dtype or
 We've also specified that the type of the records is ordinal (ie continuous).
 From this command, landshark will output `targets_sodium.hdf5`.
 
-### Extract Train/test and Query Data
+### 2. Extract Train/test and Query Data
 
 Let's try putting together a regression problem from the data we just imported.
 We're going to use the `landshark-extract` command  for this. 
-Starting with a train/test set, we use the 'traintest' sub-command. Note that
-`landshark-extract` takes some options, and so does the subcommand:
+Starting with a train/test set, we use the 'traintest' sub-command:
 
 ```bash
-$ landshark-extract --features features_murray.hdf5 traintest --targets targets_sodium.hdf5 --name myproblem
+$ landshark-extract traintest --features features_murray.hdf5 --targets targets_sodium.hdf5 --name myproblem
 ```
 
 This command will create a folder in the new directory called
@@ -120,7 +119,7 @@ landshark-extract options, but the default is fine for now.
 Similarly, we can extract the query data:
 
 ```bash
-$ landshark-extract --features features_murray.hdf5 query --name myproblem
+$ landshark-extract query --features features_murray.hdf5 --name myproblem
 ```
 
 This command will create a folder in a new directory called
@@ -130,7 +129,7 @@ window of the image for iterative processing. See the landshark-extract docs
 for details on this.
 
 
-### Train a Model
+### 3. Train a Model
 We're finally ready to actually train a model. We've set up our model as per
 the documentation, in a file called `dnn.py`. There are a couple of model file
 examples in the `config_files` folder in this repo.
@@ -140,6 +139,49 @@ $ landshark train dnn.py traintest_myproblem_fold1of10
 ```
 This will start the training off, first creating a folder to store the model
 checkpoints called `model_dnn`
+
+### 4. Predict with the trained model
+Because we've already extracted the query data, this is as simple as
+
+```bash
+$ landshark query model_dnn query_myproblem_strip1of1
+```
+The prediction images will be saved to the model folder.
+
+
+## Landshark Commands
+
+### landshark-import
+
+#### tifs
+
+#### targets
+
+### landshark-extract
+
+#### traintest
+
+#### query
+
+### landshark
+
+#### train
+
+#### predict
+
+### skshark
+
+#### train
+
+#### predict
+
+### landshark-dump
+
+#### traintest
+
+#### query
+
+
 
 
 
