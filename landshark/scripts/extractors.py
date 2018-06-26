@@ -31,6 +31,7 @@ class CliArgs(NamedTuple):
     nworkers: int
     batchMB: int
 
+
 @click.group()
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
@@ -38,10 +39,8 @@ class CliArgs(NamedTuple):
 @click.option("--batch-mb", type=int, default=100)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.pass_context
-def cli(ctx: click.Context, verbosity: str, features: str,
-        batch_mb: int, nworkers: int, halfwidth: int,
-        withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
-        withlist: Optional[str]) -> int:
+def cli(ctx: click.Context, verbosity: str,
+        batch_mb: int, nworkers: int) -> int:
     """Parse the command line arguments."""
     ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
@@ -85,8 +84,8 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     reduced_feature_metadata = active_column_metadata(feature_metadata,
                                                       active_feats_ord,
                                                       active_feats_cat)
-    ndim_ord = np.sum(active_feats_ord)
-    ndim_cat = np.sum(active_feats_cat)
+    ndim_ord = reduced_feature_metadata.D_ordinal
+    ndim_cat = reduced_feature_metadata.D_categorical
     points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
                                     halfwidth=halfwidth)
 
@@ -152,14 +151,14 @@ def query_entrypoint(features: str, batchMB: int, nworkers: int,
     feature_metadata = read_featureset_metadata(features)
     active_ord, active_cat = get_active_features(feature_metadata, withfeat,
                                                  withoutfeat, withlist)
-    ndim_ord = np.sum(active_ord)
-    ndim_cat = np.sum(active_cat)
-    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
-                                    halfwidth=halfwidth)
 
     reduced_metadata = active_column_metadata(feature_metadata,
                                               active_ord,
                                               active_cat)
+    ndim_ord = reduced_metadata.D_ordinal
+    ndim_cat = reduced_metadata.D_categorical
+    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+                                    halfwidth=halfwidth)
 
     strip_imspec = strip_image_spec(strip_idx, totalstrips,
                                     feature_metadata.image)

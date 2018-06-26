@@ -1,4 +1,5 @@
 import tables
+import numpy as np
 
 from landshark.image import indices_strip, ImageSpec
 from landshark.basetypes import IdReader
@@ -16,13 +17,12 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                   fname: str, batchsize: int, nworkers: int) -> None:
 
     n_rows = metadata.targets.N
-    has_ord = metadata.features.ordinal > 0
-    has_cat = metadata.features.categorical > 0
+    has_ord = metadata.features.D_ordinal > 0
+    has_cat = metadata.features.D_categorical > 0
     cat_targets = isinstance(metadata.targets, CategoricalMetadata)
     patchwidth = metadata.halfwidth * 2 + 1
 
-    worker = TrainingDataProcessor(tinfo.image_spec, tinfo.feature_path,
-                                   tinfo.halfwidth)
+    worker = TrainingDataProcessor(tinfo)
     tasks = list(batch_slices(batchsize, n_rows))
     out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
     fold_it = tinfo.folds.iterator(batchsize)
@@ -94,6 +94,7 @@ def dump_query(feature_path: str, metadata: QueryMetadata, strip: int,
     feature_source = H5Features(feature_path)
     has_ord = False
     has_cat = False
+    nfeatures_ord, nfeatures_cat = 0, 0
     if feature_source.ordinal is not None:
         has_ord = True
         nfeatures_ord = feature_source.ordinal.atom.shape[0]
@@ -104,8 +105,11 @@ def dump_query(feature_path: str, metadata: QueryMetadata, strip: int,
         missing_cat = feature_source.categorical.attrs.missing
     del feature_source
 
+    active_ord = np.ones(nfeatures_ord, dtype=bool)
+    active_cat = np.ones(nfeatures_cat, dtype=bool)
     patchwidth = halfwidth * 2 + 1
-    worker = QueryDataProcessor(image_spec, feature_path, halfwidth)
+    worker = QueryDataProcessor(image_spec, feature_path, halfwidth,
+                                active_ord, active_cat)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, nworkers)
 

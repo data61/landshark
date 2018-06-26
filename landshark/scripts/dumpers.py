@@ -50,29 +50,27 @@ def cli(ctx: click.Context, verbosity: str, batch_mb: int,
 @click.option("--random_seed", type=int, default=666)
 @click.option("--name", type=str, required=True)
 @click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--nfolds", type=int)
+@click.option("--nfolds", type=int, default=10)
 @click.option("--halfwidth", type=int, default=0)
 @click.pass_context
-def trainingdata(ctx: click.Context, features: str, targets: str,
-                 halfwidth: int, random_seed: int,
-                 nfolds: int, name: str) -> None:
+def traintest(ctx: click.Context, features: str, targets: str,
+              halfwidth: int, random_seed: int,
+              nfolds: int, name: str) -> None:
     """Dump training data."""
-    catching_f = errors.catch_and_exit(trainingdata_entrypoint)
+    catching_f = errors.catch_and_exit(traintest_entrypoint)
     catching_f(features, targets, halfwidth, random_seed, ctx.obj.nworkers,
                ctx.obj.batchMB, nfolds, name)
 
 
-def trainingdata_entrypoint(features: str, targets: str, halfwidth: int,
-                            random_seed: int, nworkers: int,
-                            batchMB: int, nfolds: int, name: str) -> None:
+def traintest_entrypoint(features: str, targets: str, halfwidth: int,
+                         random_seed: int, nworkers: int,
+                         batchMB: int, nfolds: int, name: str) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
 
-    ndim_ord = feature_metadata.ordinal.D \
-        if feature_metadata.ordinal else 0
-    ndim_cat = feature_metadata.categorical.D \
-        if feature_metadata.categorical else 0
+    ndim_ord = feature_metadata.D_ordinal
+    ndim_cat = feature_metadata.D_categorical
     active_feats_ord = np.ones(ndim_ord, dtype=bool)
     active_feats_cat = np.ones(ndim_cat, dtype=bool)
     points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
@@ -107,25 +105,23 @@ def trainingdata_entrypoint(features: str, targets: str, halfwidth: int,
 @click.option("--features", type=click.Path(exists=True), required=True)
 @click.option("--halfwidth", type=int, default=0)
 @click.pass_context
-def querydata(ctx: click.Context, features: str, halfwidth: int,
-              strip: Tuple[int, int], name: str) -> None:
+def query(ctx: click.Context, features: str, halfwidth: int,
+          strip: Tuple[int, int], name: str) -> None:
     """Grab a chunk for prediction."""
-    catching_f = errors.catch_and_exit(querydata_entrypoint)
+    catching_f = errors.catch_and_exit(query_entrypoint)
     catching_f(features, halfwidth, strip, name, ctx.obj.batchMB,
                ctx.obj.nworkers)
 
 
-def querydata_entrypoint(features: str, halfwidth: int,
-                         strips: Tuple[int, int], name: str, batchMB: int,
-                         nworkers: int) -> None:
+def query_entrypoint(features: str, halfwidth: int,
+                     strips: Tuple[int, int], name: str, batchMB: int,
+                     nworkers: int) -> None:
     """Entry point for querydata dumping."""
     thisstrip, totalstrips = strips
     feature_metadata = read_featureset_metadata(features)
 
-    ndim_ord = feature_metadata.ordinal.D \
-        if feature_metadata.ordinal else 0
-    ndim_cat = feature_metadata.categorical.D \
-        if feature_metadata.categorical else 0
+    ndim_ord = feature_metadata.D_ordinal
+    ndim_cat = feature_metadata.D_categorical
     points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
                                     halfwidth=halfwidth)
 

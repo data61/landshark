@@ -55,10 +55,8 @@ def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
 
-    ndims_ord = metadata.features.ordinal.D \
-        if metadata.features.ordinal else 0
-    ndims_cat = metadata.features.categorical.D \
-        if metadata.features.categorical else 0
+    ndims_ord = metadata.features.D_ordinal
+    ndims_cat = metadata.features.D_categorical
     batchsize = mb_to_points(batchMB, ndims_ord, ndims_cat,
                              halfwidth=metadata.halfwidth)
     # copy the model spec to the model dir
@@ -89,10 +87,8 @@ def predict_entrypoint(model: str, data: str, lower: int, upper: int,
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)
     percentiles = (float(lower), float(upper))
-    ndims_ord = train_metadata.features.ordinal.D \
-        if train_metadata.features.ordinal else 0
-    ndims_cat = train_metadata.features.categorical.D \
-        if train_metadata.features.categorical else 0
+    ndims_ord = train_metadata.features.D_ordinal
+    ndims_cat = train_metadata.features.D_categorical
     points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
     load_model(os.path.join(model, "config.py"))

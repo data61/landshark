@@ -94,7 +94,6 @@ def predict(
         ctx: click.Context,
         model: str,
         data: str,
-        batch_mb: int,
         samples: int,
         lower: int,
         upper: int) -> None:
@@ -110,10 +109,8 @@ def predict_entrypoint(model: str, data: str, batchMB: int, samples: int,
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)
     percentiles = (float(lower), float(upper))
-    ndims_ord = train_metadata.features.ordinal.D \
-        if train_metadata.features.ordinal else 0
-    ndims_cat = train_metadata.features.categorical.D \
-        if train_metadata.features.categorical else 0
+    ndims_ord = train_metadata.features.D_ordinal
+    ndims_cat = train_metadata.features.D_categorical
     points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
     params = QueryConfig(points_per_batch, samples, percentiles, gpu)
