@@ -18,7 +18,8 @@ def to_masked(array: np.ndarray, missing_value: MissingType) \
         marray = np.ma.MaskedArray(data=array, mask=mask)
     return marray
 
-def mb_to_points(batchMB, ndim_ord, ndim_cat, ndim_coord=0, halfwidth=0):
+def mb_to_points(batchMB: float, ndim_ord: int, ndim_cat: int,
+                 ndim_coord: int=0, halfwidth: int=0) -> int:
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_ord = np.dtype(OrdinalType).itemsize * ndim_ord
@@ -30,7 +31,8 @@ def mb_to_points(batchMB, ndim_ord, ndim_cat, ndim_coord=0, halfwidth=0):
         npoints, npoints * mbytes_per_point))
     return npoints
 
-def mb_to_rows(batchMB, row_width, ndim_ord, ndim_cat, halfwidth=0):
+def mb_to_rows(batchMB: float, row_width: int, ndim_ord: int, ndim_cat: int,
+               halfwidth: int=0) -> int:
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_ord = np.dtype(OrdinalType).itemsize * ndim_ord

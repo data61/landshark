@@ -9,7 +9,9 @@ import pytest
 
 from landshark.scripts import importers, extractors, cli, skcli, dumpers
 
-BATCH_MB = 1
+# these data are tiny so we need a really
+# small batch size to emulate normal use
+BATCH_MB = 0.001
 
 model_files = {"regression": {"landshark": "nnr.py",
                               "skshark": "sklearn_rfr.py"},

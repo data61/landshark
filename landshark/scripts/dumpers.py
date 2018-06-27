@@ -27,18 +27,18 @@ log = logging.getLogger(__name__)
 class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
-    batchMB: int
+    batchMB: float
     nworkers: int
 
 
 @click.group()
-@click.option("--batch-mb", type=int, default=100)
+@click.option("--batch-mb", type=float, default=100)
 @click.option("--nworkers", type=int, default=cpu_count())
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.pass_context
-def cli(ctx: click.Context, verbosity: str, batch_mb: int,
+def cli(ctx: click.Context, verbosity: str, batch_mb: float,
         nworkers: int) -> None:
     """Parse the command line arguments."""
     ctx.obj = CliArgs(batchMB=batch_mb, nworkers=nworkers)
@@ -64,7 +64,7 @@ def traintest(ctx: click.Context, features: str, targets: str,
 
 def traintest_entrypoint(features: str, targets: str, halfwidth: int,
                          random_seed: int, nworkers: int,
-                         batchMB: int, nfolds: int, name: str) -> None:
+                         batchMB: float, nfolds: int, name: str) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
@@ -114,7 +114,7 @@ def query(ctx: click.Context, features: str, halfwidth: int,
 
 
 def query_entrypoint(features: str, halfwidth: int,
-                     strips: Tuple[int, int], name: str, batchMB: int,
+                     strips: Tuple[int, int], name: str, batchMB: float,
                      nworkers: int) -> None:
     """Entry point for querydata dumping."""
     thisstrip, totalstrips = strips

@@ -20,16 +20,16 @@ log = logging.getLogger(__name__)
 class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
-    batchMB: int
+    batchMB: float
 
 
 @click.group()
-@click.option("--batch-mb", type=int, default=100)
+@click.option("--batch-mb", type=float, default=100)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.pass_context
-def cli(ctx: click.Context, verbosity: str, batch_mb: int) -> int:
+def cli(ctx: click.Context, verbosity: str, batch_mb: float) -> int:
     """Parse the command line arguments."""
     ctx.obj = CliArgs(batchMB=batch_mb)
     configure_logging(verbosity)
@@ -50,7 +50,7 @@ def train(ctx: click.Context, data: str, config: str,
 
 
 def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
-                     random_seed: int, batchMB: int) -> None:
+                     random_seed: int, batchMB: float) -> None:
     """Entry point for sklearn model training."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
@@ -82,7 +82,7 @@ def predict(ctx: click.Context, model: str, data: str, lower: int,
 
 
 def predict_entrypoint(model: str, data: str, lower: int, upper: int,
-                       batchMB: int) -> None:
+                       batchMB: float) -> None:
     """Entry point for prediction with sklearn."""
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)

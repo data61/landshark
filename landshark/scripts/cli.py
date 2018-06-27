@@ -20,17 +20,17 @@ class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
     gpu: bool
-    batchMB: int
+    batchMB: float
 
 
 @click.group()
 @click.option("--gpu/--no-gpu", default=False)
-@click.option("--batch-mb", type=int, default=100)
+@click.option("--batch-mb", type=float, default=100)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.pass_context
-def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: int) -> int:
+def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
     """Parse the command line arguments."""
     ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb)
     configure_logging(verbosity)
@@ -104,7 +104,7 @@ def predict(
 
 
 
-def predict_entrypoint(model: str, data: str, batchMB: int, samples: int,
+def predict_entrypoint(model: str, data: str, batchMB: float, samples: int,
                        lower: int, upper: int, gpu: bool) -> None:
     train_metadata, query_metadata, query_records, strip, nstrips = \
         setup_query(model, data)

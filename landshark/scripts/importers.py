@@ -33,7 +33,7 @@ class CliArgs(NamedTuple):
     """Arguments passed from the base command."""
 
     nworkers: int
-    batchMB: int
+    batchMB: float
 
 
 @click.group()
@@ -41,10 +41,10 @@ class CliArgs(NamedTuple):
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--batch-mb", type=int, default=100)
+@click.option("--batch-mb", type=float, default=100)
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str,
-        nworkers: int, batch_mb: int) -> int:
+        nworkers: int, batch_mb: float) -> int:
     """Parse the command line arguments."""
     log.info("Using a maximum of {} worker processes".format(nworkers))
     ctx.obj = CliArgs(nworkers, batch_mb)
@@ -73,7 +73,7 @@ def tifs(ctx: click.Context, categorical: Tuple[str, ...],
                ord_list, normalise, name, ignore_crs)
 
 
-def tifs_entrypoint(nworkers: int, batchMB: int, categorical: List[str],
+def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
                     ordinal: List[str], normalise: bool, name: str,
                     ignore_crs: bool) -> None:
     """Entrypoint for tifs without click cruft."""
@@ -166,7 +166,7 @@ def targets(ctx: click.Context, shapefile: str, record: Tuple[str, ...],
                normalise, random_seed)
 
 
-def targets_entrypoint(batchMB: int, shapefile: str, records: List[str],
+def targets_entrypoint(batchMB: float, shapefile: str, records: List[str],
                        name: str, every: int, categorical: bool,
                        normalise: bool, random_seed: int) -> None:
     """Targets entrypoint without click cruft."""
