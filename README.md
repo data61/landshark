@@ -34,14 +34,13 @@ mainly for validation purposes).
 
 The basic steps in using landshark are:
 
-1. Import geotiffs and a target shapefile with `landshark-import`
-2. Extract training/testing and query data with `landshark-extract`
+1. Import geotiffs and a target shapefile with `landshark-import`,
+2. Extract training/testing and query data with `landshark-extract`,
 3. Train a model and predict with the `landshark` command, 
-   or `skshark` for scikit learn models
+   or `skshark` for scikit-learn models.
 
-And optionally:
-4. Dump out the training/testing and query data as seen by landshark for use
-   with external tools using the `landshark-dump` command.
+If you would like to use landshark outputs for other tools, you can
+export training, testing and query data with the `landshark-dump` command.
 
 
 ## Data Prerequisites
@@ -64,27 +63,6 @@ requirements for data input:
 7. Geotiffs have been categorized into continuous data (referred to as 'ordinal'), 
    and categorical data. These two sets of geotiffs are stored in separate
    folders.
-
-## Design choices
-
-### Intermediate HDF5 Format
-
-Reading a few pixels from 100 (often compressed) geotiffs is slow. Reading
-the same data from an HDF5 file where the 100 bands are contiguous is fast.
-Therefore, if we need to do more than a couple of reads from that big geotiff
-stack, it saves a lot of time to first re-order all that data to
-'band-interleaved by pixel'. We could do this back to geotiff, but HDF5 is
-convenient and allows us to store some extra data (and reading is higher
-performance too). 
-
-
-### Configuration as Code
-
-The model specification files in landshark are python functions (or classes in
-the case of the sklearn interface). Whilst this presents a larger barrier for
-new users if they're not familiar with Python, it allows users to customise
-models completely to their particular use-case. A classic example the authors
-often come across are custom likelihood functions in Bayesian algorithms.
 
 
 ## Usage Example
@@ -164,6 +142,15 @@ The prediction images will be saved to the model folder.
 
 ## Landshark Commands
 
+| Command | Description |
+| ... | ... |
+| `landshark-import` | Import geotiff features and shapefile targets into landshark-compatible formats
+| `landshark-extract` | Extract train/test data and query data from imported features and targets
+| `landshark` | Train a model and make predictions
+| `skshark` | Train a scikit-learn model for comparison/baseline purposes
+| `landshark-dump` | Dump train/test and query data into HDF5 for use in external tools
+
+
 ### landshark-import
 
 #### tifs
@@ -193,6 +180,28 @@ The prediction images will be saved to the model folder.
 #### traintest
 
 #### query
+
+
+## Design choices
+
+### Intermediate HDF5 Format
+
+Reading a few pixels from 100 (often compressed) geotiffs is slow. Reading
+the same data from an HDF5 file where the 100 bands are contiguous is fast.
+Therefore, if we need to do more than a couple of reads from that big geotiff
+stack, it saves a lot of time to first re-order all that data to
+'band-interleaved by pixel'. We could do this back to geotiff, but HDF5 is
+convenient and allows us to store some extra data (and reading is higher
+performance too). 
+
+
+### Configuration as Code
+
+The model specification files in landshark are python functions (or classes in
+the case of the sklearn interface). Whilst this presents a larger barrier for
+new users if they're not familiar with Python, it allows users to customise
+models completely to their particular use-case. A classic example the authors
+often come across are custom likelihood functions in Bayesian algorithms.
 
 
 
