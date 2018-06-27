@@ -143,7 +143,7 @@ The prediction images will be saved to the model folder.
 ## Landshark Commands
 
 The Following section describes all landshark commands, sub-commands and
-options. The major commands in landshark are:
+options. Note that options without a default are required. The major commands in landshark are:
 
 Command | Description
 | --- | --- |
@@ -158,14 +158,14 @@ There are two global options for all these commands:
 Option | Argument | Description
 | --- | --- | --- |
 `-v,--verbosity` | `DEBUG\|INFO\|WARNING\|ERROR` | Level of logging
-`--help` | None | Print command help including option descriptions
+`--help` | | Print command help including option descriptions
 
 
 ### landshark-import
 
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--nworkers` | `INT>=0` | number of CPUS | The number of *additional* worker processes beyond the parent process. Setting this value to 0 disables multiprocessing entirely.
+`--nworkers` | `INT>=0` | number of cores | The number of *additional* worker processes beyond the parent process. Setting this value to 0 disables multiprocessing entirely. The default is the number of logical CPUs python has detected.
 `--batch-mb` | `FLOAT>0` | 100 | The approximate size, in megabytes of data read per worker and per iteration. See Memory Usage for details.
 
 #### tifs
@@ -175,11 +175,11 @@ for fast reading by landshark.
 
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--ordinal` | `DIRECTORY` | None | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders.
-`--categorical` | `DIRECTORY` | None | A directory containing categorical geotiffs. This argument can be given multipl times with different folders
-`--normalise/--no-normalise` | None | `TRUE` | -- Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
-`--name` | `STRING` | None | A name describing the feature set being constructed.
-`--ignore-crs/--no-ignore-crs` | None | `FALSE` | Whether to enforce the CRS data being identical for all images. Default is no-ignore, but if you know what you're doing...
+`--ordinal` | `DIRECTORY` | | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders.
+`--categorical` | `DIRECTORY` | | A directory containing categorical geotiffs. This argument can be given multipl times with different folders
+`--normalise/--no-normalise` | | `TRUE` | -- Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
+`--name` | `STRING` | | A name describing the feature set being constructed.
+`--ignore-crs/--no-ignore-crs` | | `FALSE` | Whether to enforce the CRS data being identical for all images. Default is no-ignore, but if you know what you're doing...
 
 
 #### targets
