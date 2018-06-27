@@ -3,10 +3,9 @@ import traceback
 import os
 import shutil
 from glob import glob
+import subprocess
 
-from click.testing import CliRunner
 import pytest
-import tensorflow as tf
 
 from landshark.scripts import importers, extractors, cli, skcli, dumpers
 
@@ -29,7 +28,6 @@ training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
 def whichfeatures(request):
     return request.param
 
-
 @pytest.fixture(params=["regression", "classification"])
 def whichproblem(request):
     return request.param
@@ -49,104 +47,97 @@ def whichalgo(request):
     return request.param
 
 
-def _run(runner, cmd, args):
-    results = runner.invoke(cmd, args)
-    for line in results.output.split("\n"):
-        print(line)
-    if results.exit_code != 0:
-        print("command {} failed with exception {}. Traceback:\n".format(
-            args, results.exception))
-        traceback.print_tb(results.exc_info[2])
-    assert results.exit_code == 0
+def _run(cmd):
+    cmd_str = [str(k) for k in cmd]
+    print("Runinng command: {}".format(cmd_str))
+    proc = subprocess.run(cmd_str, stdout=subprocess.PIPE)
+    assert proc.returncode == 0
 
 
-def import_tifs(runner, cat_dir, ord_dir, feature_string, ncpus):
+def import_tifs(cat_dir, ord_dir, feature_string, ncpus):
     tif_import_args = ["--categorical", cat_dir, "--ordinal", ord_dir,
                        "--ignore-crs"]
     if feature_string == "ordinal-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
         tif_import_args = tif_import_args[:2] + ["--ignore-crs"]
-    _run(runner, importers.cli, ["--nworkers", ncpus, "--batch-mb", BATCH_MB,
-                                 "tifs", "--name", "sirsam"] +
-         tif_import_args)
+    _run(["landshark-import", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+          "tifs", "--name", "sirsam"] + tif_import_args)
     feature_file = "features_sirsam.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
 
 
-def import_targets(runner, target_dir, target_name, target_flags, ncpus):
+def import_targets(target_dir, target_name, target_flags, ncpus):
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(runner, importers.cli, ["--batch-mb", BATCH_MB, "targets",
-                                 "--shapefile", target_file,
-                                 "--name", target_name] +
+    _run(["landshark-import", "--batch-mb", BATCH_MB, "targets",
+          "--shapefile", target_file, "--name", target_name] +
          target_flags + ["--record", target_name])
     target_file = "targets_{}.hdf5".format(target_name)
     assert os.path.isfile(target_file)
     return target_file
 
 
-def extract_training_data(runner, target_file, target_name, ncpus):
-    _run(runner, extractors.cli,
-         ["--nworkers", ncpus, "--batch-mb", BATCH_MB, "traintest",
-          "--features", "features_sirsam.hdf5", "--split", 1, 10,
-          "--targets", target_file, "--name", "sirsam"])
+def extract_training_data(target_file, target_name, ncpus):
+    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb",
+          BATCH_MB, "traintest", "--features", "features_sirsam.hdf5",
+          "--split", 1, 10, "--targets", target_file, "--name", "sirsam"])
     trainingdata_folder = "traintest_sirsam_fold1of10"
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
 
-def dump_training_data(runner, target_file, target_name, ncpus):
-    _run(runner, dumpers.cli,
-         ["--nworkers", ncpus, "--batch-mb", BATCH_MB, "traintest",
-          "--features", "features_sirsam.hdf5", "--targets", target_file,
-          "--name", "sirsam"])
+
+def dump_training_data(target_file, target_name, ncpus):
+    _run(["landshark-dump", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+          "traintest", "--features", "features_sirsam.hdf5",
+          "--targets", target_file, "--name", "sirsam"])
     trainingdata_dump = "dump_traintest_sirsam.hdf5"
     assert os.path.isfile(trainingdata_dump)
 
 
-def extract_query_data(runner, feature_file, ncpus):
-    _run(runner, extractors.cli, ["--nworkers", ncpus, "--batch-mb", BATCH_MB,
-                                  "query", "--features", feature_file,
-                                  "--strip", 5, 10, "--name", "sirsam"])
+def extract_query_data(feature_file, ncpus):
+    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+          "query", "--features", feature_file, "--strip", 5, 10,
+          "--name", "sirsam"])
     querydata_folder = "query_sirsam_strip5of10"
     assert os.path.isdir(querydata_folder)
     return querydata_folder
 
 
-def dump_query_data(runner, feature_file, ncpus):
-    _run(runner, dumpers.cli, ["--nworkers", ncpus, "--batch-mb", BATCH_MB,
-                               "query", "--features", feature_file,
-                               "--strip", 5, 10, "--name", "sirsam"])
+def dump_query_data(feature_file, ncpus):
+    _run(["landshark-dump", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+          "query", "--features", feature_file, "--strip", 5, 10,
+          "--name", "sirsam"])
     querydata_dump = "dump_query_sirsam_strip5of10.hdf5"
     assert os.path.isfile(querydata_dump)
 
 
-def train(runner, module, model_dir, model_filename, trainingdata_folder,
-          training_args):
+def train(cmd, model_dir, model_filename, trainingdata_folder, training_args):
     model_file = os.path.join(model_dir, model_filename)
-    _run(runner, module.cli, ["train"] +
-         training_args + ["--data", trainingdata_folder,
-                          "--config", model_file])
+    _run([cmd] + ["train"] + training_args +
+         ["--data", trainingdata_folder, "--config", model_file])
     trained_model_dir = "{}_model_1of10".format(model_filename.split(".py")[0])
     assert os.path.isdir(trained_model_dir)
     return trained_model_dir
 
-def predict(runner, module, model_dir, trained_model_dir,
+
+def predict(cmd, model_dir, trained_model_dir,
             querydata_folder, target_name):
-    _run(runner, module.cli, ["--batch-mb", BATCH_MB, "predict", "--model",
-                              trained_model_dir, "--data", querydata_folder])
+    _run([cmd] + ["--batch-mb", BATCH_MB, "predict", "--model",
+                  trained_model_dir, "--data", querydata_folder])
     image_filename = "{}_5of10.tif".format(target_name)
     image_path = os.path.join(trained_model_dir, image_filename)
     assert os.path.isfile(image_path)
 
 
-def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
-                       number_of_cpus, half_width):
+def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
+                       whichalgo, number_of_cpus, half_width):
     ord_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
+    os.chdir(os.path.abspath(tmpdir))
     ncpus = number_of_cpus
 
-    thisrun = "{}_{}_{}_{}cpus".format(whichalgo, whichproblem, whichfeatures,
-                                       ncpus)
+    thisrun = "{}_{}_{}_{}cpus_hw{}".format(whichalgo, whichproblem,
+                                            whichfeatures, ncpus, half_width)
     print("Current run: {}".format(thisrun))
 
     target_name = target_files[whichproblem]["target"]
@@ -154,34 +145,37 @@ def test_full_pipeline(data_loc, whichfeatures, whichproblem, whichalgo,
     model_filename = model_files[whichproblem][whichalgo]
     train_args = training_args[whichalgo]
 
-    module = cli if whichalgo == "landshark" else skcli
+    # need to make isolated filesystem
+    print("Importing tifs...")
+    feature_file = import_tifs(cat_dir, ord_dir, whichfeatures, ncpus)
+    print("Importing targets...")
+    target_file = import_targets(target_dir, target_name, target_flags, ncpus)
+    print("Extracting training data...")
+    trainingdata_folder = extract_training_data(target_file,
+                                                target_name, ncpus)
+    print("Dumping training data...")
+    dump_training_data(target_file, target_name, ncpus)
+    print("Extracting query data...")
+    querydata_folder = extract_query_data(feature_file, ncpus)
+    print("Dumping query data...")
+    dump_query_data(feature_file, ncpus)
+    print("Training...")
+    trained_model_dir = train(whichalgo, model_dir, model_filename,
+                              trainingdata_folder, train_args)
+    print("Predicting...")
+    predict(whichalgo, model_dir, trained_model_dir,
+            querydata_folder, target_name)
+    print("Cleaning up...")
 
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        tf.reset_default_graph()
-        feature_file = import_tifs(runner, cat_dir, ord_dir, whichfeatures,
-                                   ncpus)
-        target_file = import_targets(runner, target_dir, target_name,
-                                     target_flags, ncpus)
-        trainingdata_folder = extract_training_data(runner, target_file,
-                                                    target_name, ncpus)
-        dump_training_data(runner, target_file, target_name, ncpus)
-        querydata_folder = extract_query_data(runner, feature_file, ncpus)
-        dump_query_data(runner, feature_file, ncpus)
-        trained_model_dir = train(runner, module, model_dir, model_filename,
-                                  trainingdata_folder, train_args)
-        predict(runner, module, model_dir, trained_model_dir,
-                querydata_folder, target_name)
+    this_result_dir = os.path.join(result_dir, thisrun)
+    shutil.rmtree(this_result_dir, ignore_errors=True)
+    os.makedirs(this_result_dir)
 
-        this_result_dir = os.path.join(result_dir, thisrun)
-        shutil.rmtree(this_result_dir, ignore_errors=True)
-        os.makedirs(this_result_dir)
-
-        images = glob(os.path.join(trained_model_dir, "*.tif"))
-        dumps = glob("dump_*.hdf5")
-        for im in images:
-            shutil.move(im, this_result_dir)
-        for d in dumps:
-            shutil.move(d, this_result_dir)
-        shutil.rmtree(trained_model_dir, ignore_errors=True)
+    images = glob(os.path.join(trained_model_dir, "*.tif"))
+    dumps = glob("dump_*.hdf5")
+    for im in images:
+        shutil.move(im, this_result_dir)
+    for d in dumps:
+        shutil.move(d, this_result_dir)
+    shutil.rmtree(trained_model_dir, ignore_errors=True)
 

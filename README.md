@@ -30,6 +30,19 @@ is anything built on top of tensorflow like Keras or Aboleth. There's also
 a scikit-learn interface for problems that do fit in memory (although this is
 mainly for validation purposes).
 
+## Outline
+
+The basic steps in using landshark are:
+
+1. Import geotiffs and a target shapefile with `landshark-import`
+2. Extract training/testing and query data with `landshark-extract`
+3. Train a model and predict with the `landshark` command, 
+   or `skshark` for scikit learn models
+
+And optionally:
+4. Dump out the training/testing and query data as seen by landshark for use
+   with external tools using the `landshark-dump` command.
+
 
 ## Data Prerequisites
 
