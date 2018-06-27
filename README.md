@@ -142,13 +142,13 @@ The prediction images will be saved to the model folder.
 
 ## Landshark Commands
 
-| Command | Description |
-| ... | ... |
-| `landshark-import` | Import geotiff features and shapefile targets into landshark-compatible formats
-| `landshark-extract` | Extract train/test data and query data from imported features and targets
-| `landshark` | Train a model and make predictions
-| `skshark` | Train a scikit-learn model for comparison/baseline purposes
-| `landshark-dump` | Dump train/test and query data into HDF5 for use in external tools
+Command | Description
+| --- | --- |
+`landshark-import` | Import geotiff features and shapefile targets into landshark-compatible formats
+`landshark-extract` | Extract train/test data and query data from imported features and targets
+`landshark` | Train a model and make predictions
+`skshark` | Train a scikit-learn model for comparison/baseline purposes
+`landshark-dump` | Dump train/test and query data into HDF5 for use in external tools
 
 
 ### landshark-import
