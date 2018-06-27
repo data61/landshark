@@ -35,7 +35,7 @@ def whichproblem(request):
     return request.param
 
 
-@pytest.fixture(params=[0, 1])
+@pytest.fixture(params=[0, 2])
 def number_of_cpus(request):
     return request.param
 
