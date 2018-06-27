@@ -173,20 +173,75 @@ Option | Argument | Default | Description
 The `tifs` subcommand takes a set of tif files and builds a single image stack
 for fast reading by landshark.
 
+Required flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--name` | `STRING` | A name describing the feature set being constructed.
+`--ordinal` | `DIRECTORY` | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--ordinal` or `--categorical` must be given.
+`--categorical` | `DIRECTORY` | A directory containing categorical geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--ordinal` or `--categorical` must be given.
+
+Optional arguments:
+
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--ordinal` | `DIRECTORY` | | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders.
-`--categorical` | `DIRECTORY` | | A directory containing categorical geotiffs. This argument can be given multipl times with different folders
-`--normalise/--no-normalise` | | `TRUE` | -- Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
-`--name` | `STRING` | | A name describing the feature set being constructed.
+`--normalise/--no-normalise` | | `TRUE` | Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
 `--ignore-crs/--no-ignore-crs` | | `FALSE` | Whether to enforce the CRS data being identical for all images. Default is no-ignore, but if you know what you're doing...
 
 
 #### targets
 
+The `targets` subcommand takes a shapefile and extracts a set of points and
+records from it to use as targets. At the moment the datatype of the records
+must be the same, ie all categorical or ordinal. The points are also shuffled
+on import (deterministically).
+
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--name` | `STRING` | A name describing the target set being constructed.
+`--shapefile` | `SHAPEFILE` | The shapefile from which to extract. Use the actual `.shp` file here.
+`--record` | `STRING` | A record to extract for each point as a target. This argument can be given multiple times to extract mulitple records.
+`--dtype` | `[ordinal\|categorical]` | The type of target, either ordinal for regression or categorical for classification.
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--normalise` | | `FALSE` | Whether to normalise each target column to have mean 0 and standard deviation 1.
+`--random_seed` | `INT` | 666 | The initial state of the random number generator used to shuffle the targets on import.
+`--every` | `INT` | 1 | Factor by which to subsample the data (after shuffling). For example `--every 2` will extract half the targets.
+
 ### landshark-extract
 
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--nworkers` | `INT>=0` | number of cores | The number of *additional* worker processes beyond the parent process. Setting this value to 0 disables multiprocessing entirely. The default is the number of logical CPUs python has detected.
+`--batch-mb` | `FLOAT>0` | 100 | The approximate size in megabytes of data read per worker and per iteration. See Memory Usage for details.
+
+
 #### traintest
+
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--name` | `STRING` | A name describing the training dataset being constructed.
+`--features` | `FILE` | The landshark HDF5 feature file from which to extract
+`--targets` | `FILE` | The landshark HDF5 target file from which to extract
+
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--split` | `INT>0` `INT>0` | 1 10 | The speficiation of folds for the train/test split.  For example, `--split 1 10` uses fold 1 of 10 for testing. Repeated extractions with different folds allows for k-fold cross validation.
+`--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
+`--withfeat` | `STRING` | | Select the given feature from the feature stack.  Can be used multiple times for mulitple features. Incompatible with `--withoutfeat` and `--withlist`.
+`--withoutfeat` | `STRING` | | Don't extract the selected feature from the stack. Can be used multiple times for mulitple features. Incompatible with `--withfeat` and `--withlist`.
+`--withlist` | `TXTFILE` | | Provide a newline-separated  (\#-commented) list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
 
 #### query
 

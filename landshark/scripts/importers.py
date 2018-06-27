@@ -56,12 +56,16 @@ def cli(ctx: click.Context, verbosity: str,
 
 
 @cli.command()
-@click.option("--categorical", type=click.Path(exists=True), multiple=True)
-@click.option("--ordinal", type=click.Path(exists=True), multiple=True)
-@click.option("--normalise/--no-normalise", is_flag=True, default=True)
+@click.option("--categorical", type=click.Path(exists=True), multiple=True,
+              help="Directory containing categorical geotifs")
+@click.option("--ordinal", type=click.Path(exists=True), multiple=True,
+              help="Directory containing ordinal geotifs")
+@click.option("--normalise/--no-normalise", is_flag=True, default=True,
+              help="Normalise the ordinal tif bands")
 @click.option("--name", type=str, required=True,
               help="Name of output file")
-@click.option("--ignore-crs/--no-ignore-crs", is_flag=True, default=False)
+@click.option("--ignore-crs/--no-ignore-crs", is_flag=True, default=False,
+              help="Ignore CRS (projection and datum) information")
 @click.pass_context
 def tifs(ctx: click.Context, categorical: Tuple[str, ...],
          ordinal: Tuple[str, ...], normalise: bool, name: str,
@@ -148,14 +152,20 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
 
 
 @cli.command()
-@click.option("--record", type=str, multiple=True)
-@click.option("--shapefile", type=click.Path(exists=True), required=True)
-@click.option("--name", type=str, required=True)
-@click.option("--every", type=int, default=1)
+@click.option("--record", type=str, multiple=True, required=True,
+              help="Label of record to extract as a target")
+@click.option("--shapefile", type=click.Path(exists=True), required=True,
+              help="Path to .shp file for reading")
+@click.option("--name", type=str, required=True,
+              help="Name of output file")
+@click.option("--every", type=int, default=1, help="Subsample (randomly)"
+              " by this factor, e.g. every 2 samples half the points")
 @click.option("--dtype", type=click.Choice(["ordinal", "categorical"]),
-              required=True)
-@click.option("--normalise", is_flag=True)
-@click.option("--random_seed", type=int, default=666)
+              required=True, help="The type of the targets")
+@click.option("--normalise", is_flag=True, help="Normalise each target."
+              " Only relevant for ordinal targets.")
+@click.option("--random_seed", type=int, default=666, help="The random seed "
+              "for shuffling targets on import")
 @click.pass_context
 def targets(ctx: click.Context, shapefile: str, record: Tuple[str, ...],
             name: str, every: int, dtype: str, normalise: bool,
