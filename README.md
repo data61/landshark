@@ -211,7 +211,7 @@ Option | Argument | Default | Description
 | --- | --- | --- | --- |
 `--normalise` | | `FALSE` | Whether to normalise each target column to have mean 0 and standard deviation 1.
 `--random_seed` | `INT` | 666 | The initial state of the random number generator used to shuffle the targets on import.
-`--every` | `INT` | 1 | Factor by which to subsample the data (after shuffling). For example `--every 2` will extract half the targets.
+`--every` | `INT>0` | 1 | Factor by which to subsample the data (after shuffling). For example `--every 2` will extract half the targets.
 
 ### landshark-extract
 
@@ -237,13 +237,33 @@ Optional Arguments:
 
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--split` | `INT>0` `INT>0` | 1 10 | The speficiation of folds for the train/test split.  For example, `--split 1 10` uses fold 1 of 10 for testing. Repeated extractions with different folds allows for k-fold cross validation.
+`--split` | `INT>0` `INT>0` | 1 10 | The specification of folds for the train/test split.  For example, `--split 1 10` uses fold 1 of 10 for testing. Repeated extractions with different folds allows for k-fold cross validation.
 `--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
-`--withfeat` | `STRING` | | Select the given feature from the feature stack.  Can be used multiple times for mulitple features. Incompatible with `--withoutfeat` and `--withlist`.
-`--withoutfeat` | `STRING` | | Don't extract the selected feature from the stack. Can be used multiple times for mulitple features. Incompatible with `--withfeat` and `--withlist`.
-`--withlist` | `TXTFILE` | | Provide a newline-separated  (\#-commented) list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
+`--withfeat` | `STRING` | | Extract the given feature from the feature file.  Can be used multiple times for multiple features. Incompatible with `--withoutfeat` and `--withlist`.
+`--withoutfeat` | `STRING` | | Don't extract the given feature from the feature file. Can be used multiple times for multiple features. Incompatible with `--withfeat` and `--withlist`.
+`--withlist` | `TXTFILE` | | Provide a newline-separated  (and \#-commented) text file with a list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
 
 #### query
+
+
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--name` | `STRING` | A name describing the training dataset being constructed.
+`--features` | `FILE` | The landshark HDF5 feature file from which to extract
+
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--split` | `INT>0` `INT>0` | 1 10 | The specification of folds for the train/test split.  For example, `--split 1 10` uses fold 1 of 10 for testing. Repeated extractions with different folds allows for k-fold cross validation.
+`--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
+`--withfeat` | `STRING` | | Extract the given feature from the feature file.  Can be used multiple times for multiple features. Incompatible with `--withoutfeat` and `--withlist`.
+`--withoutfeat` | `STRING` | | Don't extract the given feature from the feature file. Can be used multiple times for multiple features. Incompatible with `--withfeat` and `--withlist`.
+`--withlist` | `TXTFILE` | | Provide a newline-separated  (and \#-commented) text file with a list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
+
 
 ### landshark
 

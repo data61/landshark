@@ -36,27 +36,43 @@ class CliArgs(NamedTuple):
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
-@click.option("--batch-mb", type=float, default=100)
-@click.option("--nworkers", type=int, default=cpu_count())
+@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count(),
+              help="Number of additional worker processes")
+@click.option("--batch-mb", type=float, default=100,
+              help="Approximate size in megabytes of data read per "
+              "worker per iteration")
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str,
         batch_mb: float, nworkers: int) -> int:
-    """Parse the command line arguments."""
+    """Extract features and targets for training, testing and prediction."""
     ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
     return 0
 
 
 @cli.command()
-@click.option("--targets", type=click.Path(exists=True), required=True)
-@click.option("--split", type=int, nargs=2, default=(1, 10))
-@click.option("--random_seed", type=int, default=666)
-@click.option("--name", type=str, required=True)
-@click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--halfwidth", type=int, default=0)
-@click.option("--withfeat", type=str, multiple=True)
-@click.option("--withoutfeat", type=str, multiple=True)
-@click.option("--withlist", type=click.Path(exists=True))
+@click.option("--targets", type=click.Path(exists=True), required=True,
+              help="Target HDF5 file from which to read")
+@click.option("--split", type=int, nargs=2, default=(1, 10),
+              help="Train/test split fold structure. Firt argument is test "
+              "fold (counting from 1), second is total folds.")
+@click.option("--random_seed", type=int, default=666,
+              help="Random state for assigning data to folds")
+@click.option("--name", type=str, required=True,
+              help="Name of the output folder")
+@click.option("--features", type=click.Path(exists=True), required=True,
+              help="Feature HDF5 file from which to read")
+@click.option("--halfwidth", type=int, default=0,
+              help="half width of patch size. Patch side length is "
+              "2 x halfwidth + 1")
+@click.option("--withfeat", type=str, multiple=True,
+              help="Whitelist a particular feature. "
+              "Can be given multiple times.")
+@click.option("--withoutfeat", type=str, multiple=True,
+              help="Blacklist a particular feature. "
+              "Can be given multiple times")
+@click.option("--withlist", type=click.Path(exists=True), help="Path to text"
+              " file giving newline separated list of features to use")
 @click.pass_context
 def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
               random_seed: int, name: str, features: str,
