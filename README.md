@@ -142,6 +142,9 @@ The prediction images will be saved to the model folder.
 
 ## Landshark Commands
 
+The Following section describes all landshark commands, sub-commands and
+options. The major commands in landshark are:
+
 Command | Description
 | --- | --- |
 `landshark-import` | Import geotiff features and shapefile targets into landshark-compatible formats
@@ -150,10 +153,34 @@ Command | Description
 `skshark` | Train a scikit-learn model for comparison/baseline purposes
 `landshark-dump` | Dump train/test and query data into HDF5 for use in external tools
 
+There are two global options for all these commands:
+
+Option | Description
+| --- | --- |
+`-v,--verbosity [DEBUG|INFO|WARNING|ERROR]` | Level of logging
+`--help` | Print command help including option descriptions
+
 
 ### landshark-import
 
+Option | Description
+| --- | --- |
+`--nworkers [INT>=0]` | The number of *additional* worker processes beyond the parent process. Setting this value to 0 disables multiprocessing entirely.
+`--batch-mb [FLOAT>0]` | The approximate size, in megabytes of data read per worker and per iteration. See Memory Usage for details.
+
 #### tifs
+
+The `tifs` subcommand takes a set of tif files and builds a single image stack
+for fast reading by landshark.
+
+Option | Description
+| --- | --- |
+`--ordinal [DIRECTORY]` | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders.
+`--categorical [DIRECTORY]` | A directory containing categorical geotiffs. This argument can be given multipl times with different folders
+`--normalise/--no-normalise` | Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Default is to normalise (and is highly recommended for learning).
+`--name [STR]` | A name describing the feature set being constructed.
+`--ignore-crs/--no-ignore-crs` | Whether to enforce the CRS data being identical for all images. Default is no-ignore, but if you know what you're doing...
+
 
 #### targets
 

@@ -40,12 +40,15 @@ class CliArgs(NamedTuple):
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
-@click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--batch-mb", type=float, default=100)
+@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count(),
+              help="Number of additional worker processes")
+@click.option("--batch-mb", type=float, default=100,
+              help="Approximate size in megabytes of data read per "
+              "worker per iteration")
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str,
         nworkers: int, batch_mb: float) -> int:
-    """Parse the command line arguments."""
+    """Import features and targets into landshark-compatible formats."""
     log.info("Using a maximum of {} worker processes".format(nworkers))
     ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
