@@ -22,6 +22,7 @@ setup(
             "landshark = landshark.scripts.cli:cli",
             "skshark = landshark.scripts.skcli:cli",
             "landshark-import = landshark.scripts.importers:cli",
+            "landshark-extract = landshark.scripts.extractors:cli",
             "landshark-dump = landshark.scripts.dumpers:cli",
         ]
     },
@@ -38,7 +39,8 @@ setup(
         "lru-dict>=1.1.6",
         "tqdm>=4.19.6",
         "scikit-learn>=0.19.1",
-        "aboleth>=0.7.0"
+        "aboleth>=0.7.0",
+        "tensorflow>=1.7"
     ],
 
     extras_require={

@@ -49,7 +49,7 @@ class _CategoryAccumulator:
             self.counts.pop(self.missing)
 
 
-def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
+def get_maps(src: CategoricalArraySource, batchrows: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
@@ -65,7 +65,7 @@ def get_maps(src: CategoricalArraySource, batchsize: int) -> CategoryInfo:
 
     with tqdm(total=n_rows) as pbar:
         with src:
-            for s in iteration.batch_slices(batchsize, n_rows):
+            for s in iteration.batch_slices(batchrows, n_rows):
                 x = src(s)
                 unique, counts = unique_values(x)
                 for a, u, c in zip(accums, unique, counts):

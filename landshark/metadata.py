@@ -55,6 +55,8 @@ class FeatureSetMetadata:
         self.ordinal = ordinal
         self.categorical = categorical
         self.image = image
+        self.D_ordinal = ordinal.D if ordinal else 0
+        self.D_categorical = categorical.D if categorical else 0
 
 
 TargetMetadata = Union[OrdinalMetadata, CategoricalMetadata]

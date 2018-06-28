@@ -74,7 +74,7 @@ class Normaliser(Worker):
         return xm.data
 
 
-def get_stats(src: OrdinalArraySource, batchsize: int) \
+def get_stats(src: OrdinalArraySource, batchrows: int) \
         -> Tuple[np.ndarray, np.ndarray]:
     log.info("Computing ordinal feature statistics")
     n_rows = src.shape[0]
@@ -82,7 +82,7 @@ def get_stats(src: OrdinalArraySource, batchsize: int) \
     stats = StatCounter(n_cols)
     with tqdm(total=n_rows) as pbar:
         with src:
-            for s in iteration.batch_slices(batchsize, n_rows):
+            for s in iteration.batch_slices(batchrows, n_rows):
                 x = src(s)
                 bs = x.reshape((-1, x.shape[-1]))
                 bm = to_masked(bs, src.missing)

@@ -4,80 +4,150 @@ from multiprocessing import cpu_count
 import os
 
 import click
+import numpy as np
+from typing import NamedTuple, Tuple
 
 from landshark.scripts.logger import configure_logging
-from landshark.trainingdata import setup_training
 from landshark.dump import dump_training, dump_query
 from landshark.featurewrite import read_featureset_metadata, \
     read_target_metadata
-from landshark.metadata import TrainingMetadata, QueryMetadata
+from landshark.metadata import TrainingMetadata, QueryMetadata, \
+    CategoricalMetadata
 from landshark.image import strip_image_spec
+from landshark.util import mb_to_points
+from landshark import errors
+from landshark.trainingdata import CategoricalH5ArraySource, \
+    OrdinalH5ArraySource, SourceMetadata
+from landshark.kfold import KFolds
 
 
 log = logging.getLogger(__name__)
 
 
+class CliArgs(NamedTuple):
+    """Arguments passed from the base command."""
+
+    batchMB: float
+    nworkers: int
+
+
 @click.group()
+@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count(),
+              help="Number of additional worker processes")
+@click.option("--batch-mb", type=float, default=100,
+              help="Approximate size in megabytes of data read per "
+              "worker per iteration")
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
-def cli(verbosity: str) -> int:
-    """Parse the command line arguments."""
+@click.pass_context
+def cli(ctx: click.Context, verbosity: str, batch_mb: float,
+        nworkers: int) -> None:
+    """Dump (patched) training or query data into an export HDF5 file."""
+    ctx.obj = CliArgs(batchMB=batch_mb, nworkers=nworkers)
     configure_logging(verbosity)
-    return 0
 
 
 @cli.command()
-@click.argument("features", type=click.Path(exists=True))
-@click.argument("targets", type=click.Path(exists=True))
-@click.option("--folds", type=click.IntRange(2, None), default=10)
-@click.option("--halfwidth", type=click.IntRange(0, None), default=1)
-@click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count())
-@click.option("--batchsize", type=click.IntRange(1, None), default=100)
-@click.option("--random_seed", type=int, default=666)
-def trainingdata(features: str, targets: str, folds: int,
-                 halfwidth: int, batchsize: int, nworkers: int,
-                 random_seed: int) -> int:
+@click.option("--targets", type=click.Path(exists=True), required=True,
+              help="Target HDF5 file from which to read")
+@click.option("--random_seed", type=int, default=666,
+              help="Random state for assigning data to folds")
+@click.option("--name", type=str, required=True,
+              help="Name of the output folder")
+@click.option("--features", type=click.Path(exists=True), required=True,
+              help="Feature HDF5 file from which to read")
+@click.option("--halfwidth", type=int, default=0,
+              help="half width of patch size. Patch side length is "
+              "2 x halfwidth + 1")
+@click.option("--nfolds", dtype=int, default=10, help="The number of folds "
+              "into which to assign each training point.")
+@click.pass_context
+def traintest(ctx: click.Context, features: str, targets: str,
+              halfwidth: int, random_seed: int,
+              nfolds: int, name: str) -> None:
+    """Dump training data (including fold assignments) into an HDF5 file."""
+    catching_f = errors.catch_and_exit(traintest_entrypoint)
+    catching_f(features, targets, halfwidth, random_seed, ctx.obj.nworkers,
+               ctx.obj.batchMB, nfolds, name)
+
+
+def traintest_entrypoint(features: str, targets: str, halfwidth: int,
+                         random_seed: int, nworkers: int,
+                         batchMB: float, nfolds: int, name: str) -> None:
     """Get training data."""
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
-    testfold = 1  # ignored really -- all data written in and fold assignments
-    tinfo = setup_training(features, feature_metadata,
-                           targets, target_metadata, folds,
-                           random_seed, halfwidth)
-    outfile_name = os.path.join(os.getcwd(), "dump_" + tinfo.name + "_traintest.hdf5")
+
+    ndim_ord = feature_metadata.D_ordinal
+    ndim_cat = feature_metadata.D_categorical
+    active_feats_ord = np.ones(ndim_ord, dtype=bool)
+    active_feats_cat = np.ones(ndim_cat, dtype=bool)
+    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+                                    halfwidth=halfwidth)
+
+    target_src = CategoricalH5ArraySource(targets) \
+        if isinstance(target_metadata, CategoricalMetadata) \
+        else OrdinalH5ArraySource(targets)
+
+    n_rows = len(target_src)
+    kfolds = KFolds(n_rows, nfolds, random_seed)
+    tinfo = SourceMetadata(name, features, target_src,
+                           feature_metadata.image, halfwidth, kfolds,
+                           active_feats_ord, active_feats_cat)
+
+    outfile_name = os.path.join(os.getcwd(),
+                                "dump_traintest_" + name + ".hdf5")
     training_metadata = TrainingMetadata(targets=target_metadata,
                                          features=feature_metadata,
                                          halfwidth=halfwidth,
-                                         nfolds=folds,
-                                         testfold=testfold,
+                                         nfolds=nfolds,
+                                         testfold=1,
                                          fold_counts=tinfo.folds.counts)
-    dump_training(tinfo, training_metadata, outfile_name, batchsize, nworkers)
-    log.info("Training dump complete")
-    return 0
+    dump_training(tinfo, training_metadata,
+                  outfile_name, points_per_batch, nworkers)
+    log.info("Train/test dump complete")
 
 
 @cli.command()
-@click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--batchsize", type=int, default=1)
-@click.option("--nworkers", type=int, default=cpu_count())
-@click.option("--halfwidth", type=int, default=1)
-@click.argument("strip", type=int)
-@click.argument("totalstrips", type=int)
-def querydata(features: str, batchsize: int, nworkers: int,
-              halfwidth: int, strip: int, totalstrips: int) -> int:
-    """Grab a chunk for prediction."""
+@click.option("--strip", type=int, nargs=2, default=(1, 1),
+              help="Horizontal strip of the image, eg --strip 3 5 is the "
+              "third strip of 5")
+@click.option("--name", type=str, required=True,
+              help="The name of the output from this command.")
+@click.option("--features", type=click.Path(exists=True), required=True,
+              help="Feature HDF5 file from which to read")
+@click.option("--halfwidth", type=int, default=0,
+              help="half width of patch size. Patch side length is "
+              "2 x halfwidth + 1")
+@click.pass_context
+def query(ctx: click.Context, features: str, halfwidth: int,
+          strip: Tuple[int, int], name: str) -> None:
+    """Export query data to an HDF5 file."""
+    catching_f = errors.catch_and_exit(query_entrypoint)
+    catching_f(features, halfwidth, strip, name, ctx.obj.batchMB,
+               ctx.obj.nworkers)
+
+
+def query_entrypoint(features: str, halfwidth: int,
+                     strips: Tuple[int, int], name: str, batchMB: float,
+                     nworkers: int) -> None:
+    """Entry point for querydata dumping."""
+    thisstrip, totalstrips = strips
     feature_metadata = read_featureset_metadata(features)
-    strip_imspec = strip_image_spec(strip, totalstrips,
+
+    ndim_ord = feature_metadata.D_ordinal
+    ndim_cat = feature_metadata.D_categorical
+    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+                                    halfwidth=halfwidth)
+
+    strip_imspec = strip_image_spec(thisstrip, totalstrips,
                                     feature_metadata.image)
-    strip_metadata = deepcopy(feature_metadata)
-    strip_metadata.image = strip_imspec
-    log.info("Using {} worker processes".format(nworkers))
-    name = os.path.basename(features).rsplit(".")[0] + \
-        "_query{}of{}".format(strip, totalstrips)
-    fname = os.path.join(os.getcwd(), "dump_" + name + ".hdf5")
-    query_metadata = QueryMetadata(strip_metadata)
-    dump_query(features, query_metadata, strip, totalstrips, batchsize,
-               halfwidth, nworkers, name, fname)
+    feature_metadata.image = strip_imspec
+
+    fname = os.path.join(os.getcwd(), "dump_query_" + name +
+                         "_strip{}of{}.hdf5".format(thisstrip, totalstrips))
+    query_metadata = QueryMetadata(feature_metadata)
+    dump_query(features, query_metadata, thisstrip, totalstrips,
+               points_per_batch, halfwidth, nworkers, name, fname)
     log.info("Query dump complete")
-    return 0

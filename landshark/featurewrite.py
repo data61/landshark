@@ -121,25 +121,25 @@ def read_imagespec(hfile: tables.File) -> ImageSpec:
 def write_ordinal(source: OrdinalArraySource,
                   hfile: tables.File,
                   n_workers: int,
-                  batchsize: Optional[int]=None,
+                  batchrows: Optional[int]=None,
                   stats: Optional[Tuple[np.ndarray, np.ndarray]]=None) \
         -> None:
     transform = Normaliser(*stats, source.missing) if stats else IdWorker()
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
-                  "ordinal_data", transform, n_workers, batchsize)
+                  "ordinal_data", transform, n_workers, batchrows)
 
 
 def write_categorical(source: CategoricalArraySource,
                       hfile: tables.File,
                       n_workers: int,
-                      batchsize: Optional[int]=None,
+                      batchrows: Optional[int]=None,
                       maps: Optional[np.ndarray]=None) -> None:
     transform = CategoryMapper(maps, source.missing) \
         if maps else IdWorker()
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
-                  "categorical_data", transform, n_workers, batchsize)
+                  "categorical_data", transform, n_workers, batchrows)
 
 
 def _write_source(src: ArraySource,
@@ -148,20 +148,20 @@ def _write_source(src: ArraySource,
                   name: str,
                   transform: Worker,
                   n_workers: int,
-                  batchsize: Optional[int]=None) -> None:
+                  batchrows: Optional[int]=None) -> None:
     front_shape = src.shape[0:-1]
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = hfile.create_carray(hfile.root, name=name,
                                 atom=atom, shape=front_shape, filters=filters)
-    batchsize = batchsize if batchsize else src.native
-    log.info("Writing {} to HDF5 in {}-row batches".format(name, batchsize))
-    _write(src, array, batchsize, n_workers, transform)
+    batchrows = batchrows if batchrows else src.native
+    log.info("Writing {} to HDF5 in {}-row batches".format(name, batchrows))
+    _write(src, array, batchrows, n_workers, transform)
 
 
 def _write(source: ArraySource, array: tables.CArray,
-           batchsize: int, n_workers: int, transform: Worker) -> None:
+           batchrows: int, n_workers: int, transform: Worker) -> None:
     n_rows = len(source)
-    slices = list(batch_slices(batchsize, n_rows))
+    slices = list(batch_slices(batchrows, n_rows))
     out_it = task_list(slices, source, transform, n_workers)
     for s, d in with_slices(out_it):
         array[s.start:s.stop] = d
