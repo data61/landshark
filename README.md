@@ -30,6 +30,10 @@ is anything built on top of tensorflow like Keras or Aboleth. There's also
 a scikit-learn interface for problems that do fit in memory (although this is
 mainly for validation purposes).
 
+## Installation
+
+TODO
+
 ## Outline
 
 The basic steps in using landshark are:
@@ -267,13 +271,84 @@ Option | Argument | Default | Description
 
 ### landshark
 
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--batch-mb` | `FLOAT>0` | 100 | The approximate size in megabytes of data read per worker and per iteration. See Memory Usage for details.
+`--gpu/--no-gpu` | | `FALSE` | Whether to use the GPU (rather than the CPU) as the primary tensorflow device.
+
+
 #### train
+
+
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--data` | `DIRECTORY` | The traintest data directory containing the training and testing data.
+`--config` | `FILE` | The path to the model configuration file.
+
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--epochs` | `INT>0` | 1 | The number of epochs to train before evaluating the current parameters on the test set.
+`--batchsize` | `INT>0` | 1000 | The size of the minibatch for one iteration of stochastic gradient descent.
+`--samples` | `INT>0` | 5 | The number of times to sample the parameter distributions for training.
+`--test_samples` | `INT>0` | 20| The number of times to sample the parameter distributions for testing.
+`--learnrate` | `FLOAT>0` | 0.01 | The learning rate to pass to the ADAM optimiser.
+`--test_batchsize` | `INT>0` | 1000 | The size of the batch to evalue the test data.
+`--iterations` | `INT>0` |  | If specified, limits the training to the supplied number of  train/test iterations. Default is to train indefinitely.
+
 
 #### predict
 
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--data` | `DIRECTORY` | The directory containing the query data.
+`--model` | `DIRECTORY` | The trained model directory.
+
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--samples` | `INT>0` | 20 | The number of times to sample the parameter distributions for prediction.
+`--lower` | `0<INT<100` | 10 | The lower percentile bound of the predictive posterior to output.
+`--upper` | `0<INT<100` | 90 | The upper percentile bound of the predictive posterior to output.
+
+
 ### skshark
 
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--batch-mb` | `FLOAT>0` | 100 | The approximate size in megabytes of data read per worker and per iteration. See Memory Usage for details.
+
+
 #### train
+
+Required Flags:
+
+Flag | Argument | Description
+| --- | --- | --- |
+`--data` | `DIRECTORY` | The traintest data directory containing the training and testing data.
+`--config` | `FILE` | The path to the model configuration file.
+
+
+Optional Arguments:
+
+Option | Argument | Default | Description
+| --- | --- | --- | --- |
+`--epochs` | `INT>0` | 1 | The number of epochs to train before evaluating the current parameters on the test set.
+`--batchsize` | `INT>0` | 1000 | The size of the minibatch for one iteration of stochastic gradient descent.
+`--samples` | `INT>0` | 5 | The number of times to sample the parameter distributions for training.
+`--test_samples` | `INT>0` | 20| The number of times to sample the parameter distributions for testing.
+`--learnrate` | `FLOAT>0` | 0.01 | The learning rate to pass to the ADAM optimiser.
+`--test_batchsize` | `INT>0` | 1000 | The size of the batch to evalue the test data.
+`--iterations` | `INT>0` |  | If specified, limits the training to the supplied number of  train/test iterations. Default is to train indefinitely.
+
 
 #### predict
 

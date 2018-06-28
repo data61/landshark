@@ -24,22 +24,27 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
-@click.option("--gpu/--no-gpu", default=False)
-@click.option("--batch-mb", type=float, default=100)
+@click.option("--gpu/--no-gpu", default=False,
+              help="Have tensorflow use the GPU")
+@click.option("--batch-mb", type=float, default=100,
+              help="Approximate size in megabytes of data read per "
+              "worker per iteration")
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
 @click.pass_context
 def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
-    """Parse the command line arguments."""
+    """Train a model and use it to make predictions."""
     ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb)
     configure_logging(verbosity)
     return 0
 
 
 @cli.command()
-@click.option("--data", type=click.Path(exists=True), required=True)
-@click.option("--config", type=click.Path(exists=True), required=True)
+@click.option("--data", type=click.Path(exists=True), required=True,
+              help="The traintest folder containing the data")
+@click.option("--config", type=click.Path(exists=True), required=True,
+              help="The model configuration file")
 @click.option("--epochs", type=click.IntRange(min=1), default=1,
               help="Epochs between testing the model.")
 @click.option("--batchsize", type=click.IntRange(min=1), default=1000,
@@ -59,7 +64,7 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
 def train(ctx: click.Context, data: str, config: str, epochs: int,
           batchsize: int, test_batchsize: int, samples: int, test_samples: int,
           iterations: Optional[int], learnrate: float) -> None:
-    """Train a model specified by an input configuration."""
+    """Train a model specified by  a config file."""
     log.info("Ignoring batch-mb option, using specified or default batchsize")
     catching_f = errors.catch_and_exit(train_entrypoint)
     catching_f(data, config, epochs, batchsize, test_batchsize, samples,

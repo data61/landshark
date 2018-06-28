@@ -30,7 +30,7 @@ class CliArgs(NamedTuple):
               default="INFO", help="Level of logging")
 @click.pass_context
 def cli(ctx: click.Context, verbosity: str, batch_mb: float) -> int:
-    """Parse the command line arguments."""
+    """Train and predict using scikit-learn style models (in memory!)."""
     ctx.obj = CliArgs(batchMB=batch_mb)
     configure_logging(verbosity)
     return 0

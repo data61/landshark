@@ -78,6 +78,7 @@ def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
               random_seed: int, name: str, features: str,
               withfeat: Tuple[str, ...], withoutfeat: Tuple[str, ...],
               withlist: Optional[str], halfwidth: int) -> int:
+    """Extract training and testing data to train and validate a model."""
     fold, nfolds = split
     catching_f = errors.catch_and_exit(traintest_entrypoint)
     catching_f(targets, fold, nfolds, random_seed, list(withfeat),
@@ -132,15 +133,24 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
 @cli.command()
 @click.option("--strip", type=int, nargs=2, default=(1, 1))
 @click.option("--name", type=str, required=True)
-@click.option("--features", type=click.Path(exists=True), required=True)
-@click.option("--halfwidth", type=int, default=0)
-@click.option("--withfeat", type=str, multiple=True)
-@click.option("--withoutfeat", type=str, multiple=True)
-@click.option("--withlist", type=click.Path(exists=True))
+@click.option("--features", type=click.Path(exists=True), required=True,
+              help="Feature HDF5 file from which to read")
+@click.option("--halfwidth", type=int, default=0,
+              help="half width of patch size. Patch side length is "
+              "2 x halfwidth + 1")
+@click.option("--withfeat", type=str, multiple=True,
+              help="Whitelist a particular feature. "
+              "Can be given multiple times.")
+@click.option("--withoutfeat", type=str, multiple=True,
+              help="Blacklist a particular feature. "
+              "Can be given multiple times")
+@click.option("--withlist", type=click.Path(exists=True), help="Path to text"
+              " file giving newline separated list of features to use")
 @click.pass_context
 def query(ctx: click.Context, strip: Tuple[int, int], name: str,
           features: str, halfwidth: int, withfeat: Tuple[str, ...],
           withoutfeat: Tuple[str, ...], withlist: Optional[str]) -> None:
+    """Extract query data for making prediction images."""
     catching_f = errors.catch_and_exit(query_entrypoint)
     catching_f(features, ctx.obj.batchMB, ctx.obj.nworkers,
                halfwidth, strip, list(withfeat), list(withoutfeat),
