@@ -86,8 +86,10 @@ def train_entrypoint(data: str, config: str, epochs: int, batchsize: int,
 
 
 @cli.command()
-@click.option("--model", type=click.Path(exists=True), required=True)
-@click.option("--data", type=click.Path(exists=True), required=True)
+@click.option("--model", type=click.Path(exists=True), required=True,
+              help="Path to the trained model directory")
+@click.option("--data", type=click.Path(exists=True), required=True,
+              help="Path to the query data directory")
 @click.option("--samples", type=click.IntRange(min=1), default=20,
               help="Number of times to sample the model for prediction")
 @click.option("--lower", type=click.IntRange(min=0, max=100), default=10,

@@ -131,8 +131,11 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
 
 
 @cli.command()
-@click.option("--strip", type=int, nargs=2, default=(1, 1))
-@click.option("--name", type=str, required=True)
+@click.option("--strip", type=int, nargs=2, default=(1, 1),
+              help="Horizontal strip of the image, eg --strip 3 5 is the "
+              "third strip of 5")
+@click.option("--name", type=str, required=True,
+              help="The name of the output from this command.")
 @click.option("--features", type=click.Path(exists=True), required=True,
               help="Feature HDF5 file from which to read")
 @click.option("--halfwidth", type=int, default=0,

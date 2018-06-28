@@ -24,7 +24,9 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
-@click.option("--batch-mb", type=float, default=100)
+@click.option("--batch-mb", type=float, default=100,
+              help="Approximate size in megabytes of data read per "
+              "worker per iteration")
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
@@ -37,14 +39,19 @@ def cli(ctx: click.Context, verbosity: str, batch_mb: float) -> int:
 
 
 @cli.command()
-@click.option("--data", type=click.Path(exists=True), required=True)
-@click.option("--config", type=click.Path(exists=True), required=True)
-@click.option("--maxpoints", type=int, default=None)
-@click.option("--random_seed", type=int, default=666)
+@click.option("--data", type=click.Path(exists=True), required=True,
+              help="The traintest folder containing the data")
+@click.option("--config", type=click.Path(exists=True), required=True,
+              help="The model configuration file")
+@click.option("--maxpoints", type=int, default=None,
+              help="Limit the number of training points "
+              "supplied to the sklearn model")
+@click.option("--random_seed", type=int, default=666,
+              help="Random state supplied to sklearn for reproducibility")
 @click.pass_context
 def train(ctx: click.Context, data: str, config: str,
           maxpoints: Optional[int], random_seed: int) -> None:
-    """Train a model specified by an input configuration."""
+    """Train a model specified by an sklearn input configuration."""
     catching_f = errors.catch_and_exit(train_entrypoint)
     catching_f(data, config, maxpoints, random_seed, ctx.obj.batchMB)
 
