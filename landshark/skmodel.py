@@ -11,7 +11,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, log_loss, r2_score, \
     confusion_matrix
 
-from landshark.metadata import TrainingMetadata
+from landshark.metadata import TrainingMetadata, CategoricalMetadata
 from landshark.model import train_data, test_data, sample_weights_labels
 from landshark.serialise import deserialise
 from landshark.basetypes import CategoricalType, OrdinalType, \
@@ -163,7 +163,7 @@ def train_test(config_module: str, records_train: List[str],
                model_dir: str, maxpoints: Optional[int], batchsize: int,
                random_seed: int) -> None:
 
-    classification = hasattr(metadata.targets, "categorical")
+    classification = isinstance(metadata.targets, CategoricalMetadata)
 
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
@@ -187,7 +187,7 @@ def train_test(config_module: str, records_train: List[str],
         acc = accuracy_score(y_array_test, EYs)
         bacc = accuracy_score(y_array_test, EYs, sample_weight=sample_weights)
         conf = confusion_matrix(y_array_test, EYs)
-        nlabels = metadata.targets.D
+        nlabels = metadata.targets.ncategories
         labels = np.arange(nlabels)
         lp = -1 * log_loss(y_array_test, pys, labels=labels)
         log.info("Sklearn acc: {:.5f}, lp: {:.5f}".format(acc, lp))

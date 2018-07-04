@@ -273,6 +273,8 @@ def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
 
 def _log_scores(scores: dict, initial_message: str="Aboleth ") -> None:
     """Log testing scores."""
+    if "confmat" in scores:
+        del scores["confmat"]
     logmsg = str(initial_message)
     for k, v in scores.items():
         logmsg += "{}: {} ".format(k, v)
