@@ -60,7 +60,7 @@ def cli(ctx: click.Context, verbosity: str, batch_mb: float,
 @click.option("--halfwidth", type=int, default=0,
               help="half width of patch size. Patch side length is "
               "2 x halfwidth + 1")
-@click.option("--nfolds", dtype=int, default=10, help="The number of folds "
+@click.option("--nfolds", type=int, default=10, help="The number of folds "
               "into which to assign each training point.")
 @click.pass_context
 def traintest(ctx: click.Context, features: str, targets: str,
