@@ -5,8 +5,7 @@ import os.path
 
 from typing import Iterator, List, Optional, Tuple
 import numpy as np
-from tensorflow.python_io import TFRecordOptions, TFRecordCompressionType, \
-    TFRecordWriter
+import tensorflow as tf
 
 log = logging.getLogger(__name__)
 
@@ -47,8 +46,9 @@ class _MultiFileWriter:
         self.output_directory = output_directory
         self.tag = tag
         self.file_index = -1
-        self._options = TFRecordOptions(TFRecordCompressionType.ZLIB)
-        self._f: Optional[TFRecordWriter] = None
+        self._options = tf.python_io.TFRecordOptions(
+            tf.python_io.TFRecordCompressionType.ZLIB)
+        self._f: Optional[tf.python_io.TFRecordWriter] = None
         self._nextfile()
         self.lines_written = 0
 
@@ -59,7 +59,7 @@ class _MultiFileWriter:
         self.path = os.path.join(
             self.output_directory,
             "{}.{:05d}.tfrecord".format(self.tag, self.file_index))
-        self._f = TFRecordWriter(self.path, options=self._options)
+        self._f = tf.python_io.TFRecordWriter(self.path, options=self._options)
 
     def add(self, batch: List[bytes]) -> None:
         if self._f:

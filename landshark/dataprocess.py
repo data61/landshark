@@ -1,29 +1,19 @@
-"""write training data"""
-from types import TracebackType
-from itertools import groupby, count
+"""Process training and query data."""
+
 import logging
-import os.path
+from itertools import count, groupby
+from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
-from typing import List, Tuple, Dict, Iterator, cast, Optional, TypeVar, \
-    NamedTuple
 import tables
 
-
 from landshark import patch
-from landshark.multiproc import task_list
-from landshark.basetypes import FixedSlice, Worker, IdReader, ArraySource
-from landshark.patch import PatchRowRW, PatchMaskRowRW
-from landshark.iteration import batch_slices
-from landshark import tfwrite
-from landshark.hread import H5Features, CategoricalH5ArraySource, \
-    OrdinalH5ArraySource
-from landshark.image import indices_strip, world_to_image, ImageSpec
-from landshark.hread import read_image_spec
-from landshark.serialise import serialise
+from landshark.basetypes import ArraySource, FixedSlice, Worker
+from landshark.hread import H5Features
+from landshark.image import ImageSpec, world_to_image
 from landshark.kfold import KFolds
-from landshark.metadata import CategoricalMetadata, FeatureSetMetadata, \
-    TargetMetadata
+from landshark.patch import PatchMaskRowRW, PatchRowRW
+from landshark.serialise import serialise
 
 log = logging.getLogger(__name__)
 
@@ -259,42 +249,3 @@ class SerialisingQueryDataProcessor(Worker):
         ord_marray, cat_marray = self.proc(indices)
         strings = serialise(ord_marray, cat_marray, None)
         return strings
-
-
-def write_trainingdata(tinfo: SourceMetadata,
-                       output_directory: str,
-                       testfold: int,
-                       batchsize: int,
-                       nworkers: int
-                       ) -> None:
-
-    log.info("Testing data is fold {} of {}".format(testfold, tinfo.folds))
-    log.info("Writing training data to tfrecord in {}-point batches".format(
-        batchsize))
-    n_rows = len(tinfo.target_src)
-    worker = SerialisingTrainingDataProcessor(tinfo)
-    tasks = list(batch_slices(batchsize, n_rows))
-    out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
-    fold_it = tinfo.folds.iterator(batchsize)
-    tfwrite.training(out_it, n_rows, output_directory, testfold, fold_it)
-
-
-def write_querydata(feature_path: str,
-                    image_spec: ImageSpec,
-                    strip: int,
-                    total_strips: int,
-                    points_per_batch: int,
-                    halfwidth: int,
-                    n_workers: int,
-                    output_directory: str,
-                    tag: str,
-                    active_ord: np.ndarray,
-                    active_cat: np.ndarray) -> None:
-    reader_src = IdReader()
-    it, n_total = indices_strip(image_spec, strip, total_strips,
-                                points_per_batch)
-    worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth,
-                                           active_ord, active_cat)
-    tasks = list(it)
-    out_it = task_list(tasks, reader_src, worker, n_workers)
-    tfwrite.query(out_it, n_total, output_directory, tag)
