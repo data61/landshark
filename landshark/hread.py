@@ -6,8 +6,7 @@ import tables
 from typing import Union, Tuple
 from landshark.image import ImageSpec
 from landshark.basetypes import (ArraySource, OrdinalArraySource,
-                                 CategoricalArraySource, FeatureValues,
-                                 FixedSlice)
+                                 CategoricalArraySource)
 from landshark.category import CategoryInfo
 
 

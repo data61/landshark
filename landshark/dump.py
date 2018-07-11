@@ -1,7 +1,7 @@
 import tables
 import numpy as np
 
-from landshark.image import indices_strip, ImageSpec
+from landshark.image import indices_strip
 from landshark.basetypes import IdReader
 from landshark.dataprocess import TrainingDataProcessor, QueryDataProcessor
 from landshark.iteration import batch_slices, with_slices

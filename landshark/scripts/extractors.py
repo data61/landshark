@@ -6,7 +6,6 @@ from multiprocessing import cpu_count
 from typing import List, NamedTuple, Optional, Tuple
 
 import click
-import numpy as np
 
 from landshark import errors
 from landshark.dataprocess import SourceMetadata

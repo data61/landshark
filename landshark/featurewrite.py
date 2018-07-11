@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 import tables
-from typing import List, Iterator, TypeVar, Optional, Tuple, Union, cast
+from typing import List, Iterator, TypeVar, Optional, Tuple
 
 from landshark.basetypes import (ArraySource, OrdinalArraySource,
                                  CategoricalArraySource, CoordinateArraySource,
@@ -12,7 +12,7 @@ from landshark.basetypes import (ArraySource, OrdinalArraySource,
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
 from landshark.multiproc import task_list
-from landshark.category import CategoryMapper, CategoryInfo
+from landshark.category import CategoryMapper
 from landshark.normalise import Normaliser
 from landshark.metadata import OrdinalMetadata, CategoricalMetadata, \
     FeatureSetMetadata, TargetMetadata

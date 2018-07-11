@@ -3,7 +3,7 @@
 import os.path
 from glob import glob
 
-from typing import Optional, List
+from typing import List
 
 
 def tifnames(directories: List[str]) -> List[str]:
@@ -23,4 +23,3 @@ def parse_withlist(listfile: str) -> List[str]:
     stripped = [l.strip().rstrip() for l in nocomments]
     noempty = [l for l in stripped if l is not ""]
     return noempty
-

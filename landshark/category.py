@@ -5,7 +5,7 @@ from collections import OrderedDict
 
 from tqdm import tqdm
 import numpy as np
-from typing import Tuple, List, NamedTuple, Optional, Callable
+from typing import Tuple, List, NamedTuple, Optional
 
 from landshark import iteration
 from landshark.basetypes import CategoricalType, CategoricalArraySource, Worker
