@@ -1,25 +1,25 @@
 """Import tifs and targets into landshark world."""
 
-import os
-import click
 import logging
-from typing import NamedTuple, List, Optional
-from landshark.scripts.logger import configure_logging
+import os
 from multiprocessing import cpu_count
-from landshark.featurewrite import read_featureset_metadata, \
-    read_target_metadata
+from typing import List, NamedTuple, Optional, Tuple
+
+import click
 import numpy as np
 
-from landshark.trainingdata import write_trainingdata, write_querydata
-from landshark.metadata import TrainingMetadata, \
-    QueryMetadata, pickle_metadata, CategoricalMetadata
-from landshark.image import strip_image_spec
-from typing import List, Tuple, Optional
 from landshark import errors
-from landshark.extract import get_active_features, active_column_metadata
-from landshark.trainingdata import CategoricalH5ArraySource, \
-    OrdinalH5ArraySource, SourceMetadata
+from landshark.dataprocess import SourceMetadata
+from landshark.datawrite import write_querydata, write_trainingdata
+from landshark.extract import active_column_metadata, get_active_features
+from landshark.featurewrite import (read_featureset_metadata,
+                                    read_target_metadata)
+from landshark.hread import CategoricalH5ArraySource, OrdinalH5ArraySource
+from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
+from landshark.metadata import (CategoricalMetadata, QueryMetadata,
+                                TrainingMetadata, pickle_metadata)
+from landshark.scripts.logger import configure_logging
 from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)

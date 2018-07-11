@@ -1,25 +1,25 @@
 """Dump data to hdf5 for external tools."""
+
 import logging
-from multiprocessing import cpu_count
 import os
+from multiprocessing import cpu_count
+from typing import NamedTuple, Tuple
 
 import click
 import numpy as np
-from typing import NamedTuple, Tuple
 
-from landshark.scripts.logger import configure_logging
-from landshark.dump import dump_training, dump_query
-from landshark.featurewrite import read_featureset_metadata, \
-    read_target_metadata
-from landshark.metadata import TrainingMetadata, QueryMetadata, \
-    CategoricalMetadata
-from landshark.image import strip_image_spec
-from landshark.util import mb_to_points
 from landshark import errors
-from landshark.trainingdata import CategoricalH5ArraySource, \
-    OrdinalH5ArraySource, SourceMetadata
+from landshark.dataprocess import SourceMetadata
+from landshark.dump import dump_query, dump_training
+from landshark.featurewrite import (read_featureset_metadata,
+                                    read_target_metadata)
+from landshark.hread import CategoricalH5ArraySource, OrdinalH5ArraySource
+from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
-
+from landshark.metadata import (CategoricalMetadata, QueryMetadata,
+                                TrainingMetadata)
+from landshark.scripts.logger import configure_logging
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
