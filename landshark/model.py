@@ -227,6 +227,7 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     slices = [slice(b, e) for b, e in zip(begin, end)]
     return slices
 
+
 def patch_categories(metadata: TrainingMetadata) -> List[int]:
     """Get the number of categories including the extra patch columns"""
     assert metadata.features.categorical
@@ -235,6 +236,7 @@ def patch_categories(metadata: TrainingMetadata) -> List[int]:
                     metadata.features.categorical.ncategories]
     ncategories_patched = [e for l in ncats_nested for e in l]
     return ncategories_patched
+
 
 def train_data(records: List[str], batch_size: int, epochs: int=1,
                random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:

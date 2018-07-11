@@ -12,6 +12,7 @@ from landshark.basetypes import CategoricalType, CategoricalArraySource, Worker
 
 log = logging.getLogger(__name__)
 
+
 class CategoryInfo(NamedTuple):
     mappings: List[np.ndarray]
     counts: List[np.ndarray]

@@ -15,6 +15,7 @@ def tifnames(directories: List[str]) -> List[str]:
             names.extend(glob(glob_pattern, recursive=True))
     return names
 
+
 def parse_withlist(listfile: str) -> List[str]:
     with open(listfile, "r") as f:
         lines = f.readlines()

@@ -8,6 +8,7 @@ from landshark.basetypes import MissingType, OrdinalType, CategoricalType, \
 
 log = logging.getLogger(__name__)
 
+
 def to_masked(array: np.ndarray, missing_value: MissingType) \
         -> np.ma.MaskedArray:
     """Create a masked array from array plus list of missing."""
@@ -17,6 +18,7 @@ def to_masked(array: np.ndarray, missing_value: MissingType) \
         mask = array == missing_value
         marray = np.ma.MaskedArray(data=array, mask=mask)
     return marray
+
 
 def mb_to_points(batchMB: float, ndim_ord: int, ndim_cat: int,
                  ndim_coord: int=0, halfwidth: int=0) -> int:
@@ -31,6 +33,7 @@ def mb_to_points(batchMB: float, ndim_ord: int, ndim_cat: int,
         npoints, npoints * mbytes_per_point))
     return npoints
 
+
 def mb_to_rows(batchMB: float, row_width: int, ndim_ord: int, ndim_cat: int,
                halfwidth: int=0) -> int:
     log.info("Batch size of {}MB requested".format(batchMB))
@@ -43,4 +46,3 @@ def mb_to_rows(batchMB: float, row_width: int, ndim_ord: int, ndim_cat: int,
     log.info("Batch size set to {} rows, total {}MB".format(
         nrows, point_mbytes * row_width * nrows))
     return nrows
-

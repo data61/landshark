@@ -19,6 +19,7 @@ class Array2DMetadata:
         self.labels = labels
         self.missing = missing
 
+
 class OrdinalMetadata(Array2DMetadata):
     def __init__(self, N: int, D: int, labels: List[str],
                  missing: Optional[OrdinalType], means: Optional[np.ndarray],
@@ -26,6 +27,7 @@ class OrdinalMetadata(Array2DMetadata):
         super().__init__(N, D , labels, missing)
         self.means = means
         self.variances = variances
+
 
 class CategoricalMetadata(Array2DMetadata):
     def __init__(self, N: int, D: int, labels: List[str],
@@ -35,6 +37,7 @@ class CategoricalMetadata(Array2DMetadata):
         self.ncategories = ncategories
         self.mappings = mappings
         self.counts = counts
+
 
 class FeatureSetMetadata:
 
@@ -61,6 +64,7 @@ class FeatureSetMetadata:
 
 TargetMetadata = Union[OrdinalMetadata, CategoricalMetadata]
 
+
 class TrainingMetadata(NamedTuple):
     targets: TargetMetadata
     features: FeatureSetMetadata
@@ -69,8 +73,10 @@ class TrainingMetadata(NamedTuple):
     testfold: int
     fold_counts: Dict[int, int]
 
+
 class QueryMetadata(NamedTuple):
     features: FeatureSetMetadata
+
 
 def pickle_metadata(directory: str, m: Any) -> None:
     """TODO."""
@@ -85,10 +91,12 @@ def _load_metadata(path: str) -> Any:
         obj = pickle.load(f)
     return obj
 
+
 def unpickle_training_metadata(path: str) -> TrainingMetadata:
     obj = _load_metadata(path)
     m = cast(TrainingMetadata, obj)
     return m
+
 
 def unpickle_query_metadata(path: str) -> QueryMetadata:
     obj = _load_metadata(path)

@@ -16,6 +16,7 @@ from landshark.basetypes import CategoricalType, OrdinalType, NumericalType,\
 
 log = logging.getLogger(__name__)
 
+
 class BatchWriter:
 
     def __init__(self, rs_file: rs.DatasetReader, width: int, height: int,

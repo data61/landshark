@@ -7,6 +7,8 @@ from typing import Iterator, TypeVar, List, Tuple
 from landshark.basetypes import FixedSlice
 
 T = TypeVar("T")
+
+
 def batch(it: Iterator[T], batchsize: int, total_size: int) \
         -> Iterator[List[T]]:
     while True:
@@ -26,6 +28,7 @@ def batch_slices(batchsize: int, total_size: int) -> Iterator[FixedSlice]:
     for start, stop in ret:
         yield FixedSlice(start, stop)
         # pbar.update(stop - start)
+
 
 def with_slices(it: Iterator[np.ndarray]) -> \
         Iterator[Tuple[FixedSlice, np.ndarray]]:

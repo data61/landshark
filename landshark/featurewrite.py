@@ -37,6 +37,7 @@ def write_feature_metadata(meta: FeatureSetMetadata,
     if meta.categorical:
         write_categorical_metadata(meta.categorical, hfile)
 
+
 def read_featureset_metadata(path: str) -> FeatureSetMetadata:
     with tables.open_file(path, 'r') as hfile:
         N = hfile.root._v_attrs.N
@@ -49,6 +50,7 @@ def read_featureset_metadata(path: str) -> FeatureSetMetadata:
     m = FeatureSetMetadata(ordinal, categorical, image_spec)
     return m
 
+
 def read_target_metadata(path: str) -> TargetMetadata:
     with tables.open_file(path, 'r') as hfile:
         if hasattr(hfile.root, "ordinal_data"):
@@ -60,6 +62,7 @@ def read_target_metadata(path: str) -> TargetMetadata:
         else:
             raise RuntimeError("Can't find data in target file")
 
+
 def write_ordinal_metadata(meta: OrdinalMetadata,
                            hfile: tables.File) -> None:
     hfile.root._v_attrs.ordinal_N = meta.N
@@ -68,6 +71,7 @@ def write_ordinal_metadata(meta: OrdinalMetadata,
     _make_str_vlarray(hfile, "ordinal_labels", meta.labels)
     hfile.root.ordinal_data.attrs.mean = meta.means
     hfile.root.ordinal_data.attrs.variance = meta.variances
+
 
 def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
     N = hfile.root._v_attrs.ordinal_N
@@ -78,6 +82,7 @@ def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
     var = hfile.root.ordinal_data.attrs.variance
     m = OrdinalMetadata(N, D, labels, missing, mean, var)
     return m
+
 
 def write_categorical_metadata(meta: CategoricalMetadata,
                                hfile: tables.File) -> None:
@@ -90,6 +95,7 @@ def write_categorical_metadata(meta: CategoricalMetadata,
                        obj=meta.ncategories)
     _make_int_vlarray(hfile, "categorical_counts", meta.counts)
     _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
+
 
 def read_categorical_metadata(hfile: tables.File) -> CategoricalMetadata:
     N = hfile.root._v_attrs.categorical_N
@@ -117,6 +123,7 @@ def read_imagespec(hfile: tables.File) -> ImageSpec:
     y_coordinates = np.array(hfile.root.y_coordinates)
     imspec = ImageSpec(x_coordinates, y_coordinates, crs)
     return imspec
+
 
 def write_ordinal(source: OrdinalArraySource,
                   hfile: tables.File,

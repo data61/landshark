@@ -110,7 +110,6 @@ def predict(
                lower, upper, ctx.obj.gpu)
 
 
-
 def predict_entrypoint(model: str, data: str, batchMB: float, samples: int,
                        lower: int, upper: int, gpu: bool) -> None:
     train_metadata, query_metadata, query_records, strip, nstrips = \

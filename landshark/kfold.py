@@ -19,6 +19,7 @@ def _batch_randn(start: int, stop: int, size: int,
         total_n += batch_n
     return
 
+
 class KFolds:
 
     def __init__(self, N: int, K: int=10, seed: int=666) -> None:
