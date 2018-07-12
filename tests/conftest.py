@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 import rasterio.transform
 
-
 TestImageData = namedtuple("TestImageData", ["pixel_width", "pixel_height",
                                              "origin_x", "origin_y",
                                              "width", "height", "affine"])

@@ -1,21 +1,20 @@
 """Importing routines for tif data."""
 
-from types import TracebackType
-import os.path
 import logging
+import os.path
 from contextlib import ExitStack
+from types import TracebackType
+from typing import Any, Callable, List, NamedTuple, Tuple
 
-import rasterio
-from rasterio.io import DatasetReader
-from affine import Affine
 import numpy as np
-from typing import Callable, Any, List, Tuple, NamedTuple
+import rasterio
+from affine import Affine
 from mypy_extensions import NoReturn
+from rasterio.io import DatasetReader
 
-from landshark.image import pixel_coordinates, ImageSpec
-from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource
-
+from landshark.basetypes import (ArraySource, CategoricalArraySource,
+                                 OrdinalArraySource)
+from landshark.image import ImageSpec, pixel_coordinates
 
 log = logging.getLogger(__name__)
 

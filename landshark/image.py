@@ -1,14 +1,14 @@
 """Image operations that move between world and image coordinates."""
 import logging
 from itertools import product
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
-from rasterio.transform import from_bounds
 from affine import Affine
-from typing import Tuple, Iterable, Dict, List, Optional, Any
+from rasterio.transform import from_bounds
 
 from landshark import iteration
-from landshark.basetypes import FixedSlice, CoordinateType
+from landshark.basetypes import CoordinateType, FixedSlice
 
 log = logging.getLogger(__name__)
 

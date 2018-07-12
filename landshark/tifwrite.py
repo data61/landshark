@@ -1,18 +1,19 @@
 """TIF writing functionality."""
-import os.path
-import logging
 
-from typing import List, Iterator, cast, Optional
+import logging
+import os.path
+from typing import Iterator, List, Optional, cast
+
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.metadata import TrainingMetadata, CategoricalMetadata, \
-    OrdinalMetadata
+from landshark.basetypes import (CategoricalType, ClassificationPrediction,
+                                 NumericalType, OrdinalType, Prediction,
+                                 RegressionPrediction)
 from landshark.image import ImageSpec
-from landshark.basetypes import CategoricalType, OrdinalType, NumericalType,\
-    RegressionPrediction, ClassificationPrediction, Prediction
-
+from landshark.metadata import (CategoricalMetadata, OrdinalMetadata,
+                                TrainingMetadata)
 
 log = logging.getLogger(__name__)
 

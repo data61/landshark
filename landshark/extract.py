@@ -1,10 +1,12 @@
 """Extracting utilities."""
 import logging
-from landshark.metadata import FeatureSetMetadata, OrdinalMetadata,\
-    CategoricalMetadata
-from landshark.fileio import parse_withlist
-from typing import Set, List, Tuple, Optional
+from typing import List, Optional, Set, Tuple
+
 import numpy as np
+
+from landshark.fileio import parse_withlist
+from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
+                                OrdinalMetadata)
 
 log = logging.getLogger(__name__)
 

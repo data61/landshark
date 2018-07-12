@@ -1,13 +1,13 @@
 """Classes for normalising imput data prior to running a model."""
 
-import numpy as np
 import logging
+from typing import Optional, Tuple
 
+import numpy as np
 from tqdm import tqdm
-from typing import Tuple, Optional
 
 from landshark import iteration
-from landshark.basetypes import OrdinalArraySource, Worker, OrdinalType
+from landshark.basetypes import OrdinalArraySource, OrdinalType, Worker
 from landshark.util import to_masked
 
 log = logging.getLogger(__name__)

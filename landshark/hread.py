@@ -1,13 +1,15 @@
 """Read features and targets from HDF5 files."""
 
 from types import TracebackType
+from typing import Tuple, Union
+
 import numpy as np
 import tables
-from typing import Union, Tuple
-from landshark.image import ImageSpec
-from landshark.basetypes import (ArraySource, OrdinalArraySource,
-                                 CategoricalArraySource)
+
+from landshark.basetypes import (ArraySource, CategoricalArraySource,
+                                 OrdinalArraySource)
 from landshark.category import CategoryInfo
+from landshark.image import ImageSpec
 
 
 class H5ArraySource(ArraySource):

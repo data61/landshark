@@ -1,8 +1,8 @@
 """Tests for the image module."""
 from itertools import product
 
-import pytest
 import numpy as np
+import pytest
 
 from landshark import image
 

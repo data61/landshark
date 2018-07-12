@@ -2,7 +2,6 @@
 
 import os.path
 from glob import glob
-
 from typing import List
 
 

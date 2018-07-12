@@ -1,18 +1,18 @@
 """Dump training/query data to HDF5."""
 
-import tables
 import numpy as np
+import tables
 
-from landshark.image import indices_strip
 from landshark.basetypes import IdReader
-from landshark.dataprocess import TrainingDataProcessor, QueryDataProcessor
-from landshark.iteration import batch_slices, with_slices
-from landshark.multiproc import task_list
+from landshark.dataprocess import (QueryDataProcessor, SourceMetadata,
+                                   TrainingDataProcessor)
 from landshark.featurewrite import write_imagespec
 from landshark.hread import H5Features
-from landshark.dataprocess import SourceMetadata
-from landshark.metadata import TrainingMetadata, CategoricalMetadata,\
-    QueryMetadata
+from landshark.image import indices_strip
+from landshark.iteration import batch_slices, with_slices
+from landshark.metadata import (CategoricalMetadata, QueryMetadata,
+                                TrainingMetadata)
+from landshark.multiproc import task_list
 
 
 def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,

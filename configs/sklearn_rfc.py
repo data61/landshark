@@ -1,8 +1,9 @@
 """Model config file."""
-import numpy as np
-from sklearn.preprocessing import Imputer, OneHotEncoder
-from sklearn.ensemble import RandomForestClassifier
 from typing import Tuple
+
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import Imputer, OneHotEncoder
 
 NTREES = 10
 

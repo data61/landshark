@@ -1,9 +1,10 @@
 """Utilities to support iteration."""
 
-import numpy as np
 import itertools
+from typing import Iterator, List, Tuple, TypeVar
 
-from typing import Iterator, TypeVar, List, Tuple
+import numpy as np
+
 from landshark.basetypes import FixedSlice
 
 T = TypeVar("T")

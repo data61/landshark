@@ -178,4 +178,3 @@ def test_patch_02_mask():
                             [False, False, False]], dtype=bool)
 
     assert np.all(true_answer == p_mask)
-

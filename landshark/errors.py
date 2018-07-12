@@ -2,9 +2,9 @@
 
 import logging
 import sys
-import numpy as np
+from typing import Any, Callable, List
 
-from typing import List, Callable, Any
+import numpy as np
 
 log = logging.getLogger(__name__)
 

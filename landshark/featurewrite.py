@@ -1,21 +1,20 @@
 """Importing routines for tif data."""
 import logging
+from typing import Iterator, List, Optional, Tuple, TypeVar
 
 import numpy as np
-
 import tables
-from typing import List, Iterator, TypeVar, Optional, Tuple
 
-from landshark.basetypes import (ArraySource, OrdinalArraySource,
-                                 CategoricalArraySource, CoordinateArraySource,
-                                 Worker, IdWorker)
+from landshark.basetypes import (ArraySource, CategoricalArraySource,
+                                 CoordinateArraySource, IdWorker,
+                                 OrdinalArraySource, Worker)
+from landshark.category import CategoryMapper
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
+from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
+                                OrdinalMetadata, TargetMetadata)
 from landshark.multiproc import task_list
-from landshark.category import CategoryMapper
 from landshark.normalise import Normaliser
-from landshark.metadata import OrdinalMetadata, CategoricalMetadata, \
-    FeatureSetMetadata, TargetMetadata
 
 log = logging.getLogger(__name__)
 

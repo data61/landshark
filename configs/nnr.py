@@ -1,9 +1,9 @@
 """Generic regression config file."""
+import aboleth as ab
 import numpy as np
 import tensorflow as tf
-import aboleth as ab
 
-from landshark.model import patch_slices, patch_categories
+from landshark.model import patch_categories, patch_slices
 
 ab.set_hyperseed(666)
 noise0 = 0.1

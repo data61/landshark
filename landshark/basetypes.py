@@ -1,11 +1,11 @@
 """Baseclass for datatypes. Modron-light basically."""
 
-from types import TracebackType
 import logging
+from types import TracebackType
+from typing import (Any, List, NamedTuple, Optional, Sized, Tuple, TypeVar,
+                    Union)
 
 import numpy as np
-from typing import (Union, Tuple, Optional, List, Sized, NamedTuple, Any,
-                    TypeVar)
 
 log = logging.getLogger(__name__)
 

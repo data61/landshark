@@ -1,21 +1,22 @@
 """Train/test with tfrecords."""
-import signal
-import logging
-import json
-import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, \
-    Iterable, Tuple, NamedTuple
-from itertools import count
 
+import json
+import logging
+import os.path
+import signal
+from itertools import count
+from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
+                    Tuple, Union)
+
+import aboleth as ab
 import numpy as np
 import tensorflow as tf
-import aboleth as ab
+from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
+                             r2_score)
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, log_loss, r2_score, \
-    confusion_matrix
 
 from landshark.basetypes import ClassificationPrediction, RegressionPrediction
-from landshark.metadata import TrainingMetadata, CategoricalMetadata
+from landshark.metadata import CategoricalMetadata, TrainingMetadata
 from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)

@@ -4,9 +4,8 @@ import logging
 
 import numpy as np
 
-from landshark.basetypes import MissingType, OrdinalType, CategoricalType, \
-    CoordinateType
-
+from landshark.basetypes import (CategoricalType, CoordinateType, MissingType,
+                                 OrdinalType)
 
 log = logging.getLogger(__name__)
 

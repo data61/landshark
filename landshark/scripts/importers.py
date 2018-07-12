@@ -3,27 +3,27 @@
 import logging
 import os.path
 from multiprocessing import cpu_count
-
-import tables
-import click
-import numpy as np
 from typing import List, NamedTuple, Tuple
 
-from landshark.tifread import shared_image_spec, OrdinalStackSource, \
-    CategoricalStackSource
-from landshark.featurewrite import write_ordinal, \
-    write_categorical, write_coordinates
-from landshark.shpread import OrdinalShpArraySource, \
-    CategoricalShpArraySource, CoordinateShpArraySource
-from landshark.metadata import OrdinalMetadata, \
-    CategoricalMetadata, FeatureSetMetadata
-from landshark.featurewrite import write_feature_metadata, \
-    write_ordinal_metadata, write_categorical_metadata
-from landshark.scripts.logger import configure_logging
-from landshark.normalise import get_stats
-from landshark.category import get_maps
-from landshark.fileio import tifnames
+import click
+import numpy as np
+import tables
+
 from landshark import errors
+from landshark.category import get_maps
+from landshark.featurewrite import (write_categorical,
+                                    write_categorical_metadata,
+                                    write_coordinates, write_feature_metadata,
+                                    write_ordinal, write_ordinal_metadata)
+from landshark.fileio import tifnames
+from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
+                                OrdinalMetadata)
+from landshark.normalise import get_stats
+from landshark.scripts.logger import configure_logging
+from landshark.shpread import (CategoricalShpArraySource,
+                               CoordinateShpArraySource, OrdinalShpArraySource)
+from landshark.tifread import (CategoricalStackSource, OrdinalStackSource,
+                               shared_image_spec)
 from landshark.util import mb_to_points, mb_to_rows
 
 log = logging.getLogger(__name__)

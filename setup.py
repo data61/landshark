@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 __version__ = None
 exec(open("landshark/__version__.py").read())
@@ -50,9 +50,10 @@ setup(
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
             "pytest-cov>=2.5.1",
+            "flake8-comprehensions>=1.4.1",
             "flake8-docstrings>=1.1.0",
+            'flake8-isort>=2.5',
             "flake8-quotes>=0.11.0",
-            "flake8-comprehensions>=1.4.1"
         ]
     },
     license="All Rights Reserved",

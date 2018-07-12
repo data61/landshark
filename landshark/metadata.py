@@ -2,11 +2,12 @@
 
 import os.path
 import pickle
-import numpy as np
-from typing import NamedTuple, List, Optional, cast, Union, Dict, Any
+from typing import Any, Dict, List, NamedTuple, Optional, Union, cast
 
+import numpy as np
+
+from landshark.basetypes import CategoricalType, OrdinalType
 from landshark.image import ImageSpec
-from landshark.basetypes import OrdinalType, CategoricalType
 
 
 class Array2DMetadata:
