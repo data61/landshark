@@ -32,7 +32,7 @@ def batch_slices(batchsize: int, total_size: int) -> Iterator[FixedSlice]:
 
 def with_slices(it: Iterator[np.ndarray]) -> \
         Iterator[Tuple[FixedSlice, np.ndarray]]:
-    """Needs iterator over ndarrays"""
+    """Needs iterator over ndarrays."""
     start_idx = 0
     for d in it:
         end_idx = start_idx + d.shape[0]

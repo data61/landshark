@@ -1,3 +1,5 @@
+"""Dump training/query data to HDF5."""
+
 import tables
 import numpy as np
 

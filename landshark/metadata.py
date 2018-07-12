@@ -5,15 +5,14 @@ import pickle
 import numpy as np
 from typing import NamedTuple, List, Optional, cast, Union, Dict, Any
 
-import numpy as np
-
 from landshark.image import ImageSpec
 from landshark.basetypes import OrdinalType, CategoricalType
 
 
 class Array2DMetadata:
     def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[Union[OrdinalType, CategoricalType]]) -> None:
+                 missing: Optional[Union[OrdinalType, CategoricalType]]
+                 ) -> None:
         self.N = N
         self.D = D
         self.labels = labels
@@ -24,7 +23,7 @@ class OrdinalMetadata(Array2DMetadata):
     def __init__(self, N: int, D: int, labels: List[str],
                  missing: Optional[OrdinalType], means: Optional[np.ndarray],
                  variances: Optional[np.ndarray]) -> None:
-        super().__init__(N, D , labels, missing)
+        super().__init__(N, D, labels, missing)
         self.means = means
         self.variances = variances
 

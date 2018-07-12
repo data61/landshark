@@ -140,8 +140,8 @@ def _convert_res(res: Tuple[np.ndarray, Optional[np.ndarray]]) -> Prediction:
         y = y.astype(OrdinalType)
         if extra is not None:
             if extra.shape[0] != 2:
-                raise RuntimeError("The regressor must output either None"
-                                   " or upper and lower quantiles in 2xN array")
+                raise RuntimeError("The regressor must output either None or "
+                                   "upper and lower quantiles in 2xN array.")
 
             # Add another dimension (percentiles are expected in batches)
             if extra.ndim == 2:

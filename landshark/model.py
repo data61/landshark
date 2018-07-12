@@ -229,7 +229,7 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
 
 
 def patch_categories(metadata: TrainingMetadata) -> List[int]:
-    """Get the number of categories including the extra patch columns"""
+    """Get the number of categories including the extra patch columns."""
     assert metadata.features.categorical
     bmul = (2 * metadata.halfwidth + 1) ** 2
     ncats_nested = [[k] * bmul for k in

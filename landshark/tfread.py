@@ -1,3 +1,5 @@
+"""Import data from tensorflow format."""
+
 from importlib.util import spec_from_file_location, module_from_spec
 from glob import glob
 import os

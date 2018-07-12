@@ -26,13 +26,14 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 
 # Convenience types
 class Band(NamedTuple):
+
     image: DatasetReader
     idx: int
 
 
 def shared_image_spec(path_list: List[str],
                       ignore_crs: bool=False) -> ImageSpec:
-    """Get the (hopefully matching) image spec from a list of images"""
+    """Get the (hopefully matching) image spec from a list of images."""
     with ExitStack() as stack:
         all_images = [stack.enter_context(rasterio.open(k, "r"))
                       for k in path_list]
@@ -63,6 +64,7 @@ class _ImageStackSource(ArraySource):
         If not provided then a semi-sensible value is computed.
 
     """
+
     _type_name = ""
 
     def __init__(self, image_spec: ImageSpec, path_list: List[str]) -> None:
@@ -120,10 +122,12 @@ class _ImageStackSource(ArraySource):
 
 
 class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
+
     _type_name = "ordinal"
 
 
 class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
+
     _type_name = "categorical"
 
 

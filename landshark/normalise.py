@@ -1,3 +1,5 @@
+"""Classes for normalising imput data prior to running a model."""
+
 import numpy as np
 import logging
 
@@ -13,6 +15,7 @@ log = logging.getLogger(__name__)
 
 class StatCounter:
     """Class that computes online mean and variance."""
+
     def __init__(self, n_features: int) -> None:
         """Initialise the counters."""
         self._mean = np.zeros(n_features)

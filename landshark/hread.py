@@ -45,9 +45,9 @@ class H5ArraySource(ArraySource):
 
     def _arrayslice(self, start: int, end: int) -> \
             Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-        """
-        TODO: Note this is bad because I'm changing the return type.
-        """
+
+        # TODO: Note this is bad because I'm changing the return type.
+
         data = self._carray[start:end]
         if hasattr(self, "_coords"):
             coords = self._coords[start:end]
@@ -57,19 +57,20 @@ class H5ArraySource(ArraySource):
 
 
 class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
+
     _array_name = "ordinal_data"
     _label_name = "ordinal_labels"
 
 
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
+
     _array_name = "categorical_data"
     _label_name = "categorical_labels"
 
 
 class H5Features:
-    """
-    Note unlike the array classes this isn't picklable.
-    """
+    """Note unlike the array classes this isn't picklable."""
+
     def __init__(self, h5file: str) -> None:
 
         self.ordinal, self.categorical, self.coordinates = None, None, None

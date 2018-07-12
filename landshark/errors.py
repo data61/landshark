@@ -11,12 +11,13 @@ log = logging.getLogger(__name__)
 
 class Error(Exception):
     """Base class for exceptions in Landshark."""
-    message = 'Landshark error.'
+
+    message = "Landshark error."
     pass
 
 
 def catch_and_exit(f: Callable) -> Callable:
-    """Decorator to exit program if functions throws an Error."""
+    """Decorate function to exit program if it throws an Error."""
     def wrapped(*args: Any, **kwargs: Any) -> None:
         try:
             f(*args, **kwargs)
