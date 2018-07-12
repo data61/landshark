@@ -112,3 +112,6 @@ data/
 
 # pycharm
 .idea/
+
+# vscode
+.vscode/
