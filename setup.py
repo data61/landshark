@@ -30,7 +30,7 @@ setup(
         "numpy>=1.13.3",
         "scipy>=0.19",
         "click>=6.7",
-        "GDAL>=2.0.1",
+        "pygdal>=2.2.3.3",
         "rasterio>=1.0a10",
         "tables>=3.4.2",
         "pyshp>=1.2.12",
@@ -42,7 +42,6 @@ setup(
         "aboleth>=0.7.0",
         "tensorflow>=1.7"
     ],
-
     extras_require={
         "dev": [
             "jedi>=0.10.2",
