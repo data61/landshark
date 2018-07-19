@@ -1,17 +1,19 @@
 """Main landshark commands."""
-import sys
+
 import logging
-from typing import Optional, NamedTuple
+import sys
+from typing import NamedTuple, Optional
 
 import click
 
-from landshark.tifwrite import write_geotiffs
-from landshark.scripts.logger import configure_logging
-from landshark.model import TrainingConfig, QueryConfig, train_test
-from landshark.model import predict as predict_fn
-from landshark.tfread import setup_training, setup_query
-from landshark.util import mb_to_points
 from landshark import errors
+from landshark.model import QueryConfig, TrainingConfig
+from landshark.model import predict as predict_fn
+from landshark.model import train_test
+from landshark.scripts.logger import configure_logging
+from landshark.tfread import setup_query, setup_training
+from landshark.tifwrite import write_geotiffs
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +110,6 @@ def predict(
     catching_f = errors.catch_and_exit(predict_entrypoint)
     catching_f(model, data, ctx.obj.batchMB, samples,
                lower, upper, ctx.obj.gpu)
-
 
 
 def predict_entrypoint(model: str, data: str, batchMB: float, samples: int,

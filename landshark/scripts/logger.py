@@ -1,9 +1,10 @@
 """Custom logging for landshark CLIs."""
 
-from os import environ
 import logging
+from os import environ
 
 environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
+
 
 def configure_logging(verbosity: str) -> None:
     """Configure the logger for STDOUT."""

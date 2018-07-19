@@ -1,16 +1,18 @@
-import tables
-import numpy as np
+"""Dump training/query data to HDF5."""
 
-from landshark.image import indices_strip, ImageSpec
+import numpy as np
+import tables
+
 from landshark.basetypes import IdReader
-from landshark.dataprocess import TrainingDataProcessor, QueryDataProcessor
-from landshark.iteration import batch_slices, with_slices
-from landshark.multiproc import task_list
+from landshark.dataprocess import (QueryDataProcessor, SourceMetadata,
+                                   TrainingDataProcessor)
 from landshark.featurewrite import write_imagespec
 from landshark.hread import H5Features
-from landshark.dataprocess import SourceMetadata
-from landshark.metadata import TrainingMetadata, CategoricalMetadata,\
-    QueryMetadata
+from landshark.image import indices_strip
+from landshark.iteration import batch_slices, with_slices
+from landshark.metadata import (CategoricalMetadata, QueryMetadata,
+                                TrainingMetadata)
+from landshark.multiproc import task_list
 
 
 def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
@@ -31,6 +33,7 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
     target_atom = tables.Int32Atom() if cat_targets else tables.Float32Atom()
 
     with tables.open_file(fname, mode="w", title=tinfo.name) as outfile:
+
         if has_ord:
             ord_shape = (n_rows, metadata.features.ordinal.D,
                          patchwidth, patchwidth)
@@ -38,6 +41,7 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                                               atom=tables.Float32Atom(),
                                               shape=ord_shape, filters=filters)
             ord_array.attrs.missing = metadata.features.ordinal.missing
+            ord_array.attrs.labels = metadata.features.ordinal.labels
         if has_cat:
             cat_shape = (n_rows, metadata.features.categorical.D,
                          patchwidth, patchwidth)
@@ -45,12 +49,15 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                                               atom=tables.Int32Atom(),
                                               shape=cat_shape, filters=filters)
             cat_array.attrs.missing = metadata.features.categorical.missing
+            cat_array.attrs.labels = metadata.features.categorical.labels
+            cat_array.attrs.mappings = metadata.features.categorical.mappings
 
         target_shape = (n_rows, metadata.targets.D)
         target_array = outfile.create_carray(outfile.root, name="targets",
                                              atom=target_atom,
                                              shape=target_shape,
                                              filters=filters)
+        target_array.attrs.label = metadata.targets.labels
         folds_array = outfile.create_carray(outfile.root, name="folds",
                                             atom=tables.Int32Atom(),
                                             shape=(n_rows,), filters=filters)
@@ -123,6 +130,7 @@ def dump_query(feature_path: str, metadata: QueryMetadata, strip: int,
                                               atom=tables.Float32Atom(),
                                               shape=ord_shape, filters=filters)
             ord_array.attrs.missing = missing_ord
+            ord_array.attrs.labels = metadata.features.ordinal.labels
         if has_cat:
             cat_shape = (n_total, nfeatures_cat,
                          patchwidth, patchwidth)
@@ -130,6 +138,8 @@ def dump_query(feature_path: str, metadata: QueryMetadata, strip: int,
                                               atom=tables.Int32Atom(),
                                               shape=cat_shape, filters=filters)
             cat_array.attrs.missing = missing_cat
+            cat_array.attrs.labels = metadata.features.categorical.labels
+            cat_array.attrs.mappings = metadata.features.categorical.mappings
 
         start = 0
         for o, c in out_it:

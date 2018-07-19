@@ -1,11 +1,11 @@
 """Baseclass for datatypes. Modron-light basically."""
 
-from types import TracebackType
 import logging
+from types import TracebackType
+from typing import (Any, List, NamedTuple, Optional, Sized, Tuple, TypeVar,
+                    Union)
 
 import numpy as np
-from typing import (Union, Tuple, Optional, List, Sized, NamedTuple, Any,
-                    TypeVar)
 
 log = logging.getLogger(__name__)
 
@@ -36,12 +36,14 @@ class FixedSlice(NamedTuple):
 
 class RegressionPrediction(NamedTuple):
     """Output of a regression predictor."""
+
     Ey: np.ndarray
     percentiles: Optional[np.ndarray]
 
 
 class ClassificationPrediction(NamedTuple):
     """Output of a classification predictor."""
+
     Ey: np.ndarray
     probabilities: Optional[np.ndarray]
 
@@ -54,6 +56,7 @@ T = TypeVar("T")
 
 class Reader:
     """Generic reading class."""
+
     def __enter__(self) -> None:
         pass
 
@@ -67,6 +70,7 @@ class Reader:
 
 class Worker:
     """Generic worker (callable)."""
+
     def __call__(self, x: Any) -> Any:
         raise NotImplementedError
 
@@ -138,6 +142,7 @@ class ArraySource(Sized, Reader):
         m : MissingType
             The value to indicate missingness or none if there is no
             missing values
+
         """
         return self._missing
 

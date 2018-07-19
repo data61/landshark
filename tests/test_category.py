@@ -1,8 +1,8 @@
 """Tests for the category object in the importer code."""
 import numpy as np
+
 from landshark import category
 from landshark.basetypes import CategoricalArraySource, CategoricalType
-
 
 
 def test_unique_values():

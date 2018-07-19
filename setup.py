@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 __version__ = None
 exec(open("landshark/__version__.py").read())
@@ -30,7 +30,7 @@ setup(
         "numpy>=1.13.3",
         "scipy>=0.19",
         "click>=6.7",
-        "GDAL>=2.0.1",
+        "pygdal>=2.2.3.3",
         "rasterio>=1.0a10",
         "tables>=3.4.2",
         "pyshp>=1.2.12",
@@ -42,17 +42,19 @@ setup(
         "aboleth>=0.7.0",
         "tensorflow>=1.7"
     ],
-
     extras_require={
         "dev": [
             "jedi>=0.10.2",
             "pytest>=3.1.3",
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
+            'flake8-bugbear==18.2.0',
+            'flake8-builtins==1.4.1',
             "pytest-cov>=2.5.1",
+            "flake8-comprehensions>=1.4.1",
             "flake8-docstrings>=1.1.0",
+            "flake8-isort>=2.5",
             "flake8-quotes>=0.11.0",
-            "flake8-comprehensions>=1.4.1"
         ]
     },
     license="All Rights Reserved",

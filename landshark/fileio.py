@@ -2,8 +2,7 @@
 
 import os.path
 from glob import glob
-
-from typing import Optional, List
+from typing import List
 
 
 def tifnames(directories: List[str]) -> List[str]:
@@ -15,6 +14,7 @@ def tifnames(directories: List[str]) -> List[str]:
             names.extend(glob(glob_pattern, recursive=True))
     return names
 
+
 def parse_withlist(listfile: str) -> List[str]:
     with open(listfile, "r") as f:
         lines = f.readlines()
@@ -23,4 +23,3 @@ def parse_withlist(listfile: str) -> List[str]:
     stripped = [l.strip().rstrip() for l in nocomments]
     noempty = [l for l in stripped if l is not ""]
     return noempty
-

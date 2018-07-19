@@ -2,8 +2,8 @@
 
 import logging
 import os.path
-
 from typing import Iterator, List, Optional, Tuple
+
 import numpy as np
 import tensorflow as tf
 

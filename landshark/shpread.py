@@ -1,16 +1,16 @@
 """Input/output routines for geo data types."""
 
-import logging
 import datetime
-
-import numpy as np
-import shapefile
+import logging
 # for mypy type checking
 from typing import List, Tuple
 
-from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource, CoordinateArraySource, \
-    OrdinalType, CategoricalType
+import numpy as np
+import shapefile
+
+from landshark.basetypes import (ArraySource, CategoricalArraySource,
+                                 CategoricalType, CoordinateArraySource,
+                                 OrdinalArraySource, OrdinalType)
 
 log = logging.getLogger(__name__)
 

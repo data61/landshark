@@ -3,16 +3,15 @@
 import logging
 import os
 from shutil import copyfile
+from typing import NamedTuple, Optional
 
-from typing import Optional, NamedTuple
 import click
 
-from landshark import skmodel
-from landshark.tifwrite import write_geotiffs
+from landshark import errors, skmodel
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import setup_training, setup_query, load_model
+from landshark.tfread import load_model, setup_query, setup_training
+from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
-from landshark import errors
 
 log = logging.getLogger(__name__)
 

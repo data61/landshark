@@ -3,14 +3,14 @@
 # Note there's a problem with the mypy annotations for multiprocessing
 # so some types must be ignored or set to Any in this file
 
-import queue
 import logging
-from multiprocessing import Process, Queue, Pipe
-from typing import List, Dict, Iterator, Any
-
-from landshark.basetypes import Reader, Worker
+import queue
+from multiprocessing import Pipe, Process, Queue
+from typing import Any, Dict, Iterator, List
 
 from tqdm import tqdm
+
+from landshark.basetypes import Reader, Worker
 
 log = logging.getLogger(__name__)
 

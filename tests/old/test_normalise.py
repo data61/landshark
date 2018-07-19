@@ -42,4 +42,3 @@
 #     true_var = np.ma.var(all_marray, axis=0)
 #     assert np.allclose(mean, true_mean)
 #     assert np.allclose(var, true_var)
-

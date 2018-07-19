@@ -1,7 +1,7 @@
 """Low-ish memory cross validation indices."""
-import numpy as np
-
 from typing import Iterator
+
+import numpy as np
 
 BATCH_SIZE = 10000
 
@@ -18,6 +18,7 @@ def _batch_randn(start: int, stop: int, size: int,
         yield vals
         total_n += batch_n
     return
+
 
 class KFolds:
 

@@ -1,20 +1,22 @@
 """TIF writing functionality."""
-import os.path
-import logging
 
-from typing import List, Iterator, cast, Optional, Tuple
+import logging
+import os.path
+from typing import Iterator, List, Optional, cast
+
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.metadata import TrainingMetadata, CategoricalMetadata, \
-    OrdinalMetadata
+from landshark.basetypes import (CategoricalType, ClassificationPrediction,
+                                 NumericalType, OrdinalType, Prediction,
+                                 RegressionPrediction)
 from landshark.image import ImageSpec
-from landshark.basetypes import CategoricalType, OrdinalType, NumericalType,\
-    RegressionPrediction, ClassificationPrediction, Prediction
-
+from landshark.metadata import (CategoricalMetadata, OrdinalMetadata,
+                                TrainingMetadata)
 
 log = logging.getLogger(__name__)
+
 
 class BatchWriter:
 
@@ -48,9 +50,15 @@ class BatchWriter:
 def _make_writer(directory: str, label: str, dtype: NumericalType,
                  image_spec: ImageSpec) -> BatchWriter:
     crs = rs.crs.CRS(**image_spec.crs)
-    params = dict(driver="GTiff", width=image_spec.width,
-                  height=image_spec.height, count=1, dtype=dtype,
-                  crs=crs, affine=image_spec.affine)
+    params = {
+        "driver": "GTiff",
+        "width": image_spec.width,
+        "height": image_spec.height,
+        "count": 1,
+        "dtype": dtype,
+        "crs": crs,
+        "affine": image_spec.affine
+    }
     fname = os.path.join(directory, label + ".tif")
     f = rs.open(fname, 'w', **params)
     writer = BatchWriter(f, width=image_spec.width, height=image_spec.height,

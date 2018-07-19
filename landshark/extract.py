@@ -1,17 +1,21 @@
 """Extracting utilities."""
 import logging
-from landshark.metadata import FeatureSetMetadata, OrdinalMetadata,\
-    CategoricalMetadata
-from landshark.fileio import parse_withlist
-from typing import Set, List, Tuple, Optional
+from typing import List, Optional, Set, Tuple
+
 import numpy as np
+
+from landshark.fileio import parse_withlist
+from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
+                                OrdinalMetadata)
 
 log = logging.getLogger(__name__)
 
 
 def get_active_features(feature_metadata: FeatureSetMetadata,
-                        withfeat: List[str], withoutfeat: List[str],
-                        withlist: str) -> Tuple[np.ndarray, np.ndarray]:
+                        withfeat: List[str],
+                        withoutfeat: List[str],
+                        withlist: Optional[str]
+                        ) -> Tuple[np.ndarray, np.ndarray]:
     if len(withfeat) > 0 and len(withoutfeat) > 0:
         raise ValueError("Cant specificy withfeat and withoutfeat "
                          "at the same time")
@@ -104,4 +108,3 @@ def active_column_metadata(m: FeatureSetMetadata, active_ords: np.ndarray,
 
     new_m = FeatureSetMetadata(new_ordinal, new_categorical, m.image)
     return new_m
-

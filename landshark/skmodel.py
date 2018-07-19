@@ -1,21 +1,22 @@
 """Scikit Learn training and testing with tf records."""
+
+import json
 import logging
 import os.path
-import json
-
-from typing import Optional, Tuple, List, Iterator
-import tensorflow as tf
-import numpy as np
 import pickle
-from tqdm import tqdm
-from sklearn.metrics import accuracy_score, log_loss, r2_score, \
-    confusion_matrix
+from typing import Iterator, List, Optional, Tuple
 
-from landshark.metadata import TrainingMetadata, CategoricalMetadata
-from landshark.model import train_data, test_data, sample_weights_labels
+import numpy as np
+import tensorflow as tf
+from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
+                             r2_score)
+from tqdm import tqdm
+
+from landshark.basetypes import (CategoricalType, ClassificationPrediction,
+                                 OrdinalType, Prediction, RegressionPrediction)
+from landshark.metadata import CategoricalMetadata, TrainingMetadata
+from landshark.model import sample_weights_labels, test_data, train_data
 from landshark.serialise import deserialise
-from landshark.basetypes import CategoricalType, OrdinalType, \
-    RegressionPrediction, ClassificationPrediction, Prediction
 
 log = logging.getLogger(__name__)
 
@@ -140,8 +141,8 @@ def _convert_res(res: Tuple[np.ndarray, Optional[np.ndarray]]) -> Prediction:
         y = y.astype(OrdinalType)
         if extra is not None:
             if extra.shape[0] != 2:
-                raise RuntimeError("The regressor must output either None"
-                                   " or upper and lower quantiles in 2xN array")
+                raise RuntimeError("The regressor must output either None or "
+                                   "upper and lower quantiles in 2xN array.")
 
             # Add another dimension (percentiles are expected in batches)
             if extra.ndim == 2:

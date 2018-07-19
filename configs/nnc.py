@@ -1,8 +1,8 @@
 """Generic classification config file."""
-import tensorflow as tf
 import aboleth as ab
+import tensorflow as tf
 
-from landshark.model import patch_slices, patch_categories
+from landshark.model import patch_categories, patch_slices
 
 ab.set_hyperseed(666)
 embed_dim = 3
@@ -58,4 +58,3 @@ def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
     lkhood = tf.distributions.Categorical(logits=F)
     loss = ab.max_posterior(lkhood.log_prob(Y[:, 0]), reg)
     return F, lkhood, loss, Y
-

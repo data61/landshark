@@ -1,11 +1,15 @@
-from importlib.util import spec_from_file_location, module_from_spec
-from glob import glob
-import os
+"""Import data from tensorflow format."""
+
 import logging
+import os
 import sys
-from landshark.metadata import unpickle_training_metadata, \
-    pickle_metadata, TrainingMetadata, unpickle_query_metadata, QueryMetadata
-from typing import Tuple, List
+from glob import glob
+from importlib.util import module_from_spec, spec_from_file_location
+from typing import List, Tuple
+
+from landshark.metadata import (QueryMetadata, TrainingMetadata,
+                                pickle_metadata, unpickle_query_metadata,
+                                unpickle_training_metadata)
 
 log = logging.getLogger(__name__)
 

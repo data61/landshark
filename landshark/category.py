@@ -2,15 +2,16 @@
 
 import logging
 from collections import OrderedDict
+from typing import List, NamedTuple, Optional, Tuple
 
-from tqdm import tqdm
 import numpy as np
-from typing import Tuple, List, NamedTuple, Optional, Callable
+from tqdm import tqdm
 
 from landshark import iteration
-from landshark.basetypes import CategoricalType, CategoricalArraySource, Worker
+from landshark.basetypes import CategoricalArraySource, CategoricalType, Worker
 
 log = logging.getLogger(__name__)
+
 
 class CategoryInfo(NamedTuple):
     mappings: List[np.ndarray]

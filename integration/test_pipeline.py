@@ -1,13 +1,13 @@
 """Tests for the whole pipeline."""
-import traceback
 import os
 import shutil
-from glob import glob
 import subprocess
+import traceback
+from glob import glob
 
 import pytest
 
-from landshark.scripts import importers, extractors, cli, skcli, dumpers
+from landshark.scripts import cli, dumpers, extractors, importers, skcli
 
 # these data are tiny so we need a really
 # small batch size to emulate normal use
@@ -180,4 +180,3 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
     for d in dumps:
         shutil.move(d, this_result_dir)
     shutil.rmtree(trained_model_dir, ignore_errors=True)
-

@@ -2,20 +2,23 @@
 
 import logging
 import sys
-import numpy as np
+from typing import Any, Callable, List
 
-from typing import List
+import numpy as np
 
 log = logging.getLogger(__name__)
 
 
 class Error(Exception):
     """Base class for exceptions in Landshark."""
+
+    message = "Landshark error."
     pass
 
-def catch_and_exit(f):
 
-    def wrapped(*args, **kwargs):
+def catch_and_exit(f: Callable) -> Callable:
+    """Decorate function to exit program if it throws an Error."""
+    def wrapped(*args: Any, **kwargs: Any) -> None:
         try:
             f(*args, **kwargs)
         except Error as e:
@@ -23,6 +26,7 @@ def catch_and_exit(f):
             sys.exit()
 
     return wrapped
+
 
 class NoTifFilesFound(Error):
     """Couldn't find TIF files."""

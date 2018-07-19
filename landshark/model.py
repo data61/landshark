@@ -1,21 +1,22 @@
 """Train/test with tfrecords."""
-import signal
-import logging
-import json
-import os.path
-from typing import List, Any, Generator, Optional, Dict, Union, \
-    Iterable, Tuple, NamedTuple
-from itertools import count
 
+import json
+import logging
+import os.path
+import signal
+from itertools import count
+from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
+                    Tuple, Union)
+
+import aboleth as ab
 import numpy as np
 import tensorflow as tf
-import aboleth as ab
+from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
+                             r2_score)
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, log_loss, r2_score, \
-    confusion_matrix
 
 from landshark.basetypes import ClassificationPrediction, RegressionPrediction
-from landshark.metadata import TrainingMetadata, CategoricalMetadata
+from landshark.metadata import CategoricalMetadata, TrainingMetadata
 from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
@@ -227,14 +228,16 @@ def patch_slices(metadata: TrainingMetadata) -> List[slice]:
     slices = [slice(b, e) for b, e in zip(begin, end)]
     return slices
 
+
 def patch_categories(metadata: TrainingMetadata) -> List[int]:
-    """Get the number of categories including the extra patch columns"""
+    """Get the number of categories including the extra patch columns."""
     assert metadata.features.categorical
     bmul = (2 * metadata.halfwidth + 1) ** 2
     ncats_nested = [[k] * bmul for k in
                     metadata.features.categorical.ncategories]
     ncategories_patched = [e for l in ncats_nested for e in l]
     return ncategories_patched
+
 
 def train_data(records: List[str], batch_size: int, epochs: int=1,
                random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:

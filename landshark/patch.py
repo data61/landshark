@@ -1,10 +1,9 @@
 """Patch extraction for images."""
 
 import logging
-from typing import NamedTuple
+from typing import List, NamedTuple, Tuple
 
 import numpy as np
-from typing import Tuple, List
 
 log = logging.getLogger(__name__)
 

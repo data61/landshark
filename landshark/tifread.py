@@ -1,21 +1,20 @@
 """Importing routines for tif data."""
 
-from types import TracebackType
-import os.path
 import logging
+import os.path
 from contextlib import ExitStack
+from types import TracebackType
+from typing import Any, Callable, List, NamedTuple, Tuple
 
-import rasterio
-from rasterio.io import DatasetReader
-from affine import Affine
 import numpy as np
-from typing import Callable, Any, List, Tuple, NamedTuple
+import rasterio
+from affine import Affine
 from mypy_extensions import NoReturn
+from rasterio.io import DatasetReader
 
-from landshark.image import pixel_coordinates, ImageSpec
-from landshark.basetypes import ArraySource, OrdinalArraySource, \
-    CategoricalArraySource
-
+from landshark.basetypes import (ArraySource, CategoricalArraySource,
+                                 OrdinalArraySource)
+from landshark.image import ImageSpec, pixel_coordinates
 
 log = logging.getLogger(__name__)
 
@@ -26,13 +25,14 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 
 # Convenience types
 class Band(NamedTuple):
+
     image: DatasetReader
     idx: int
 
 
 def shared_image_spec(path_list: List[str],
                       ignore_crs: bool=False) -> ImageSpec:
-    """Get the (hopefully matching) image spec from a list of images"""
+    """Get the (hopefully matching) image spec from a list of images."""
     with ExitStack() as stack:
         all_images = [stack.enter_context(rasterio.open(k, "r"))
                       for k in path_list]
@@ -63,6 +63,7 @@ class _ImageStackSource(ArraySource):
         If not provided then a semi-sensible value is computed.
 
     """
+
     _type_name = ""
 
     def __init__(self, image_spec: ImageSpec, path_list: List[str]) -> None:
@@ -120,10 +121,12 @@ class _ImageStackSource(ArraySource):
 
 
 class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
+
     _type_name = "ordinal"
 
 
 class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
+
     _type_name = "categorical"
 
 

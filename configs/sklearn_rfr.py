@@ -1,8 +1,9 @@
 """Model config file."""
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 import numpy as np
-from sklearn.preprocessing import Imputer, OneHotEncoder
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import Imputer, OneHotEncoder
 
 NTREES = 100
 
@@ -57,4 +58,3 @@ class SKModel:
         # not doing quantiles
         quantiles = None
         return Ey, quantiles
-
