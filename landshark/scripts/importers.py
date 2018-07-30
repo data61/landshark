@@ -108,19 +108,23 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
             N_ord = ord_source.shape[0] * ord_source.shape[1]
             log.info("Ordinal missing value set to {}".format(
                 ord_source.missing))
-            mean, var = None, None
+            stats = None
             if normalise:
-                mean, var = get_stats(ord_source, ord_rows_per_batch)
+                stats = get_stats(ord_source, ord_rows_per_batch)
+                mean, var = stats
                 if any(var == 0.0):
                     raise errors.ZeroVariance(var, ord_source.columns)
-            log.info("Writing normalised ordinal data to output file")
+                log.info("Writing normalised ordinal data to output file")
+            else:
+                log.info("Writing unnormalised ordinal data to output file")
             ord_meta = OrdinalMetadata(N=N_ord,
                                        D=ord_source.shape[-1],
                                        labels=ord_source.columns,
                                        missing=ord_source.missing,
                                        means=mean,
                                        variances=var)
-            write_ordinal(ord_source, outfile, nworkers, ord_rows_per_batch)
+            write_ordinal(ord_source, outfile, nworkers, ord_rows_per_batch,
+                          stats)
 
         if has_cat:
             cat_source = CategoricalStackSource(spec, cat_filenames)

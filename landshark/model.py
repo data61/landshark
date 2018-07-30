@@ -93,7 +93,8 @@ def train_test(records_train: List[str],
 
     # Training
     with tf.name_scope("Train"):
-        optimizer = tf.train.AdamOptimizer(learning_rate=params.learnrate)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+
         global_step = tf.train.create_global_step()
         train = optimizer.minimize(loss, global_step=global_step)
 
@@ -307,8 +308,9 @@ def _decision(lkhood: tf.distributions.Distribution,
     """Get a decision from a binary or multiclass classifier."""
     prob = tf.reduce_mean(lkhood.probs, axis=0, name="prob")
     # Multiclass
-    if prob.shape[1] > 1:
-        Ey = tf.argmax(prob, axis=1, name="Ey", output_type=tf.int32)
+    ax = 1 if len(prob.shape) > 1 else 0
+    if prob.shape[ax] > 1:
+        Ey = tf.argmax(prob, axis=ax, name="Ey", output_type=tf.int32)
     # Binary
     else:
         Ey = tf.squeeze(prob > binary_threshold, name="Ey")
