@@ -58,7 +58,8 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                                              shape=target_shape,
                                              filters=filters)
         target_array.attrs.label = metadata.targets.labels
-        target_array.attrs.mappings = metadata.targets.mappings
+        if hasattr(metadata.targets, "mappings"):
+            target_array.attrs.mappings = metadata.targets.mappings
 
         folds_array = outfile.create_carray(outfile.root, name="folds",
                                             atom=tables.Int32Atom(),
