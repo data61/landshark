@@ -151,3 +151,7 @@ def query_entrypoint(features: str, halfwidth: int,
     dump_query(features, query_metadata, thisstrip, totalstrips,
                points_per_batch, halfwidth, nworkers, name, fname)
     log.info("Query dump complete")
+
+
+if __name__ == "__main__":
+    cli()

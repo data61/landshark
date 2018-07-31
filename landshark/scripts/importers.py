@@ -234,3 +234,7 @@ def targets_entrypoint(batchMB: float, shapefile: str, records: List[str],
                                        missing=None)
             write_ordinal_metadata(ord_meta, h5file)
     log.info("Target import complete")
+
+
+if __name__ == "__main__":
+    cli()

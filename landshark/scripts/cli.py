@@ -126,3 +126,7 @@ def predict_entrypoint(model: str, data: str, batchMB: float, samples: int,
     write_geotiffs(y_dash_it, model, train_metadata,
                    list(params.percentiles),
                    tag="{}of{}".format(strip, nstrips))
+
+
+if __name__ == "__main__":
+    cli()

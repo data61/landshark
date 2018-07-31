@@ -200,3 +200,7 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     pickle_metadata(directory, query_metadata)
     log.info("Query import complete")
     return 0
+
+
+if __name__ == "__main__":
+    cli()
