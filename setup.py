@@ -31,7 +31,7 @@ setup(
         "scipy>=0.19",
         "click>=6.7",
         "pygdal>=2.2.3.3",
-        "rasterio>=1.0a10",
+        "rasterio>=1.0.2",
         "tables>=3.4.2",
         "pyshp>=1.2.12",
         "mypy>=0.521",

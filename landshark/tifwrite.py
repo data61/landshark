@@ -57,7 +57,7 @@ def _make_writer(directory: str, label: str, dtype: NumericalType,
         "count": 1,
         "dtype": dtype,
         "crs": crs,
-        "affine": image_spec.affine
+        "transform": image_spec.affine
     }
     fname = os.path.join(directory, label + ".tif")
     f = rs.open(fname, 'w', **params)
