@@ -169,7 +169,7 @@ the documentation, in a file called `dnn.py`. There are a couple of model file
 examples in the `config_files` folder in this repo.
 
 ```bash
-$ landshark train dnn.py traintest_myproblem_fold1of10
+$ landshark train --config dnn.py --data traintest_myproblem_fold1of10
 ```
 This will start the training off, first creating a folder to store the model
 checkpoints called `model_dnn`
@@ -178,7 +178,7 @@ checkpoints called `model_dnn`
 Because we've already extracted the query data, this is as simple as
 
 ```bash
-$ landshark query model_dnn query_myproblem_strip1of1
+$ landshark predict --model model_dnn --data query_myproblem_strip1of1
 ```
 The prediction images will be saved to the model folder.
 
