@@ -42,6 +42,8 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
                                               shape=ord_shape, filters=filters)
             ord_array.attrs.missing = metadata.features.ordinal.missing
             ord_array.attrs.labels = metadata.features.ordinal.labels
+            ord_array.attrs.means = metadata.features.ordinal.means
+            ord_array.attrs.variances = metadata.features.ordinal.variances
         if has_cat:
             cat_shape = (n_rows, metadata.features.categorical.D,
                          patchwidth, patchwidth)
@@ -51,6 +53,7 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
             cat_array.attrs.missing = metadata.features.categorical.missing
             cat_array.attrs.labels = metadata.features.categorical.labels
             cat_array.attrs.mappings = metadata.features.categorical.mappings
+            cat_array.attrs.counts = metadata.features.categorical.counts
 
         target_shape = (n_rows, metadata.targets.D)
         target_array = outfile.create_carray(outfile.root, name="targets",
@@ -64,6 +67,14 @@ def dump_training(tinfo: SourceMetadata, metadata: TrainingMetadata,
         folds_array = outfile.create_carray(outfile.root, name="folds",
                                             atom=tables.Int32Atom(),
                                             shape=(n_rows,), filters=filters)
+        target_array.attrs.labels = metadata.targets.labels
+        target_array.attrs.missing = metadata.targets.missing
+        if isinstance(metadata.targets, CategoricalMetadata):
+            target_array.attrs.mappings = metadata.targets.mappings
+            target_array.attrs.counts = metadata.targets.counts
+        else:
+            target_array.attrs.means = metadata.targets.means
+            target_array.attrs.variances = metadata.targets.variances
 
         start = 0
         for o, c, t in out_it:
