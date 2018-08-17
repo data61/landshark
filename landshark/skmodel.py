@@ -198,7 +198,7 @@ def train_test(config_module: str, records_train: List[str],
         if r2_arr.size == 1:
             r2 = r2_arr[0]
         else:
-            r2 = list(r2_arr)
+            r2 = r2_arr
 
         log.info("Sklearn r2: {}" .format(r2))
         scores = {"r2": r2.tolist()}
