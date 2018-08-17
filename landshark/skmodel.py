@@ -60,9 +60,7 @@ def _extract(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
     if has_cat:
         cat_marray = np.ma.concatenate(cat_list, axis=0)
     y_array = np.concatenate(y_list, axis=0)
-    # sklearn only supports 1D Y at the moment
-    assert y_array.ndim == 1 or y_array.shape[1] == 1
-    y_array = y_array.flatten()
+    y_array = np.squeeze(y_array)
     return ord_marray, cat_marray, y_array
 
 
