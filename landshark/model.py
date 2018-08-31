@@ -3,6 +3,8 @@
 import json
 import logging
 import os.path
+from glob import glob
+import shutil
 import signal
 from itertools import count
 from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
@@ -19,6 +21,8 @@ from landshark.basetypes import ClassificationPrediction, RegressionPrediction
 from landshark.metadata import CategoricalMetadata, TrainingMetadata
 from landshark.serialise import deserialise
 
+import aboleth as ab
+
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
@@ -31,23 +35,120 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 class TrainingConfig(NamedTuple):
     epochs: int
     batchsize: int
-    samples: int
     test_batchsize: int
-    test_samples: int
     use_gpu: bool
-    learnrate: float
 
 
 class QueryConfig(NamedTuple):
     batchsize: int
-    samples: int
-    percentiles: Tuple[float, float]
     use_gpu: bool
 
 
-#
-# Main functionality
-#
+def train_data(records: List[str], metadata: TrainingMetadata,
+               batch_size: int, epochs: int=1, shuffle_buffer: int=1000,
+               random_seed: Optional[int]=None) \
+        -> tf.data.TFRecordDataset:
+    """Train dataset feeder."""
+    def f():
+        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+            .repeat(count=epochs) \
+            .shuffle(buffer_size=shuffle_buffer, seed=random_seed) \
+            .batch(batch_size)
+        raw_data = dataset.make_one_shot_iterator().get_next()
+        x, y = deserialise(raw_data, metadata)
+        return x, y
+    return f
+
+
+def test_data(records: List[str], metadata: TrainingMetadata,
+                      batch_size: int) -> tf.data.TFRecordDataset:
+    """Test and query dataset feeder."""
+    def f():
+        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+            .batch(batch_size)
+        raw_data = dataset.make_one_shot_iterator().get_next()
+        x, y = deserialise(raw_data, metadata)
+        return x, y
+    return f
+
+def predict_data(records: List[str], metadata: TrainingMetadata,
+                      batch_size: int) -> tf.data.TFRecordDataset:
+    """Test and query dataset feeder."""
+    def f():
+        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+            .batch(batch_size)
+        raw_data = dataset.make_one_shot_iterator().get_next()
+        x, _ = deserialise(raw_data, metadata)
+        return x
+    return f
+
+
+class _BestScoreSaver:
+    """Saver for only saving the best model based on held out score.
+
+    This now persists between runs by keeping a JSON file in the model
+    directory.
+    """
+
+    def __init__(self, directory: str) -> None:
+        """Saver initialiser."""
+        self.directory = directory
+
+    def _init_dir(self, score_path) -> None:
+        if not os.path.exists(score_path):
+            os.mkdir(score_path)
+            shutil.copy2(os.path.join(self.directory, "METADATA.bin"),
+                         score_path)
+
+    def _to_64bit(self, scores: Dict[str, np.ndarray]) -> None:
+        # convert scores to 64bit
+        for k, v in scores.items():
+            if v.dtype == np.float32:
+                scores[k] = v.astype(np.float64)
+            if v.dtype == np.int32:
+                scores[k] = v.astype(np.int64)
+
+
+    def _should_overwrite(self, s: str, score: np.ndarray,
+                          score_path: str) -> bool:
+        score_file = os.path.join(score_path, "model_best.json")
+        overwrite = True
+        if os.path.exists(score_file):
+            with open(score_file, 'r') as f:
+                best_scores = json.load(f)
+            if s == "loss":
+                if best_scores[s] < score:
+                    overwrite = False
+            else:
+                if best_scores[s] > score:
+                    overwrite = False
+        return overwrite
+
+
+    def _write_score(self, scores: Dict[str, np.ndarray],
+                     score_path: str, global_step: int) -> None:
+        score_file = os.path.join(score_path, "model_best.json")
+        with open(score_file, 'w') as f:
+            json.dump(scores, f)
+        checkpoint_files = glob(os.path.join(self.directory,
+                                "model.ckpt-{}*".format(global_step)))
+        deleting_files = glob(os.path.join(score_path, "model.ckpt-*"))
+        for d in deleting_files:
+            os.remove(d)
+        for c in checkpoint_files:
+            shutil.copy2(c, score_path)
+
+    def save(self, scores: dict) -> None:
+        global_step = scores.pop("global_step")
+        # Create directories if they don't exist
+        for s in scores.keys():
+            score_path = self.directory + "_best_{}".format(s)
+            self._init_dir(score_path)
+            if self._should_overwrite(s, scores[s], score_path):
+                log.info("Found model with new best {} score: overwriting".
+                         format(s))
+                self._write_score(s, score_path, global_step)
+
 
 def train_test(records_train: List[str],
                records_test: List[str],
@@ -57,103 +158,71 @@ def train_test(records_train: List[str],
                params: TrainingConfig,
                iterations: Optional[int]) -> None:
     """Model training and periodic hold-out testing."""
+
+
+    saver = _BestScoreSaver(directory)
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
 
-    classification = isinstance(metadata.targets, CategoricalMetadata)
+    train_fn = train_data(records_train, metadata,
+                      params.batchsize, params.epochs)
+    test_fn = test_data(records_test, metadata, params.test_batchsize)
 
-    # Placeholders
-    _query_records = tf.placeholder_with_default(
-        records_test, (None,), name="QueryRecords")
-    _query_batchsize = tf.placeholder_with_default(
-        tf.constant(params.test_batchsize, dtype=tf.int64), shape=(),
-        name="BatchSize")
-    _samples = tf.placeholder_with_default(
-        tf.constant(params.samples, dtype=tf.int32), shape=(), name="NSamples")
+    estimator = tf.estimator.Estimator(
+        model_fn=cf.model,
+        model_dir=directory,
+        params={"metadata": metadata})
 
-    # Datasets
-    train_dataset = train_data(records_train, params.batchsize, params.epochs)
-    test_dataset = test_data(_query_records, _query_batchsize)
-    with tf.name_scope("Sources"):
-        iterator = tf.data.Iterator.from_structure(
-            train_dataset.output_types,
-            train_dataset.output_shapes,
-            shared_name="Iterator"
-            )
-    train_init_op = iterator.make_initializer(train_dataset, name="TrainInit")
-    test_init_op = iterator.make_initializer(test_dataset, name="QueryInit")
-    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
+    for i in range(10):
+        estimator.train(input_fn=train_fn, steps=5)
+        eval_result = estimator.evaluate(input_fn=test_fn)
+        saver.save(eval_result)
+        print(eval_result)
+    import IPython; IPython.embed(); import sys; sys.exit()
 
-    # Model
-    with tf.name_scope("Deepnet"):
-        F, lkhood, loss, Y = cf.model(Xo, Xom, Xc, Xcm, Y, _samples, metadata)
-        tf.identity(F, name="F_sample")
-        tf.identity(ab.sample_mean(F), name="F_mean")
-        tf.summary.scalar("loss", loss)
 
-    # Training
-    with tf.name_scope("Train"):
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    ## Logging and saving learning progress
+    #logger = tf.train.LoggingTensorHook(
+    #    {"step": global_step, "loss": loss},
+    #    every_n_secs=60)
 
-        global_step = tf.train.create_global_step()
-        train = optimizer.minimize(loss, global_step=global_step)
+    ## This is the main training "loop"
+    #with tf.train.MonitoredTrainingSession(
+    #        config=sess_config,
+    #        checkpoint_dir=directory,
+    #        scaffold=tf.train.Scaffold(local_init_op=train_init_op),
+    #        save_summaries_steps=None,
+    #        save_checkpoint_secs=None,  # We will save model manually
+    #        save_summaries_secs=20,
+    #        log_step_count_steps=6000,
+    #        hooks=[logger]
+    #        ) as sess:
 
-    # Testing / Querying
-    with tf.name_scope("Test"):
-        Y_samps = tf.identity(lkhood.sample(seed=next(ab.random.seedgen)),
-                              name="Y_sample")
-        test_fdict = {_samples: params.test_samples}
+    #    saver.attach_session(sess._sess._sess._sess._sess)
 
-        if classification:
-            prob, Ey = _decision(lkhood)
-        else:
-            logprob = tf.identity(lkhood.log_prob(Y), name="log_prob")
-            Ey = tf.identity(ab.sample_mean(Y_samps), name="Y_mean")
+    #    counter = range(iterations) if iterations else count()
+    #    for i in counter:
+    #        log.info("Training round {} with {} epochs."
+    #                 .format(i, params.epochs))
+    #        try:
 
-    # Logging and saving learning progress
-    logger = tf.train.LoggingTensorHook(
-        {"step": global_step, "loss": loss},
-        every_n_secs=60)
-    saver = _BestScoreSaver(directory)
+    #            # Train loop
+    #            sess.run(train_init_op)
+    #            step = _train_loop(train, global_step, sess)
 
-    # This is the main training "loop"
-    with tf.train.MonitoredTrainingSession(
-            config=sess_config,
-            checkpoint_dir=directory,
-            scaffold=tf.train.Scaffold(local_init_op=train_init_op),
-            save_summaries_steps=None,
-            save_checkpoint_secs=None,  # We will save model manually
-            save_summaries_secs=20,
-            log_step_count_steps=6000,
-            hooks=[logger]
-            ) as sess:
-
-        saver.attach_session(sess._sess._sess._sess._sess)
-
-        counter = range(iterations) if iterations else count()
-        for i in counter:
-            log.info("Training round {} with {} epochs."
-                     .format(i, params.epochs))
-            try:
-
-                # Train loop
-                sess.run(train_init_op)
-                step = _train_loop(train, global_step, sess)
-
-                # Test loop
-                sess.run(test_init_op, feed_dict=test_fdict)
-                if classification:
-                    scores = _classify_test_loop(Y, Ey, prob, sess, test_fdict,
-                                                 metadata, step)
-                else:
-                    scores = _regress_test_loop(Y, Ey, logprob, sess,
-                                                test_fdict, metadata, step)
-                saver.save(scores)
-                _log_scores(scores, "Aboleth ")
-            except KeyboardInterrupt:
-                log.info("Training stopped on keyboard input")
-                break
-
+    #            # Test loop
+    #            sess.run(test_init_op, feed_dict=test_fdict)
+    #            if classification:
+    #                scores = _classify_test_loop(Y, Ey, prob, sess, test_fdict,
+    #                                             metadata, step)
+    #            else:
+    #                scores = _regress_test_loop(Y, Ey, logprob, sess,
+    #                                            test_fdict, metadata, step)
+    #            saver.save(scores)
+    #            _log_scores(scores, "Aboleth ")
+    #        except KeyboardInterrupt:
+    #            log.info("Training stopped on keyboard input")
+    #            break
 
 def predict(model: str,
             metadata: TrainingMetadata,
@@ -240,22 +309,6 @@ def patch_categories(metadata: TrainingMetadata) -> List[int]:
     return ncategories_patched
 
 
-def train_data(records: List[str], batch_size: int, epochs: int=1,
-               random_seed: Optional[int]=None) -> tf.data.TFRecordDataset:
-    """Train dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .repeat(count=epochs) \
-        .shuffle(buffer_size=1000, seed=random_seed) \
-        .batch(batch_size)
-    return dataset
-
-
-def test_data(records: List[str], batch_size: int) -> tf.data.TFRecordDataset:
-    """Test and query dataset feeder."""
-    dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-        .batch(batch_size)
-    return dataset
-
 
 def sample_weights_labels(metadata: TrainingMetadata, Ys: np.array) -> \
         Tuple[np.array, np.array]:
@@ -317,40 +370,40 @@ def _decision(lkhood: tf.distributions.Distribution,
     return prob, Ey
 
 
-class _BestScoreSaver:
-    """Saver for only saving the best model based on held out score.
+# class _BestScoreSaver:
+#     """Saver for only saving the best model based on held out score.
 
-    This now persists between runs by keeping a JSON file in the model
-    directory.
-    """
+#     This now persists between runs by keeping a JSON file in the model
+#     directory.
+#     """
 
-    def __init__(self, directory: str, score_name: str="lp") -> None:
-        """Saver initialiser."""
-        self.model_path = os.path.join(directory, "model_best.ckpt")
-        self.score_path = os.path.join(directory, "model_best.json")
-        self.score_name = score_name
-        if os.path.exists(self.score_path):
-            with open(self.score_path, "r") as f:
-                self.best_scores = json.load(f)
-        else:
-            self.best_scores = {score_name: -1 * np.inf}
-        self.saver = tf.train.Saver()
+#     def __init__(self, directory: str, score_name: str="lp") -> None:
+#         """Saver initialiser."""
+#         self.model_path = os.path.join(directory, "model_best.ckpt")
+#         self.score_path = os.path.join(directory, "model_best.json")
+#         self.score_name = score_name
+#         if os.path.exists(self.score_path):
+#             with open(self.score_path, "r") as f:
+#                 self.best_scores = json.load(f)
+#         else:
+#             self.best_scores = {score_name: -1 * np.inf}
+#         self.saver = tf.train.Saver()
 
-    def attach_session(self, session: tf.Session) -> None:
-        """Attach a session to save."""
-        self.sess = session
+#     def attach_session(self, session: tf.Session) -> None:
+#         """Attach a session to save."""
+#         self.sess = session
 
-    def save(self, scores: dict) -> None:
-        """Save the session *only* if the best score is exceeded."""
-        if self.score_name not in scores:
-            raise ValueError("score_name has to be in dictionary of scores!")
-        if scores[self.score_name] > self.best_scores[self.score_name]:
-            self.best_scores = scores
-            self.saver.save(self.sess, self.model_path)
-            with open(self.score_path, "w") as f:
-                json.dump(self.best_scores, f)
-            log.info("New best model saved with score: {}"
-                     .format(self.best_scores[self.score_name]))
+#     def save(self, scores: dict) -> None:
+#         """Save the session *only* if the best score is exceeded."""
+#         if self.score_name not in scores:
+#             raise ValueError("score_name has to be in dictionary of scores!")
+#         if scores[self.score_name] > self.best_scores[self.score_name]:
+#             self.best_scores = scores
+#             self.saver.save(self.sess, self.model_path)
+#             with open(self.score_path, "w") as f:
+#                 json.dump(self.best_scores, f)
+#             log.info("New best model saved with score: {}"
+#                      .format(self.best_scores[self.score_name]))
 
 
 def _train_loop(train: tf.Tensor, global_step: tf.Tensor, sess: tf.Session)\

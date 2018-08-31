@@ -45,11 +45,10 @@ def serialise(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
     return string_list
 
 
-def deserialise(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
+def deserialise(row: str, metadata: TrainingMetadata) \
         -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
     """Decode tf.record strings into Tensors."""
-    str_features = iterator.get_next()
-    raw_features = tf.parse_example(str_features, features=_FDICT)
+    raw_features = tf.parse_example(row, features=_FDICT)
     npatch = (2 * metadata.halfwidth + 1) ** 2
     categorical = isinstance(metadata.targets, CategoricalMetadata)
     y_type = tf.int32 if categorical else tf.float32
@@ -74,7 +73,11 @@ def deserialise(iterator: tf.data.Iterator, metadata: TrainingMetadata) \
         x_cat_mask.set_shape((None, npatch * nfeatures_cat))
         y.set_shape((None, ntargets))
 
-    return x_ord, x_ord_mask, x_cat, x_cat_mask, y
+        feat_dict = {"ord": x_ord,
+                     "ord_mask": x_ord_mask,
+                     "cat": x_cat,
+                     "cat_mask": x_cat_mask}
+    return feat_dict, y
 
 
 #
