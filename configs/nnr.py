@@ -1,62 +1,59 @@
-"""Generic regression config file."""
+"""Generic classification config file."""
 import aboleth as ab
-import numpy as np
 import tensorflow as tf
 
 from landshark.model import patch_categories, patch_slices
 
 ab.set_hyperseed(666)
-noise0 = 0.1
 embed_dim = 3
 
+def model(features, labels, mode, params):
 
-def model(Xo, Xom, Xc, Xcm, Y, samples, metadata):
-    noise = tf.Variable(noise0 * np.ones(metadata.targets.D, dtype=np.float32))
+    metadata = params["metadata"]
+    N = metadata.features.N
+    n_samples = 3
 
-    arg_dict = {}
-    layer_list = []
-    # Categorical features
-    if Xc.shape[1] != 0:
-
-        input_layer = ab.ExtraCategoryImpute(
-            ab.InputLayer(name="Xc", n_samples=samples),
-            ab.MaskInputLayer(name="Xcm"), patch_categories(metadata))
-
-        # Note the +1 because of the extra category imputation
-        embed_layers = [ab.EmbedMAP(embed_dim, k + 1, l1_reg=1e-5, l2_reg=0.)
-                        for k in metadata.features.categorical.ncategories]
-
-        slices = patch_slices(metadata)
-        cat_net = input_layer >> ab.PerFeature(*embed_layers, slices=slices)
-        layer_list.append(cat_net)
-        arg_dict["Xc"] = Xc
-        arg_dict["Xcm"] = Xcm
-
-    # Continuous features
-    if Xo.shape[1] != 0:
-        data_input = ab.InputLayer(name="Xo", n_samples=samples)  # Data input
-        mask_input = ab.MaskInputLayer(name="Xom")  # Missing data mask input
-        con_net = ab.LearnedScalarImpute(data_input, mask_input)
-        layer_list.append(con_net)
-        arg_dict["Xo"] = Xo
-        arg_dict["Xom"] = Xom
-
-    if len(layer_list) == 2:
-        input_layer = ab.Concat(*layer_list)
-    elif len(layer_list) == 1:
-        input_layer = layer_list[0]
-    else:
-        raise ValueError("Model has no ordinal or categorical inputs.")
-
-    # Combined net
+    kernel = ab.RBF(10.0, learn_lenscale=True)
     net = (
-        input_layer >>
-        ab.Activation(tf.nn.elu) >>
-        ab.DenseMAP(output_dim=1, l1_reg=0., l2_reg=1e-5)
-        )
+        ab.InputLayer(name="X", n_samples=n_samples) >>
+        ab.RandomFourier(n_features=32, kernel=kernel) >>
+        ab.DenseVariational(output_dim=1, full=True, prior_std=1.0,
+                            learn_prior=True)
+    )
 
-    F, reg = net(**arg_dict)
-    lkhood = tf.distributions.StudentT(df=5., loc=F, scale=ab.pos(noise))
-    loss = ab.max_posterior(lkhood.log_prob(Y), reg)
+    phi, kl = net(X=features["ord"])
+    std = ab.pos_variable(10.0, name="noise")
+    ll_f = tf.distributions.Normal(loc=phi, scale=std)
+    predict_mean = ab.sample_mean(phi)
 
-    return F, lkhood, loss, Y
+    # Compute predictions.
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        predictions = {
+            'predictions': predict_mean,
+            'sample_1': phi[0],
+            'sample_2': phi[1],
+            'sample_3': phi[2]
+        }
+        return tf.estimator.EstimatorSpec(mode, predictions=predictions)
+
+    ll = ll_f.log_prob(labels)
+    loss = ab.elbo(ll, kl, N)
+    tf.summary.scalar('loss', loss)
+
+    # Compute evaluation metrics.
+    mse = tf.metrics.mean_squared_error(labels=labels,
+                                        predictions=predict_mean,
+                                        name='mse_op')
+    metrics = {'mse': mse}
+
+    if mode == tf.estimator.ModeKeys.EVAL:
+        return tf.estimator.EstimatorSpec(
+            mode, loss=loss, eval_metric_ops=metrics)
+
+    # Create training op.
+    assert mode == tf.estimator.ModeKeys.TRAIN
+
+    optimizer = tf.train.AdamOptimizer()
+    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+
