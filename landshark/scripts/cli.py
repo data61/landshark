@@ -14,6 +14,7 @@ from landshark.scripts.logger import configure_logging
 from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
+from landshark.saver import overwrite_model_dir
 
 log = logging.getLogger(__name__)
 
@@ -55,23 +56,28 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
               help="Testing batch size")
 @click.option("--iterations", type=click.IntRange(min=1), default=None,
               help="number of training/testing iterations.")
+@click.option("--checkpoint", type=click.Path(exists=True), default=None,
+              help="Optional directory containing model checkpoints.")
 @click.pass_context
 def train(ctx: click.Context, data: str, config: str, epochs: int,
           batchsize: int, test_batchsize: int,
-          iterations: Optional[int]) -> None:
-    """Train a model specified by  a config file."""
+          iterations: Optional[int], checkpoint: Optional[str]) -> None:
+    """Train a model specified by a config file."""
     log.info("Ignoring batch-mb option, using specified or default batchsize")
     catching_f = errors.catch_and_exit(train_entrypoint)
     catching_f(data, config, epochs, batchsize, test_batchsize,
-               iterations, ctx.obj.gpu)
+               iterations, ctx.obj.gpu, checkpoint)
 
 
 def train_entrypoint(data: str, config: str, epochs: int, batchsize: int,
                      test_batchsize: int, iterations: Optional[int],
-                     gpu: bool) -> None:
+                     gpu: bool, checkpoint_dir: Optional[str]) -> None:
     """Entry point for training function."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
+    if checkpoint_dir:
+        overwrite_model_dir(model_dir, checkpoint_dir)
+
     training_params = TrainingConfig(epochs, batchsize,
                                      test_batchsize, gpu)
     train_test(training_records, testing_records, metadata, model_dir,
@@ -79,32 +85,35 @@ def train_entrypoint(data: str, config: str, epochs: int, batchsize: int,
 
 
 @cli.command()
-@click.option("--model", type=click.Path(exists=True), required=True,
-              help="Path to the trained model directory")
+@click.option("--config", type=click.Path(exists=True), required=True,
+              help="Path to the model file")
+@click.option("--checkpoint", type=click.Path(exists=True), required=True,
+              help="Path to the trained model checkpoint")
 @click.option("--data", type=click.Path(exists=True), required=True,
               help="Path to the query data directory")
 @click.pass_context
 def predict(
         ctx: click.Context,
-        model: str,
-        data: str,
-        samples: int) -> None:
+        config: str,
+        checkpoint: str,
+        data: str) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
-    catching_f(model, data, ctx.obj.batchMB, ctx.obj.gpu)
+    catching_f(config, checkpoint, data, ctx.obj.batchMB, ctx.obj.gpu)
 
 
-def predict_entrypoint(model: str, data: str, batchMB: float,
-                       gpu: bool) -> None:
-    train_metadata, query_metadata, query_records, strip, nstrips = \
-        setup_query(model, data)
+def predict_entrypoint(config: str, checkpoint: str, data: str,
+                       batchMB: float, gpu: bool) -> None:
+    train_metadata, query_metadata, query_records, strip, nstrips, cf = \
+        setup_query(config, data, checkpoint)
     ndims_ord = train_metadata.features.D_ordinal
     ndims_cat = train_metadata.features.D_categorical
     points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
     params = QueryConfig(points_per_batch, gpu)
-    y_dash_it = predict_fn(model, train_metadata, query_records, params)
-    write_geotiffs(y_dash_it, model, train_metadata,
+    y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,
+                           query_records, params)
+    write_geotiffs(y_dash_it, checkpoint, train_metadata,
                    tag="{}of{}".format(strip, nstrips))
 
 

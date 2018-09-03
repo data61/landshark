@@ -12,6 +12,7 @@ def configure_logging(verbosity: str) -> None:
     tflog = logging.getLogger("tensorflow")
     tflog.handlers = []
     log.setLevel(verbosity)
+    tflog.setLevel("ERROR")
     ch = logging.StreamHandler()
     formatter = ElapsedFormatter()
     ch.setFormatter(formatter)

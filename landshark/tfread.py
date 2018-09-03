@@ -58,8 +58,8 @@ def setup_training(config: str, directory: str) -> \
     return training_records, testing_records, metadata, model_dir, module_name
 
 
-def setup_query(modeldir: str, querydir: str) \
-        -> Tuple[TrainingMetadata, QueryMetadata, List[str], int, int]:
+def setup_query(config: str, querydir: str, checkpoint: str) \
+        -> Tuple[TrainingMetadata, QueryMetadata, List[str], int, int, str]:
     strip_list = querydir.split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])
@@ -68,10 +68,14 @@ def setup_query(modeldir: str, querydir: str) \
     query_metadata = unpickle_query_metadata(os.path.join(querydir,
                                                           "METADATA.bin"))
     training_metadata = unpickle_training_metadata(
-        os.path.join(modeldir, "METADATA.bin"))
+        os.path.join(checkpoint, "METADATA.bin"))
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
-    return training_metadata, query_metadata, query_records, strip, nstrip
+
+    # Load the model
+    module_name = load_model(config)
+    return (training_metadata, query_metadata, query_records,
+            strip, nstrip, module_name)
 
 
 def get_strips(records: List[str]) -> Tuple[int, int]:

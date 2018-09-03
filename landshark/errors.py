@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Tuple
 
 import numpy as np
 
@@ -13,7 +13,6 @@ class Error(Exception):
     """Base class for exceptions in Landshark."""
 
     message = "Landshark error."
-    pass
 
 
 def catch_and_exit(f: Callable) -> Callable:
@@ -50,3 +49,11 @@ class OrdCatNMismatch(Error):
         """Construct the object."""
         self.message = "Ordinal and Categorical source mismatch with \
             {} and {} points respectively".format(N_ord, N_cat)
+
+class PredictionShape(Error):
+    """Prediction output is not 1D or 2D."""
+
+    def __init__(self, name: int, shape: Tuple[int]) -> None:
+        """Construct the object."""
+        self.message = "Prediction shape for {} is shaped {}. Predictions \
+            must be 1D.".format(name, shape)

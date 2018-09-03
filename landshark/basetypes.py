@@ -34,23 +34,6 @@ class FixedSlice(NamedTuple):
     stop: int
 
 
-class RegressionPrediction(NamedTuple):
-    """Output of a regression predictor."""
-
-    Ey: np.ndarray
-    percentiles: Optional[np.ndarray]
-
-
-class ClassificationPrediction(NamedTuple):
-    """Output of a classification predictor."""
-
-    Ey: np.ndarray
-    probabilities: Optional[np.ndarray]
-
-
-Prediction = Union[RegressionPrediction, ClassificationPrediction]
-
-
 T = TypeVar("T")
 
 
