@@ -178,7 +178,7 @@ checkpoints called `model_dnn`
 Because we've already extracted the query data, this is as simple as
 
 ```bash
-$ landshark predict --model model_dnn --data query_myproblem_strip1of1
+$ landshark predict --config dnn.py --checkpoint model_dnn --data query_myproblem_strip1of1
 ```
 The prediction images will be saved to the model folder.
 
@@ -346,9 +346,6 @@ Option | Argument | Default | Description
 | --- | --- | --- | --- |
 `--epochs` | `INT>0` | 1 | The number of epochs to train before evaluating the current parameters on the test set.
 `--batchsize` | `INT>0` | 1000 | The size of the minibatch for one iteration of stochastic gradient descent.
-`--samples` | `INT>0` | 5 | The number of times to sample the parameter distributions for training.
-`--test_samples` | `INT>0` | 20| The number of times to sample the parameter distributions for testing.
-`--learnrate` | `FLOAT>0` | 0.01 | The learning rate to pass to the ADAM optimiser.
 `--test_batchsize` | `INT>0` | 1000 | The size of the batch to evalue the test data.
 `--iterations` | `INT>0` |  | If specified, limits the training to the supplied number of  train/test iterations. Default is to train indefinitely.
 
@@ -360,16 +357,8 @@ Required Flags:
 Flag | Argument | Description
 | --- | --- | --- |
 `--data` | `DIRECTORY` | The directory containing the query data.
-`--model` | `DIRECTORY` | The trained model directory.
-
-
-Optional Arguments:
-
-Option | Argument | Default | Description
-| --- | --- | --- | --- |
-`--samples` | `INT>0` | 20 | The number of times to sample the parameter distributions for prediction.
-`--lower` | `0<INT<100` | 10 | The lower percentile bound of the predictive posterior to output.
-`--upper` | `0<INT<100` | 90 | The upper percentile bound of the predictive posterior to output.
+`--config` | `FILE` | The model config file.
+`--checkpoint` | `DIRECTORY` | The directory containing the trained model checkpoint to use for prediction. Must match the config file.
 
 
 ### skshark
