@@ -54,12 +54,12 @@ class BestScoreSaver:
         if os.path.exists(score_file):
             with open(score_file, 'r') as f:
                 best_scores = json.load(f)
-            if s == "loss":
-                if best_scores[s] < score:
-                    overwrite = False
-            else:
-                if best_scores[s] > score:
-                    overwrite = False
+            # if s == "loss":
+            #     if best_scores[s] < score:
+            #         overwrite = False
+            # else:
+            if best_scores[s] > score:
+                overwrite = False
         return overwrite
 
 
@@ -81,7 +81,7 @@ class BestScoreSaver:
         global_step = scores.pop("global_step")
         # Create directories if they don't exist
         for s in scores.keys():
-            score_path = self.directory + "_best_{}".format(s)
+            score_path = os.path.join(self.directory, "best_{}".format(s))
             self._init_dir(score_path)
             if self._should_overwrite(s, scores[s], score_path):
                 log.info("Found model with new best {} score: overwriting".
