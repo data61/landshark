@@ -70,9 +70,14 @@ class BestScoreSaver:
             json.dump(scores, f)
         checkpoint_files = glob(os.path.join(self.directory,
                                 "model.ckpt-{}*".format(global_step)))
+        checkpoint_files += [os.path.join(self.directory, "checkpoint"),
+                             os.path.join(self.directory, "graph.pbtxt")]
         deleting_files = glob(os.path.join(score_path, "model.ckpt-*"))
+        deleting_files += [os.path.join(score_path, "checkpoint"),
+                           os.path.join(score_path, "graph.pbtxt")]
         for d in deleting_files:
-            os.remove(d)
+            if os.path.exists(d):
+                os.remove(d)
         for c in checkpoint_files:
             shutil.copy2(c, score_path)
 

@@ -65,22 +65,6 @@ def _make_writer(directory: str, label: str, dtype: np.dtype,
     return writer
 
 
-def _make_classify_labels(label: str, target_map: np.ndarray) -> List[str]:
-    target_list = target_map[0]
-
-    # Binary
-    if len(target_list) <= 2:
-        labels = [label + "_p(y={})".format(target_list[1])]
-        return labels
-
-    # Multiclass
-    labels = [label +
-              "_{}_{}".format(i, s.decode() if isinstance(s, bytes) else s)
-              for i, s in enumerate(target_list)]
-
-    return labels
-
-
 def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
                    directory: str,
                    metadata: TrainingMetadata,

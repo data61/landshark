@@ -72,6 +72,7 @@ def test_data(records: List[str], metadata: TrainingMetadata,
         return x, y
     return f
 
+
 def predict_data(records: List[str], metadata: TrainingMetadata,
                       batch_size: int) -> tf.data.TFRecordDataset:
     """Test and query dataset feeder."""
@@ -82,7 +83,6 @@ def predict_data(records: List[str], metadata: TrainingMetadata,
         x, _ = deserialise(raw_data, metadata)
         return x
     return f
-
 
 
 def train_test(records_train: List[str],
@@ -153,7 +153,7 @@ def predict(checkpoint_dir: str,
     )
     it = estimator.predict(predict_fn, yield_single_examples=False)
     total_size = (metadata.features.image.height *
-                    metadata.features.image.width) // params.batchsize
+                  metadata.features.image.width) // params.batchsize
     with tqdm(total=total_size) as pbar:
         while True:
             try:
