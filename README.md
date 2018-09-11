@@ -394,15 +394,8 @@ Required Flags:
 Flag | Argument | Description
 | --- | --- | --- |
 `--data` | `DIRECTORY` | The directory containing the query data.
-`--model` | `DIRECTORY` | The trained model directory.
-
-Optional Arguments:
-
-Option | Argument | Default | Description
-| --- | --- | --- | --- |
-`--lower` | `0<INT<100` | 10 | The lower percentile bound of the predictive posterior to output. Provided to the sklearn configuration which may or may not implement it.
-`--upper` | `0<INT<100` | 90 | The upper percentile bound of the predictive posterior to output. Provided to the sklearn configuration which may or may not implement it.
-
+`--config` | `FILE` | The model config file.
+`--checkpoint` | `DIRECTORY` | The directory containing the trained model checkpoint to use for prediction. Must match the config file.
 
 ### landshark-dump
 
