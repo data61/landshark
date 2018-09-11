@@ -1,5 +1,5 @@
 """Model config file."""
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -9,7 +9,7 @@ NTREES = 100
 
 
 class SKModel:
-    def __init__(self, metadata, random_seed):
+    def __init__(self, metadata, random_seed) -> None:
         self.ord_imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
                                verbose=0, copy=True)
         self.cat_imp = Imputer(missing_values=-1,
@@ -26,7 +26,7 @@ class SKModel:
         self.est = RandomForestRegressor(n_estimators=NTREES,
                                          random_state=random_seed)
 
-    def fit(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array):
+    def train(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array) -> None:
         X_list = []
         if Xc is not None:
             Xc.data[Xc.mask] = -1
@@ -40,9 +40,13 @@ class SKModel:
         X = np.concatenate(X_list, axis=1)
         self.est.fit(X, Y)
 
+    def test(self, Y: np.array, predictions: Dict[str, np.array]) \
+            -> Dict[str, np.ndarray]:
+        return {"mse": 1.0}
 
-    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray,
-                percentiles: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
+
+    def predict(self, Xo: np.ma.MaskedArray, Xc: np.ma.MaskedArray) \
+            -> Dict[str, np.ndarray]:
         X_list = []
         if Xc is not None:
             Xc.data[Xc.mask] = -1
@@ -56,5 +60,5 @@ class SKModel:
         X = np.concatenate(X_list, axis=1)
         Ey = self.est.predict(X)
         # not doing quantiles
-        quantiles = None
-        return Ey, quantiles
+        predictions = {"predictions": Ey}
+        return predictions

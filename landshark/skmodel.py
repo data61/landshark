@@ -4,7 +4,7 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple, Dict
 
 import numpy as np
 import tensorflow as tf
@@ -12,10 +12,9 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
                              r2_score)
 from tqdm import tqdm
 
-from landshark.basetypes import (CategoricalType, ClassificationPrediction,
-                                 OrdinalType, Prediction, RegressionPrediction)
+from landshark.basetypes import CategoricalType, OrdinalType
 from landshark.metadata import CategoricalMetadata, TrainingMetadata
-from landshark.model import sample_weights_labels, test_data, train_data
+from landshark.model import train_data, test_data, predict_data
 from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
@@ -71,29 +70,21 @@ def _get_data(records_train: List[str], records_test: List[str],
                                          np.ndarray, np.ndarray, np.ndarray]:
     data_frac = min(npoints / metadata.N, 1.0) if npoints else None
 
-    train_dataset = train_data(records_train, batch_size, epochs=1,
-                               random_seed=random_seed)
-    test_dataset = test_data(records_test, batch_size)
 
-    iterator = tf.data.Iterator.from_structure(
-        train_dataset.output_types,
-        train_dataset.output_shapes,
-        shared_name="Iterator"
-        )
-
-    train_init_op = iterator.make_initializer(train_dataset)
-    test_init_op = iterator.make_initializer(test_dataset)
-
-    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
+    X, Y = train_data(records_train, metadata, batch_size,
+                      epochs=1, random_seed=random_seed)()
+    Xt, Yt = test_data(records_test, metadata, batch_size)()
 
     with tf.Session() as sess:
-        sess.run(train_init_op)
-        ord_array, cat_array, y_array = _extract(Xo, Xom, Xc, Xcm, Y, sess,
-                                                 data_frac, random_seed)
-        sess.run(test_init_op)
-        ord_array_test, cat_array_test, y_array_test = _extract(Xo, Xom, Xc,
-                                                                Xcm, Y, sess)
-
+        ord_array, cat_array, y_array = _extract(X['ord'], X['ord_mask'],
+                                                 X['cat'], X['cat_mask'],
+                                                 Y, sess, data_frac,
+                                                 random_seed)
+        ord_array_test, cat_array_test, y_array_test = _extract(Xt['ord'],
+                                                                Xt['ord_mask'],
+                                                                Xt['cat'],
+                                                                Xt['cat_mask'],
+                                                                Yt, sess)
     return (ord_array, cat_array, y_array,
             ord_array_test, cat_array_test, y_array_test)
 
@@ -103,66 +94,32 @@ def _query_it(records_query: List[str], batch_size: int,
         -> Iterator[Tuple[np.ma.MaskedArray, np.ma.MaskedArray]]:
 
     total_size = metadata.features.image.height * metadata.features.image.width
-    dataset = test_data(records_query, batch_size)
-    iterator = dataset.make_one_shot_iterator()
-    Xo, Xom, Xc, Xcm, Y = deserialise(iterator, metadata)
-
-    has_ord = int(Xo.shape[1]) != 0
-    has_cat = int(Xc.shape[1]) != 0
+    X = predict_data(records_query, metadata, batch_size)()
+    has_ord = int(X['ord'].shape[1]) != 0
+    has_cat = int(X['cat'].shape[1]) != 0
 
     with tqdm(total=total_size) as pbar:
         with tf.Session() as sess:
             while True:
                 try:
-                    xo, xom, xc, xcm = sess.run([Xo, Xom, Xc, Xcm])
-                    ord_marray = np.ma.MaskedArray(data=xo, mask=xom) \
+                    Xvals = sess.run(X)
+                    ord_marray = np.ma.MaskedArray(data=Xvals['ord'],
+                                                   mask=Xvals['ord_mask']) \
                         if has_ord else None
-                    cat_marray = np.ma.MaskedArray(data=xc, mask=xcm) \
+                    cat_marray = np.ma.MaskedArray(data=Xvals['cat'],
+                                                   mask=Xvals['cat_mask']) \
                         if has_cat else None
-                    n = xo.shape[0] if has_ord else xc.shape[0]
+                    n = ord_marray.shape[0] if has_ord else cat_marray.shape[0]
                     pbar.update(n)
                     yield ord_marray, cat_marray
                 except tf.errors.OutOfRangeError:
                     break
             return
 
-
-def _convert_res(res: Tuple[np.ndarray, Optional[np.ndarray]]) -> Prediction:
-    """Make sure Y adheres to our conventions."""
-    # regression
-    y, extra = res
-    if extra is not None:
-        extra = extra.astype(OrdinalType)
-    if y.dtype == np.float64 or y.dtype == np.float32:
-        if y.ndim == 1:
-            y = y[:, np.newaxis]
-        y = y.astype(OrdinalType)
-        if extra is not None:
-            if extra.shape[0] != 2:
-                raise RuntimeError("The regressor must output either None or "
-                                   "upper and lower quantiles in 2xN array.")
-
-            # Add another dimension (percentiles are expected in batches)
-            if extra.ndim == 2:
-                extra = extra[..., None]
-
-        out: Prediction = RegressionPrediction(Ey=y, percentiles=extra)
-
-    elif y.dtype == np.int64 or y.dtype == np.int32:
-        y = y.astype(CategoricalType)
-        # Make binary classifier output consistent with TensorFlow
-        if extra is not None and np.ndim(extra) < 2:
-            raise RuntimeError("The classifier needs to output E[y] and p(y)!")
-        out = ClassificationPrediction(Ey=y, probabilities=extra)
-    return out
-
-
 def train_test(config_module: str, records_train: List[str],
                records_test: List[str], metadata: TrainingMetadata,
                model_dir: str, maxpoints: Optional[int], batchsize: int,
                random_seed: int) -> None:
-
-    classification = isinstance(metadata.targets, CategoricalMetadata)
 
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
@@ -175,33 +132,11 @@ def train_test(config_module: str, records_train: List[str],
     log.info("Training model")
     model = userconfig.SKModel(metadata, random_seed=random_seed)
 
-    model.fit(ord_array, cat_array, y_array)
+    model.train(ord_array, cat_array, y_array)
     log.info("Evaluating test data")
-    res = model.predict(ord_array_test, cat_array_test, None)
-    res = _convert_res(res)
-
-    if classification:
-        EYs, pys = res
-        sample_weights, labels = sample_weights_labels(metadata, EYs)
-        acc = accuracy_score(y_array_test, EYs)
-        bacc = accuracy_score(y_array_test, EYs, sample_weight=sample_weights)
-        conf = confusion_matrix(y_array_test, EYs)
-        nlabels = metadata.targets.ncategories
-        labels = np.arange(nlabels)
-        lp = -1 * log_loss(y_array_test, pys, labels=labels)
-        log.info("Sklearn acc: {:.5f}, lp: {:.5f}".format(acc, lp))
-        scores = {"acc": acc, "bacc": bacc, "lp": lp, "confmat": conf.tolist()}
-
-    else:
-        EYs, _ = res
-        r2_arr = r2_score(y_array_test, EYs, multioutput="raw_values")
-        if r2_arr.size == 1:
-            r2 = r2_arr[0]
-        else:
-            r2 = r2_arr
-
-        log.info("Sklearn r2: {}" .format(r2))
-        scores = {"r2": r2.tolist()}
+    res = model.predict(ord_array_test, cat_array_test)
+    scores = model.test(y_array_test, res)
+    log.info("Sklearn test metrics: {}".format(scores))
 
     log.info("Saving model to disk")
     model_path = os.path.join(model_dir, "skmodel.pickle")
@@ -214,14 +149,13 @@ def train_test(config_module: str, records_train: List[str],
 
 
 def predict(modeldir: str, metadata: TrainingMetadata,
-            query_records: List[str], batch_size: int,
-            percentiles: Tuple[float, float]) -> Iterator[Prediction]:
+            query_records: List[str], batch_size: int) \
+        -> Iterator[Dict[str, np.ndarray]]:
 
     model_path = os.path.join(modeldir, "skmodel.pickle")
     with open(model_path, "rb") as f:
         model = pickle.load(f)
 
     for xo, xc in _query_it(query_records, batch_size, metadata):
-        res = model.predict(xo, xc, percentiles)
-        res = _convert_res(res)
+        res = model.predict(xo, xc)
         yield res

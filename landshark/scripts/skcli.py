@@ -73,35 +73,34 @@ def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
 
 
 @cli.command()
-@click.option("--model", type=click.Path(exists=True), required=True)
-@click.option("--data", type=click.Path(exists=True), required=True)
-@click.option("--lower", type=click.IntRange(min=0, max=100), default=10,
-              help="Lower percentile of the predictive density to output")
-@click.option("--upper", type=click.IntRange(min=0, max=100), default=90,
-              help="Upper percentile of the predictive density to output")
+@click.option("--config", type=click.Path(exists=True), required=True,
+              help="Path to the model file")
+@click.option("--checkpoint", type=click.Path(exists=True), required=True,
+              help="Path to the trained model checkpoint")
+@click.option("--data", type=click.Path(exists=True), required=True,
+              help="Path to the query data directory")
 @click.pass_context
-def predict(ctx: click.Context, model: str, data: str, lower: int,
-            upper: int) -> None:
+def predict(ctx: click.Context, config: str, checkpoint: str,
+            data: str) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
-    catching_f(model, data, lower, upper, ctx.obj.batchMB)
+    catching_f(config, checkpoint, data, ctx.obj.batchMB)
 
 
-def predict_entrypoint(model: str, data: str, lower: int, upper: int,
-                       batchMB: float) -> None:
+def predict_entrypoint(config: str, checkpoint: str,
+                       data: str, batchMB: float) -> None:
     """Entry point for prediction with sklearn."""
-    train_metadata, query_metadata, query_records, strip, nstrips = \
-        setup_query(model, data)
-    percentiles = (float(lower), float(upper))
+    train_metadata, query_metadata, query_records, strip, nstrips, _ = \
+        setup_query(config, data, checkpoint)
     ndims_ord = train_metadata.features.D_ordinal
     ndims_cat = train_metadata.features.D_categorical
     points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
-    load_model(os.path.join(model, "config.py"))
-    y_dash_it = skmodel.predict(model, train_metadata, query_records,
-                                points_per_batch, percentiles)
-    write_geotiffs(y_dash_it, model, train_metadata,
-                   list(percentiles), tag="{}of{}".format(strip, nstrips))
+    # load_model(config)
+    y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
+                                points_per_batch)
+    write_geotiffs(y_dash_it, checkpoint, train_metadata,
+                   tag="{}of{}".format(strip, nstrips))
 
 
 if __name__ == "__main__":
