@@ -13,18 +13,17 @@ from landshark.scripts import cli, dumpers, extractors, importers, skcli
 # small batch size to emulate normal use
 BATCH_MB = 0.001
 
-model_files = {"regression": {"landshark": "nnr.py",
-                              "skshark": "sklearn_rfr.py"},
-               "classification": {"landshark": "nnc.py",
-                                  "skshark": "sklearn_rfc.py"}}
+model_files = {"landshark": "nnr.py",
+               "skshark": "sklearn_rfr.py"}
+
+training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
+                 "skshark": []}
 
 target_files = {"regression": {"target": "Na_ppm_i_1",
                                "args": ["--dtype", "ordinal"]},
                 "classification": {"target": "SAMPLETYPE",
                                    "args": ["--dtype", "categorical"]}}
 
-training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
-                 "skshark": []}
 
 @pytest.fixture(params=["ordinal-only", "categorical-only", "both"])
 def whichfeatures(request):
