@@ -7,12 +7,12 @@ import tables
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
                                  CoordinateArraySource, IdWorker,
-                                 OrdinalArraySource, Worker)
+                                 ContinuousArraySource, Worker)
 from landshark.category import CategoryMapper
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
 from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
-                                OrdinalMetadata, TargetMetadata)
+                                ContinuousMetadata, TargetMetadata)
 from landshark.multiproc import task_list
 from landshark.normalise import Normaliser
 
@@ -31,8 +31,8 @@ def write_feature_metadata(meta: FeatureSetMetadata,
                            hfile: tables.File) -> None:
     hfile.root._v_attrs.N = meta.N
     write_imagespec(meta.image, hfile)
-    if meta.ordinal:
-        write_ordinal_metadata(meta.ordinal, hfile)
+    if meta.:
+        write_continuous_metadata(meta.continuous, hfile)
     if meta.categorical:
         write_categorical_metadata(meta.categorical, hfile)
 
@@ -41,20 +41,20 @@ def read_featureset_metadata(path: str) -> FeatureSetMetadata:
     with tables.open_file(path, 'r') as hfile:
         N = hfile.root._v_attrs.N
         image_spec = read_imagespec(hfile)
-        ordinal, categorical = None, None
-        if hasattr(hfile.root, "ordinal_data"):
-            ordinal = read_ordinal_metadata(hfile)
+        continuous, categorical = None, None
+        if hasattr(hfile.root, "continuous_data"):
+            continuous = read_continuous_metadata(hfile)
         if hasattr(hfile.root, "categorical_data"):
             categorical = read_categorical_metadata(hfile)
-    m = FeatureSetMetadata(ordinal, categorical, image_spec)
+    m = FeatureSetMetadata(continuous, categorical, image_spec)
     return m
 
 
 def read_target_metadata(path: str) -> TargetMetadata:
     with tables.open_file(path, 'r') as hfile:
-        if hasattr(hfile.root, "ordinal_data"):
-            ord_meta = read_ordinal_metadata(hfile)
-            return ord_meta
+        if hasattr(hfile.root, "continuous_data"):
+            con_meta = read_continuous_metadata(hfile)
+            return con_meta
         elif hasattr(hfile.root, "categorical_data"):
             cat_meta = read_categorical_metadata(hfile)
             return cat_meta
@@ -62,24 +62,24 @@ def read_target_metadata(path: str) -> TargetMetadata:
             raise RuntimeError("Can't find data in target file")
 
 
-def write_ordinal_metadata(meta: OrdinalMetadata,
+def write_continuous_metadata(meta: ContinuousMetadata,
                            hfile: tables.File) -> None:
-    hfile.root._v_attrs.ordinal_N = meta.N
-    hfile.root.ordinal_data.attrs.missing = meta.missing
-    hfile.root.ordinal_data.attrs.D = meta.D
-    _make_str_vlarray(hfile, "ordinal_labels", meta.labels)
-    hfile.root.ordinal_data.attrs.mean = meta.means
-    hfile.root.ordinal_data.attrs.variance = meta.variances
+    hfile.root._v_attrs.continuous_N = meta.N
+    hfile.root.continuous_data.attrs.missing = meta.missing
+    hfile.root.continuous_data.attrs.D = meta.D
+    _make_str_vlarray(hfile, "continuous_labels", meta.labels)
+    hfile.root.continuous_data.attrs.mean = meta.means
+    hfile.root.continuous_data.attrs.variance = meta.variances
 
 
-def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
-    N = hfile.root._v_attrs.ordinal_N
-    missing = hfile.root.ordinal_data.attrs.missing
-    D = hfile.root.ordinal_data.attrs.D
-    labels = [k.decode() for k in hfile.root.ordinal_labels.read()]
-    mean = hfile.root.ordinal_data.attrs.mean
-    var = hfile.root.ordinal_data.attrs.variance
-    m = OrdinalMetadata(N, D, labels, missing, mean, var)
+def read_continuous_metadata(hfile: tables.File) -> ContinuousMetadata:
+    N = hfile.root._v_attrs.continuous_N
+    missing = hfile.root.continuous_data.attrs.missing
+    D = hfile.root.continuous_data.attrs.D
+    labels = [k.decode() for k in hfile.root.continuous_labels.read()]
+    mean = hfile.root.continuous_data.attrs.mean
+    var = hfile.root.continuous_data.attrs.variance
+    m = ContinuousMetadata(N, D, labels, missing, mean, var)
     return m
 
 
@@ -124,7 +124,7 @@ def read_imagespec(hfile: tables.File) -> ImageSpec:
     return imspec
 
 
-def write_ordinal(source: OrdinalArraySource,
+def write_continuous(source: ContinuousArraySource,
                   hfile: tables.File,
                   n_workers: int,
                   batchrows: Optional[int]=None,
@@ -133,7 +133,7 @@ def write_ordinal(source: OrdinalArraySource,
     transform = Normaliser(*stats, source.missing) if stats else IdWorker()
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
-                  "ordinal_data", transform, n_workers, batchrows)
+                  "continuous_data", transform, n_workers, batchrows)
 
 
 def write_categorical(source: CategoricalArraySource,

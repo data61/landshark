@@ -13,7 +13,7 @@ from landshark.dataprocess import SourceMetadata
 from landshark.dump import dump_query, dump_training
 from landshark.featurewrite import (read_featureset_metadata,
                                     read_target_metadata)
-from landshark.hread import CategoricalH5ArraySource, OrdinalH5ArraySource
+from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
 from landshark.metadata import (CategoricalMetadata, QueryMetadata,
@@ -79,22 +79,22 @@ def traintest_entrypoint(features: str, targets: str, halfwidth: int,
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
 
-    ndim_ord = feature_metadata.D_ordinal
+    ndim_con = feature_metadata.D_continuous
     ndim_cat = feature_metadata.D_categorical
-    active_feats_ord = np.ones(ndim_ord, dtype=bool)
+    active_feats_con = np.ones(ndim_con, dtype=bool)
     active_feats_cat = np.ones(ndim_cat, dtype=bool)
-    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
     target_src = CategoricalH5ArraySource(targets) \
         if isinstance(target_metadata, CategoricalMetadata) \
-        else OrdinalH5ArraySource(targets)
+        else ContinuousH5ArraySource(targets)
 
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, nfolds, random_seed)
     tinfo = SourceMetadata(name, features, target_src,
                            feature_metadata.image, halfwidth, kfolds,
-                           active_feats_ord, active_feats_cat)
+                           active_feats_con, active_feats_cat)
 
     outfile_name = os.path.join(os.getcwd(),
                                 "dump_traintest_" + name + ".hdf5")
@@ -136,9 +136,9 @@ def query_entrypoint(features: str, halfwidth: int,
     thisstrip, totalstrips = strips
     feature_metadata = read_featureset_metadata(features)
 
-    ndim_ord = feature_metadata.D_ordinal
+    ndim_con = feature_metadata.D_continuous
     ndim_cat = feature_metadata.D_categorical
-    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
     strip_imspec = strip_image_spec(thisstrip, totalstrips,

@@ -6,7 +6,7 @@ import numpy as np
 
 from landshark.fileio import parse_withlist
 from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
-                                OrdinalMetadata)
+                                ContinuousMetadata)
 
 log = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ def get_active_features(feature_metadata: FeatureSetMetadata,
     all_features: Set[str] = set()
     ncats = 0
     nords = 0
-    if feature_metadata.ordinal is not None:
-        all_features = all_features.union(set(feature_metadata.ordinal.labels))
-        nords = len(feature_metadata.ordinal.labels)
+    if feature_metadata.continuous is not None:
+        all_features = all_features.union(set(feature_metadata.continuous.labels))
+        nords = len(feature_metadata.continuous.labels)
     if feature_metadata.categorical is not None:
         all_features = all_features.union(
             set(feature_metadata.categorical.labels))
@@ -48,13 +48,13 @@ def get_active_features(feature_metadata: FeatureSetMetadata,
                   set(feature_list).difference(all_features), all_features))
         raise ValueError("Requested features not in data")
 
-    ord_array = np.zeros(nords, dtype=bool)
+    con_array = np.zeros(nords, dtype=bool)
     cat_array = np.zeros(ncats, dtype=bool)
     for f in feature_set:
-        if feature_metadata.ordinal is not None:
+        if feature_metadata.continuous is not None:
             try:
-                idx = feature_metadata.ordinal.labels.index(f)
-                ord_array[idx] = 1
+                idx = feature_metadata.continuous.labels.index(f)
+                con_array[idx] = 1
             except ValueError:
                 pass
         if feature_metadata.categorical is not None:
@@ -64,22 +64,22 @@ def get_active_features(feature_metadata: FeatureSetMetadata,
             except ValueError:
                 pass
 
-    log.info("Selecting {} of {} ordinal features".format(
-        np.sum(ord_array), nords))
+    log.info("Selecting {} of {} continuous features".format(
+        np.sum(con_array), nords))
     log.info("Selecting {} of {} categorical features".format(
         np.sum(cat_array), ncats))
-    return ord_array, cat_array
+    return con_array, cat_array
 
 
-def _subset_ord_meta(m: OrdinalMetadata, active_ords: np.ndarray) \
-        -> OrdinalMetadata:
+def _subset_con_meta(m: ContinuousMetadata, active_cons: np.ndarray) \
+        -> ContinuousMetadata:
     N = m.N
-    D = np.sum(active_ords.astype(int))
-    labels = [l for l, f in zip(m.labels, active_ords) if f]
+    D = np.sum(active_cons.astype(int))
+    labels = [l for l, f in zip(m.labels, active_cons) if f]
     missing = m.missing
-    means = m.means[active_ords] if m.means is not None else None
-    variances = m.variances[active_ords] if m.variances is not None else None
-    new_m = OrdinalMetadata(N, D, labels, missing, means, variances)
+    means = m.means[active_cons] if m.means is not None else None
+    variances = m.variances[active_cons] if m.variances is not None else None
+    new_m = ContinuousMetadata(N, D, labels, missing, means, variances)
     return new_m
 
 
@@ -97,14 +97,14 @@ def _subset_cat_meta(m: CategoricalMetadata, active_cats: np.ndarray) \
     return new_m
 
 
-def active_column_metadata(m: FeatureSetMetadata, active_ords: np.ndarray,
+def active_column_metadata(m: FeatureSetMetadata, active_cons: np.ndarray,
                            active_cats: np.ndarray) -> FeatureSetMetadata:
-    new_ordinal: Optional[OrdinalMetadata] = None
+    new_continuous: Optional[ContinuousMetadata] = None
     new_categorical: Optional[CategoricalMetadata] = None
-    if m.ordinal is not None and len(active_ords) > 0:
-        new_ordinal = _subset_ord_meta(m.ordinal, active_ords)
+    if m.continuous is not None and len(active_cons) > 0:
+        new_continuous = _subset_con_meta(m.continuous, active_cons)
     if m.categorical is not None and len(active_cats) > 0:
         new_categorical = _subset_cat_meta(m.categorical, active_cats)
 
-    new_m = FeatureSetMetadata(new_ordinal, new_categorical, m.image)
+    new_m = FeatureSetMetadata(new_continuous, new_categorical, m.image)
     return new_m

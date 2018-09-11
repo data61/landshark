@@ -109,7 +109,7 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray,
 
 def _process_training(coords: np.ndarray,
                       feature_source: H5Features, image_spec: ImageSpec,
-                      halfwidth: int, active_ords: np.ndarray,
+                      halfwidth: int, active_cons: np.ndarray,
                       active_cats: np.ndarray) -> \
         Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
     coords_x, coords_y = coords.T
@@ -121,22 +121,22 @@ def _process_training(coords: np.ndarray,
                                             image_spec.height)
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
-    ord_marray, cat_marray = None, None
-    if feature_source.ordinal:
-        ord_marray = _direct_read(feature_source.ordinal,
+    con_marray, cat_marray = None, None
+    if feature_source.continuous:
+        con_marray = _direct_read(feature_source.continuous,
                                   patch_reads, mask_reads,
-                                  npatches, patchwidth, active_ords)
+                                  npatches, patchwidth, active_cons)
     if feature_source.categorical:
         cat_marray = _direct_read(feature_source.categorical,
                                   patch_reads, mask_reads,
                                   npatches, patchwidth, active_cats)
-    return ord_marray, cat_marray
+    return con_marray, cat_marray
 
 
 def _process_query(indices: Tuple[np.ndarray, np.ndarray],
                    feature_source: H5Features,
                    image_spec: ImageSpec, halfwidth: int,
-                   active_ord: np.ndarray, active_cat: np.ndarray) \
+                   active_con: np.ndarray, active_cat: np.ndarray) \
         -> Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
     indices_x, indices_y = indices
     patch_reads, mask_reads = patch.patches(indices_x, indices_y,
@@ -146,15 +146,15 @@ def _process_query(indices: Tuple[np.ndarray, np.ndarray],
     patch_data_slices = _slices_from_patches(patch_reads)
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
-    ord_marray, cat_marray = None, None
-    if feature_source.ordinal:
-        ord_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.ordinal,
-                                   active_ord)
-        ord_marray = _cached_read(ord_data_cache,
-                                  feature_source.ordinal,
+    con_marray, cat_marray = None, None
+    if feature_source.continuous:
+        con_data_cache = _get_rows(patch_data_slices,
+                                   feature_source.continuous,
+                                   active_con)
+        con_marray = _cached_read(con_data_cache,
+                                  feature_source.continuous,
                                   patch_reads, mask_reads, npatches,
-                                  patchwidth, active_ord)
+                                  patchwidth, active_con)
     if feature_source.categorical:
         cat_data_cache = _get_rows(patch_data_slices,
                                    feature_source.categorical,
@@ -163,7 +163,7 @@ def _process_query(indices: Tuple[np.ndarray, np.ndarray],
                                   feature_source.categorical,
                                   patch_reads, mask_reads, npatches,
                                   patchwidth, active_cat)
-    return ord_marray, cat_marray
+    return con_marray, cat_marray
 
 
 class SourceMetadata(NamedTuple):
@@ -173,7 +173,7 @@ class SourceMetadata(NamedTuple):
     image_spec: ImageSpec
     halfwidth: int
     folds: KFolds
-    active_ords: np.ndarray
+    active_cons: np.ndarray
     active_cats: np.ndarray
 
 
@@ -184,7 +184,7 @@ class TrainingDataProcessor(Worker):
         self.halfwidth = tinfo.halfwidth
         self.image_spec = tinfo.image_spec
         self.feature_source: Optional[H5Features] = None
-        self.active_ords = tinfo.active_ords
+        self.active_cons = tinfo.active_cons
         self.active_cats = tinfo.active_cats
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
@@ -192,12 +192,12 @@ class TrainingDataProcessor(Worker):
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         targets, coords = values
-        ord_marray, cat_marray = _process_training(coords, self.feature_source,
+        con_marray, cat_marray = _process_training(coords, self.feature_source,
                                                    self.image_spec,
                                                    self.halfwidth,
-                                                   self.active_ords,
+                                                   self.active_cons,
                                                    self.active_cats)
-        return ord_marray, cat_marray, targets
+        return con_marray, cat_marray, targets
 
 
 class SerialisingTrainingDataProcessor(Worker):
@@ -207,45 +207,45 @@ class SerialisingTrainingDataProcessor(Worker):
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
-        ord_marray, cat_marray, targets = self.proc(values)
-        strings = serialise(ord_marray, cat_marray, targets)
+        con_marray, cat_marray, targets = self.proc(values)
+        strings = serialise(con_marray, cat_marray, targets)
         return strings
 
 
 class QueryDataProcessor(Worker):
 
     def __init__(self, image_spec: ImageSpec, feature_path: str,
-                 halfwidth: int, active_ord: np.ndarray,
+                 halfwidth: int, active_con: np.ndarray,
                  active_cat: np.ndarray) -> None:
         self.feature_path = feature_path
         self.halfwidth = halfwidth
         self.image_spec = image_spec
         self.feature_source: Optional[H5Features] = None
-        self.active_ord = active_ord
+        self.active_con = active_con
         self.active_cat = active_cat
 
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             Tuple[np.ma.MaskedArray, np.ma.MaskedArray]:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
-        ord_marray, cat_marray = _process_query(indices, self.feature_source,
+        con_marray, cat_marray = _process_query(indices, self.feature_source,
                                                 self.image_spec,
                                                 self.halfwidth,
-                                                self.active_ord,
+                                                self.active_con,
                                                 self.active_cat)
-        return ord_marray, cat_marray
+        return con_marray, cat_marray
 
 
 class SerialisingQueryDataProcessor(Worker):
 
     def __init__(self, image_spec: ImageSpec, feature_path: str,
-                 halfwidth: int, active_ord: np.ndarray,
+                 halfwidth: int, active_con: np.ndarray,
                  active_cat: np.ndarray) -> None:
         self.proc = QueryDataProcessor(image_spec, feature_path, halfwidth,
-                                       active_ord, active_cat)
+                                       active_con, active_cat)
 
     def __call__(self, indices: Tuple[np.ndarray, np.ndarray]) -> \
             List[bytes]:
-        ord_marray, cat_marray = self.proc(indices)
-        strings = serialise(ord_marray, cat_marray, None)
+        con_marray, cat_marray = self.proc(indices)
+        strings = serialise(con_marray, cat_marray, None)
         return strings

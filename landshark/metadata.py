@@ -6,13 +6,13 @@ from typing import Any, Dict, List, NamedTuple, Optional, Union, cast
 
 import numpy as np
 
-from landshark.basetypes import CategoricalType, OrdinalType
+from landshark.basetypes import CategoricalType, ContinuousType
 from landshark.image import ImageSpec
 
 
 class Array2DMetadata:
     def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[Union[OrdinalType, CategoricalType]]
+                 missing: Optional[Union[ContinuousType, CategoricalType]]
                  ) -> None:
         self.N = N
         self.D = D
@@ -20,9 +20,9 @@ class Array2DMetadata:
         self.missing = missing
 
 
-class OrdinalMetadata(Array2DMetadata):
+class ContinuousMetadata(Array2DMetadata):
     def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[OrdinalType], means: Optional[np.ndarray],
+                 missing: Optional[ContinuousType], means: Optional[np.ndarray],
                  variances: Optional[np.ndarray]) -> None:
         super().__init__(N, D, labels, missing)
         self.means = means
@@ -42,27 +42,27 @@ class CategoricalMetadata(Array2DMetadata):
 class FeatureSetMetadata:
 
     def __init__(self,
-                 ordinal: Optional[OrdinalMetadata],
+                 continuous: Optional[ContinuousMetadata],
                  categorical: Optional[CategoricalMetadata],
                  image: ImageSpec) -> None:
-        assert not(ordinal is None and categorical is None)
-        if ordinal and not categorical:
-            self.N = ordinal.N
-        elif categorical and not ordinal:
+        assert not(continuous is None and categorical is None)
+        if continuous and not categorical:
+            self.N = continuous.N
+        elif categorical and not continuous:
             self.N = categorical.N
-        elif categorical and ordinal:
-            assert ordinal.N == categorical.N
-            self.N = ordinal.N
+        elif categorical and continuous:
+            assert continuous.N == categorical.N
+            self.N = continuous.N
         else:
-            raise ValueError("Must have at least 1 of ordinal or categorical")
-        self.ordinal = ordinal
+            raise ValueError("Must have at least 1 of continuous or categorical")
+        self.continuous = continuous
         self.categorical = categorical
         self.image = image
-        self.D_ordinal = ordinal.D if ordinal else 0
+        self.D_continuous = continuous.D if continuous else 0
         self.D_categorical = categorical.D if categorical else 0
 
 
-TargetMetadata = Union[OrdinalMetadata, CategoricalMetadata]
+TargetMetadata = Union[ContinuousMetadata, CategoricalMetadata]
 
 
 class TrainingMetadata(NamedTuple):

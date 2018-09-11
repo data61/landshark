@@ -42,13 +42,13 @@ class ZeroVariance(Error):
             with zero variance: {}".format(zsrcs)
 
 
-class OrdCatNMismatch(Error):
-    """N doesnt match between the ord and cat sources."""
+class ConCatNMismatch(Error):
+    """N doesnt match between the con and cat sources."""
 
-    def __init__(self, N_ord: int, N_cat: int) -> None:
+    def __init__(self, N_con: int, N_cat: int) -> None:
         """Construct the object."""
-        self.message = "Ordinal and Categorical source mismatch with \
-            {} and {} points respectively".format(N_ord, N_cat)
+        self.message = "Continuous and Categorical source mismatch with \
+            {} and {} points respectively".format(N_con, N_cat)
 
 class PredictionShape(Error):
     """Prediction output is not 1D or 2D."""

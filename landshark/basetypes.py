@@ -10,11 +10,11 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 # Definitions of numerical types used in the project.
-OrdinalType = np.float32
+ContinuousType = np.float32
 CategoricalType = np.int32
 CoordinateType = np.float64
 
-# Union[OrdinalType, CategoricalType] but mypy doesn't support yet
+# Union[ContinuousType, CategoricalType] but mypy doesn't support yet
 FeatureType = Union[np.float32, np.int32]
 NumericalType = Union[np.float32, np.int32, np.float64]
 MissingType = Optional[NumericalType]
@@ -23,7 +23,7 @@ MissingType = Optional[NumericalType]
 class FeatureValues(NamedTuple):
     """Pair of features."""
 
-    ordinal: np.ndarray
+    continuous: np.ndarray
     categorical: np.ndarray
 
 
@@ -184,10 +184,10 @@ class ArraySource(Sized, Reader):
         return self._shape[0]
 
 
-class OrdinalArraySource(ArraySource):
-    """Array source for Ordinal data."""
+class ContinuousArraySource(ArraySource):
+    """Array source for Continuous data."""
 
-    _dtype = OrdinalType
+    _dtype = ContinuousType
     _missing_val = np.finfo(_dtype).min
 
 

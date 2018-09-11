@@ -43,13 +43,13 @@ def write_querydata(feature_path: str,
                     n_workers: int,
                     output_directory: str,
                     tag: str,
-                    active_ord: np.ndarray,
+                    active_con: np.ndarray,
                     active_cat: np.ndarray) -> None:
     reader_src = IdReader()
     it, n_total = indices_strip(image_spec, strip, total_strips,
                                 points_per_batch)
     worker = SerialisingQueryDataProcessor(image_spec, feature_path, halfwidth,
-                                           active_ord, active_cat)
+                                           active_con, active_cat)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, n_workers)
     tfwrite.query(out_it, n_total, output_directory, tag)

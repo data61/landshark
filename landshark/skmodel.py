@@ -12,7 +12,7 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
                              r2_score)
 from tqdm import tqdm
 
-from landshark.basetypes import CategoricalType, OrdinalType
+from landshark.basetypes import CategoricalType, ContinuousType
 from landshark.metadata import CategoricalMetadata, TrainingMetadata
 from landshark.model import train_data, test_data, predict_data
 from landshark.serialise import deserialise
@@ -25,42 +25,42 @@ def _extract(Xo: tf.Tensor, Xom: tf.Tensor, Xc: tf.Tensor, Xcm: tf.Tensor,
              random_seed: int=666) \
         -> Tuple[np.ma.MaskedArray, np.ma.MaskedArray, np.ndarray]:
     rnd = np.random.RandomState(random_seed)
-    ord_list = []
+    con_list = []
     cat_list = []
     y_list = []
 
-    has_ord = int(Xo.shape[1]) != 0
+    has_con = int(Xo.shape[1]) != 0
     has_cat = int(Xc.shape[1]) != 0
 
     try:
         while True:
             result = sess.run([Xo, Xom, Xc, Xcm, Y])
-            x_ord_d, x_ord_m, x_cat_d, x_cat_m, y = result
-            n = x_ord_d.shape[0] if has_ord else x_cat_d.shape[0]
+            x_con_d, x_con_m, x_cat_d, x_cat_m, y = result
+            n = x_con_d.shape[0] if has_con else x_cat_d.shape[0]
             if data_frac is not None:
                 mask = rnd.choice([True, False], size=(n,),
                                   p=[data_frac, 1.0 - data_frac])
             else:
                 mask = slice(n)
 
-            if has_ord:
-                x_ord = np.ma.MaskedArray(data=x_ord_d, mask=x_ord_m)
-                ord_list.append(x_ord[mask])
+            if has_con:
+                x_con = np.ma.MaskedArray(data=x_con_d, mask=x_con_m)
+                con_list.append(x_con[mask])
             if has_cat:
                 x_cat = np.ma.MaskedArray(data=x_cat_d, mask=x_cat_m)
                 cat_list.append(x_cat[mask])
             y_list.append(y[mask])
     except tf.errors.OutOfRangeError:
         pass
-    ord_marray = None
+    con_marray = None
     cat_marray = None
-    if has_ord:
-        ord_marray = np.ma.concatenate(ord_list, axis=0)
+    if has_con:
+        con_marray = np.ma.concatenate(con_list, axis=0)
     if has_cat:
         cat_marray = np.ma.concatenate(cat_list, axis=0)
     y_array = np.concatenate(y_list, axis=0)
     y_array = np.squeeze(y_array)
-    return ord_marray, cat_marray, y_array
+    return con_marray, cat_marray, y_array
 
 
 def _get_data(records_train: List[str], records_test: List[str],
@@ -76,17 +76,17 @@ def _get_data(records_train: List[str], records_test: List[str],
     Xt, Yt = test_data(records_test, metadata, batch_size)()
 
     with tf.Session() as sess:
-        ord_array, cat_array, y_array = _extract(X['ord'], X['ord_mask'],
+        con_array, cat_array, y_array = _extract(X['con'], X['con_mask'],
                                                  X['cat'], X['cat_mask'],
                                                  Y, sess, data_frac,
                                                  random_seed)
-        ord_array_test, cat_array_test, y_array_test = _extract(Xt['ord'],
-                                                                Xt['ord_mask'],
+        con_array_test, cat_array_test, y_array_test = _extract(Xt['con'],
+                                                                Xt['con_mask'],
                                                                 Xt['cat'],
                                                                 Xt['cat_mask'],
                                                                 Yt, sess)
-    return (ord_array, cat_array, y_array,
-            ord_array_test, cat_array_test, y_array_test)
+    return (con_array, cat_array, y_array,
+            con_array_test, cat_array_test, y_array_test)
 
 
 def _query_it(records_query: List[str], batch_size: int,
@@ -95,7 +95,7 @@ def _query_it(records_query: List[str], batch_size: int,
 
     total_size = metadata.features.image.height * metadata.features.image.width
     X = predict_data(records_query, metadata, batch_size)()
-    has_ord = int(X['ord'].shape[1]) != 0
+    has_con = int(X['con'].shape[1]) != 0
     has_cat = int(X['cat'].shape[1]) != 0
 
     with tqdm(total=total_size) as pbar:
@@ -103,15 +103,15 @@ def _query_it(records_query: List[str], batch_size: int,
             while True:
                 try:
                     Xvals = sess.run(X)
-                    ord_marray = np.ma.MaskedArray(data=Xvals['ord'],
-                                                   mask=Xvals['ord_mask']) \
-                        if has_ord else None
+                    con_marray = np.ma.MaskedArray(data=Xvals['con'],
+                                                   mask=Xvals['con_mask']) \
+                        if has_con else None
                     cat_marray = np.ma.MaskedArray(data=Xvals['cat'],
                                                    mask=Xvals['cat_mask']) \
                         if has_cat else None
-                    n = ord_marray.shape[0] if has_ord else cat_marray.shape[0]
+                    n = con_marray.shape[0] if has_con else cat_marray.shape[0]
                     pbar.update(n)
-                    yield ord_marray, cat_marray
+                    yield con_marray, cat_marray
                 except tf.errors.OutOfRangeError:
                     break
             return
@@ -124,17 +124,17 @@ def train_test(config_module: str, records_train: List[str],
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
                            batchsize, random_seed)
-    ord_array, cat_array, y_array, \
-        ord_array_test, cat_array_test, y_array_test = data_tuple
+    con_array, cat_array, y_array, \
+        con_array_test, cat_array_test, y_array_test = data_tuple
 
     userconfig = __import__(config_module)
 
     log.info("Training model")
     model = userconfig.SKModel(metadata, random_seed=random_seed)
 
-    model.train(ord_array, cat_array, y_array)
+    model.train(con_array, cat_array, y_array)
     log.info("Evaluating test data")
-    res = model.predict(ord_array_test, cat_array_test)
+    res = model.predict(con_array_test, cat_array_test)
     scores = model.test(y_array_test, res)
     log.info("Sklearn test metrics: {}".format(scores))
 

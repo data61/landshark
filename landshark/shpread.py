@@ -10,14 +10,14 @@ import shapefile
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
                                  CategoricalType, CoordinateArraySource,
-                                 OrdinalArraySource, OrdinalType)
+                                 ContinuousArraySource, ContinuousType)
 
 log = logging.getLogger(__name__)
 
 
 def _extract_type(python_type: type, field_length: int) -> np.dtype:
     if python_type is float:
-        result = OrdinalType
+        result = ContinuousType
     elif python_type is int:
         result = CategoricalType
     elif python_type is str:
@@ -29,7 +29,7 @@ def _extract_type(python_type: type, field_length: int) -> np.dtype:
     return result
 
 
-def _get_record_info(shp: shapefile.Reader) \
+def _get_recinfo(shp: shapefile.Reader) \
         -> Tuple[List[str], List[np.dtype]]:
     field_list = shp.fields[1:]
     labels, type_strings, nbytes, decimals = zip(*field_list)
@@ -59,7 +59,7 @@ class _AbstractShpArraySource(ArraySource):
     def __init__(self, filename: str, labels: List[str],
                  random_seed: int) -> None:
         self._sf = shapefile.Reader(filename)
-        all_fields, all_dtypes = _get_record_info(self._sf)
+        all_fields, all_dtypes = _get_recinfo(self._sf)
         self._columns = labels
         self._column_indices = _get_indices(self._columns, all_fields)
         self._original_dtypes = [all_dtypes[i] for i in self._column_indices]
@@ -80,8 +80,8 @@ class _AbstractShpArraySource(ArraySource):
         return array
 
 
-class OrdinalShpArraySource(_AbstractShpArraySource,
-                            OrdinalArraySource):
+class ContinuousShpArraySource(_AbstractShpArraySource,
+                            ContinuousArraySource):
     pass
 
 

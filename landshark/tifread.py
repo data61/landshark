@@ -13,7 +13,7 @@ from mypy_extensions import NoReturn
 from rasterio.io import DatasetReader
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 OrdinalArraySource)
+                                 ContinuousArraySource)
 from landshark.image import ImageSpec, pixel_coordinates
 
 log = logging.getLogger(__name__)
@@ -120,9 +120,9 @@ class _ImageStackSource(ArraySource):
         return out_array
 
 
-class OrdinalStackSource(_ImageStackSource, OrdinalArraySource):
+class ContinuousStackSource(_ImageStackSource, ContinuousArraySource):
 
-    _type_name = "ordinal"
+    _type_name = "continuous"
 
 
 class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):

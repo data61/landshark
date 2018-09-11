@@ -106,9 +106,9 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
                        batchMB: float, gpu: bool) -> None:
     train_metadata, query_metadata, query_records, strip, nstrips, cf = \
         setup_query(config, data, checkpoint)
-    ndims_ord = train_metadata.features.D_ordinal
+    ndims_con = train_metadata.features.D_continuous
     ndims_cat = train_metadata.features.D_categorical
-    points_per_batch = mb_to_points(batchMB, ndims_ord, ndims_cat,
+    points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
                                     halfwidth=train_metadata.halfwidth)
     params = QueryConfig(points_per_batch, gpu)
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,

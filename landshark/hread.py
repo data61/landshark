@@ -7,7 +7,7 @@ import numpy as np
 import tables
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 OrdinalArraySource)
+                                 ContinuousArraySource)
 from landshark.category import CategoryInfo
 from landshark.image import ImageSpec
 
@@ -58,10 +58,10 @@ class H5ArraySource(ArraySource):
             return data
 
 
-class OrdinalH5ArraySource(H5ArraySource, OrdinalArraySource):
+class ContinuousH5ArraySource(H5ArraySource, ContinuousArraySource):
 
-    _array_name = "ordinal_data"
-    _label_name = "ordinal_labels"
+    _array_name = "continuous_data"
+    _label_name = "continuous_labels"
 
 
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
@@ -75,14 +75,14 @@ class H5Features:
 
     def __init__(self, h5file: str) -> None:
 
-        self.ordinal, self.categorical, self.coordinates = None, None, None
+        self.continuous, self.categorical, self.coordinates = None, None, None
         self._hfile = tables.open_file(h5file, "r")
-        if hasattr(self._hfile.root, "ordinal_data"):
-            self.ordinal = self._hfile.root.ordinal_data
-            self.ordinal.mean = self._hfile.root.ordinal_data.attrs.mean
-            self.ordinal.variance = \
-                self._hfile.root.ordinal_data.attrs.variance
-            self.ordinal.missing = self._hfile.root.ordinal_data.attrs.missing
+        if hasattr(self._hfile.root, "continuous_data"):
+            self.continuous = self._hfile.root.continuous_data
+            self.continuous.mean = self._hfile.root.continuous_data.attrs.mean
+            self.continuous.variance = \
+                self._hfile.root.continuous_data.attrs.variance
+            self.continuous.missing = self._hfile.root.continuous_data.attrs.missing
         if hasattr(self._hfile.root, "categorical_data"):
             self.categorical = self._hfile.root.categorical_data
             maps = self._hfile.root.categorical_mappings.read()
@@ -90,24 +90,24 @@ class H5Features:
             self.categorical.missing = \
                 self._hfile.root.categorical_data.attrs.missing
             self.categorical.maps = CategoryInfo(maps, counts)
-        if self.ordinal:
-            self._n = len(self.ordinal)
+        if self.continuous:
+            self._n = len(self.continuous)
         if self.categorical:
             self._n = len(self.categorical)
-        if self.ordinal and self.categorical:
-            assert len(self.ordinal) == len(self.categorical)
+        if self.continuous and self.categorical:
+            assert len(self.continuous) == len(self.categorical)
 
     def __len__(self) -> int:
         return self._n
 
     # def rows(self, rows: FixedSlice) -> FeatureValues:
-    #     ord_data = None
+    #     con_data = None
     #     cat_data = None
-    #     if self.ordinal:
-    #         ord_data = self.ordinal[rows.start:rows.stop]
+    #     if self.continuous:
+    #         con_data = self.continuous[rows.start:rows.stop]
     #     if self.categorical:
     #         cat_data = self.categorical[rows.start:rows.stop]
-    #     return FeatureValues(ord_data, cat_data)
+    #     return FeatureValues(con_data, cat_data)
 
     def __del__(self) -> None:
         self._hfile.close()

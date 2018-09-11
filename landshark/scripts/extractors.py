@@ -13,7 +13,7 @@ from landshark.datawrite import write_querydata, write_trainingdata
 from landshark.extract import active_column_metadata, get_active_features
 from landshark.featurewrite import (read_featureset_metadata,
                                     read_target_metadata)
-from landshark.hread import CategoricalH5ArraySource, OrdinalH5ArraySource
+from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
 from landshark.metadata import (CategoricalMetadata, QueryMetadata,
@@ -94,26 +94,26 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     feature_metadata = read_featureset_metadata(features)
     target_metadata = read_target_metadata(targets)
 
-    active_feats_ord, active_feats_cat = get_active_features(
+    active_feats_con, active_feats_cat = get_active_features(
         feature_metadata, withfeat, withoutfeat, withlist)
 
     reduced_feature_metadata = active_column_metadata(feature_metadata,
-                                                      active_feats_ord,
+                                                      active_feats_con,
                                                       active_feats_cat)
-    ndim_ord = reduced_feature_metadata.D_ordinal
+    ndim_con = reduced_feature_metadata.D_continuous
     ndim_cat = reduced_feature_metadata.D_categorical
-    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
     target_src = CategoricalH5ArraySource(targets) \
         if isinstance(target_metadata, CategoricalMetadata) \
-        else OrdinalH5ArraySource(targets)
+        else ContinuousH5ArraySource(targets)
 
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
     tinfo = SourceMetadata(name, features, target_src,
                            feature_metadata.image, halfwidth, kfolds,
-                           active_feats_ord, active_feats_cat)
+                           active_feats_con, active_feats_cat)
     # TODO check this is being used correctly in the tensorflow regulariser
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
@@ -177,15 +177,15 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
         pass
 
     feature_metadata = read_featureset_metadata(features)
-    active_ord, active_cat = get_active_features(feature_metadata, withfeat,
+    active_con, active_cat = get_active_features(feature_metadata, withfeat,
                                                  withoutfeat, withlist)
 
     reduced_metadata = active_column_metadata(feature_metadata,
-                                              active_ord,
+                                              active_con,
                                               active_cat)
-    ndim_ord = reduced_metadata.D_ordinal
+    ndim_con = reduced_metadata.D_continuous
     ndim_cat = reduced_metadata.D_categorical
-    points_per_batch = mb_to_points(batchMB, ndim_ord, ndim_cat,
+    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
     strip_imspec = strip_image_spec(strip_idx, totalstrips,
@@ -194,7 +194,7 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     tag = "query.{}of{}".format(strip_idx, totalstrips)
     write_querydata(features, feature_metadata.image, strip_idx, totalstrips,
                     points_per_batch, halfwidth, nworkers, directory, tag,
-                    active_ord, active_cat)
+                    active_con, active_cat)
     # TODO other info here like strips and windows
     query_metadata = QueryMetadata(reduced_metadata)
     pickle_metadata(directory, query_metadata)

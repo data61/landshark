@@ -8,9 +8,9 @@ import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.basetypes import (CategoricalType, NumericalType, OrdinalType)
+from landshark.basetypes import (CategoricalType, NumericalType, ContinuousType)
 from landshark.image import ImageSpec
-from landshark.metadata import (CategoricalMetadata, OrdinalMetadata,
+from landshark.metadata import (CategoricalMetadata, ContinuousMetadata,
                                 TrainingMetadata)
 from landshark.errors import PredictionShape
 

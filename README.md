@@ -103,14 +103,13 @@ requirements for data input:
 6. Geotiffs may have multiple bands, and different geotiffs may have different
    datatypes (eg uint8, float32), but within a single geotiff all bands must
    have the same datatype
-7. Geotiffs have been categorized into continuous data (referred to as 'ordinal'), 
-   and categorical data. These two sets of geotiffs are stored in separate
-   folders.
+7. Geotiffs have been categorized into continuous data and categorical data.
+   These two sets of geotiffs are stored in separate folders.
 
 
 ## Usage Example
 
-We have say a dozen `.tif` covariates stored between our `./ord_images` and
+We have say a dozen `.tif` covariates stored between our `./con_images` and
 `./cat_images` folder. We have a target shapefile in our `./targets` folder. 
 We're going to use the `landshark-import` command to get our data into a format
 useable by landshark.
@@ -120,7 +119,7 @@ useable by landshark.
 We start by creating a tiff stack called "murray".
 
 ```bash
-$ landshark-import tifs --ordinal ord_images/ --categorical cat_images --name murray
+$ landshark-import tifs --continuous con_images/ --categorical cat_images --name murray
 ```
 
 The result of this command will be a file in the current directory called 
@@ -129,10 +128,10 @@ a shapefile. Note we can import as many records as we like using multiple
 `--record` flags:
 
 ```bash
-$ landshark-import targets --name sodium --shapefile ./targets/Na.shp --dtype ordinal --record Na_conc --record meas_error
+$ landshark-import targets --name sodium --shapefile ./targets/Na.shp --dtype continuous --record Na_conc --record meas_error
 ```
 
-We've also specified that the type of the records is ordinal (ie continuous).
+We've also specified that the type of the records is continuous.
 From this command, landshark will output `targets_sodium.hdf5`.
 
 ### 2. Extract Train/test and Query Data
@@ -232,14 +231,14 @@ Required flags:
 Flag | Argument | Description
 | --- | --- | --- |
 `--name` | `STRING` | A name describing the feature set being constructed.
-`--ordinal` | `DIRECTORY` | A directory containing ordinal (continuous-valued) geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--ordinal` or `--categorical` must be given.
-`--categorical` | `DIRECTORY` | A directory containing categorical geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--ordinal` or `--categorical` must be given.
+`--continuous` | `DIRECTORY` | A directory containing continuous-valued geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--continuous` or `--categorical` must be given.
+`--categorical` | `DIRECTORY` | A directory containing categorical geotiffs. This argument can be given multiple times with different folders. May be omitted, but at least one of `--continuous` or `--categorical` must be given.
 
 Optional arguments:
 
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--normalise/--no-normalise` | | `TRUE` | Whether to normalise each ordinal tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
+`--normalise/--no-normalise` | | `TRUE` | Whether to normalise each continuous tif band to have mean 0 and standard deviation 1. Normalising is highly recommended for learning.
 `--ignore-crs/--no-ignore-crs` | | `FALSE` | Whether to enforce the CRS data being identical for all images. Default is no-ignore, but if you know what you're doing...
 
 
@@ -247,7 +246,7 @@ Option | Argument | Default | Description
 
 The `targets` subcommand takes a shapefile and extracts a set of points and
 records from it to use as targets. At the moment the datatype of the records
-must be the same, i.e. all categorical or ordinal. The points are also shuffled
+must be the same, i.e. all categorical or continuous. The points are also shuffled
 on import (deterministically).
 
 The output of the operation is a  target file called `targets_<name>.hdf5`.
@@ -259,7 +258,7 @@ Flag | Argument | Description
 `--name` | `STRING` | A name describing the target set being constructed.
 `--shapefile` | `SHAPEFILE` | The shapefile from which to extract. Use the actual `.shp` file here.
 `--record` | `STRING` | A record to extract for each point as a target. This argument can be given multiple times to extract multiple records.
-`--dtype` | `[ordinal\|categorical]` | The type of target, either ordinal for regression or categorical for classification.
+`--dtype` | `[continuous\|categorical]` | The type of target, either continuous for regression or categorical for classification.
 
 Optional Arguments:
 

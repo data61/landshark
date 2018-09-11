@@ -5,7 +5,7 @@ from typing import List, Tuple
 import numpy as np
 import tensorflow as tf
 
-from landshark.basetypes import OrdinalType
+from landshark.basetypes import ContinuousType
 from landshark.metadata import CategoricalMetadata, TrainingMetadata
 
 #
@@ -15,8 +15,8 @@ from landshark.metadata import CategoricalMetadata, TrainingMetadata
 _FDICT = {
     "x_cat": tf.FixedLenFeature([], tf.string),
     "x_cat_mask": tf.FixedLenFeature([], tf.string),
-    "x_ord": tf.FixedLenFeature([], tf.string),
-    "x_ord_mask": tf.FixedLenFeature([], tf.string),
+    "x_con": tf.FixedLenFeature([], tf.string),
+    "x_con_mask": tf.FixedLenFeature([], tf.string),
     "y": tf.FixedLenFeature([], tf.string)
     }
 
@@ -25,19 +25,19 @@ _FDICT = {
 # Module functions
 #
 
-def serialise(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
+def serialise(x_con: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
               y: np.array) -> List[bytes]:
     """Serialise data to tf.records."""
-    if x_ord is None:
-        x_ord = repeat(np.ma.MaskedArray(data=[], mask=[]))
+    if x_con is None:
+        x_con = repeat(np.ma.MaskedArray(data=[], mask=[]))
     if x_cat is None:
         x_cat = repeat(np.ma.MaskedArray(data=[], mask=[]))
     if y is None:
         # TODO dont know the dtype so this is a bit dodgy
-        y = repeat(np.array([], dtype=OrdinalType))
+        y = repeat(np.array([], dtype=ContinuousType))
 
     string_list = []
-    for xo_i, xc_i, y_i in zip(x_ord, x_cat, y):
+    for xo_i, xc_i, y_i in zip(x_con, x_cat, y):
         fdict = _make_features(xo_i, xc_i, y_i)
         example = tf.train.Example(
             features=tf.train.Features(feature=fdict))
@@ -53,28 +53,28 @@ def deserialise(row: str, metadata: TrainingMetadata) \
     categorical = isinstance(metadata.targets, CategoricalMetadata)
     y_type = tf.int32 if categorical else tf.float32
     with tf.name_scope("Inputs"):
-        x_ord = tf.decode_raw(raw_features["x_ord"], tf.float32)
+        x_con = tf.decode_raw(raw_features["x_con"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
-        x_ord_mask = tf.decode_raw(raw_features["x_ord_mask"], tf.uint8)
+        x_con_mask = tf.decode_raw(raw_features["x_con_mask"], tf.uint8)
         x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
-        x_ord_mask = tf.cast(x_ord_mask, tf.bool)
+        x_con_mask = tf.cast(x_con_mask, tf.bool)
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
         y = tf.decode_raw(raw_features["y"], y_type)
 
-        nfeatures_ord = metadata.features.ordinal.D \
-            if metadata.features.ordinal else 0
+        nfeatures_con = metadata.features.continuous.D \
+            if metadata.features.continuous else 0
         nfeatures_cat = metadata.features.categorical.D \
             if metadata.features.categorical else 0
         ntargets = metadata.targets.D
 
-        x_ord.set_shape((None, npatch * nfeatures_ord))
-        x_ord_mask.set_shape((None, npatch * nfeatures_ord))
+        x_con.set_shape((None, npatch * nfeatures_con))
+        x_con_mask.set_shape((None, npatch * nfeatures_con))
         x_cat.set_shape((None, npatch * nfeatures_cat))
         x_cat_mask.set_shape((None, npatch * nfeatures_cat))
         y.set_shape((None, ntargets))
 
-        feat_dict = {"ord": x_ord,
-                     "ord_mask": x_ord_mask,
+        feat_dict = {"con": x_con,
+                     "con_mask": x_con_mask,
                      "cat": x_cat,
                      "cat_mask": x_cat_mask}
     return feat_dict, y
@@ -92,14 +92,14 @@ def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     return feature
 
 
-def _make_features(x_ord: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
+def _make_features(x_con: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
                    y: np.ndarray) -> dict:
     """Do stuff."""
     fdict = {
         "x_cat": _ndarray_feature(x_cat.data),
         "x_cat_mask": _ndarray_feature(x_cat.mask),
-        "x_ord": _ndarray_feature(x_ord.data),
-        "x_ord_mask": _ndarray_feature(x_ord.mask),
+        "x_con": _ndarray_feature(x_con.data),
+        "x_con_mask": _ndarray_feature(x_con.mask),
         "y": _ndarray_feature(y)
         }
     return fdict

@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from landshark import iteration
-from landshark.basetypes import OrdinalArraySource, OrdinalType, Worker
+from landshark.basetypes import ContinuousArraySource, ContinuousType, Worker
 from landshark.util import to_masked
 
 log = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class StatCounter:
 class Normaliser(Worker):
 
     def __init__(self, mean: np.ndarray, var: np.ndarray,
-                 missing: Optional[OrdinalType]) -> None:
+                 missing: Optional[ContinuousType]) -> None:
         self._mean = mean
         self._std = np.sqrt(var)
         self._missing = missing
@@ -77,9 +77,9 @@ class Normaliser(Worker):
         return xm.data
 
 
-def get_stats(src: OrdinalArraySource, batchrows: int) \
+def get_stats(src: ContinuousArraySource, batchrows: int) \
         -> Tuple[np.ndarray, np.ndarray]:
-    log.info("Computing ordinal feature statistics")
+    log.info("Computing continuous feature statistics")
     n_rows = src.shape[0]
     n_cols = src.shape[-1]
     stats = StatCounter(n_cols)
