@@ -29,7 +29,7 @@ class CliArgs(NamedTuple):
 @click.group()
 @click.option("--gpu/--no-gpu", default=False,
               help="Have tensorflow use the GPU")
-@click.option("--batch-mb", type=float, default=100,
+@click.option("--batch-mb", type=float, default=10,
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
 @click.option("-v", "--verbosity",

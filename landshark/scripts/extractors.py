@@ -37,7 +37,7 @@ class CliArgs(NamedTuple):
               default="INFO", help="Level of logging")
 @click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count(),
               help="Number of additional worker processes")
-@click.option("--batch-mb", type=float, default=100,
+@click.option("--batch-mb", type=float, default=10,
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
 @click.pass_context
@@ -192,9 +192,13 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
                                     feature_metadata.image)
     reduced_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip_idx, totalstrips)
-    write_querydata(features, feature_metadata.image, strip_idx, totalstrips,
-                    points_per_batch, halfwidth, nworkers, directory, tag,
-                    active_con, active_cat)
+
+    qinfo = SourceMetadata(name, features, None, strip_imspec,
+                           halfwidth, None, active_con, active_cat)
+
+    write_querydata(qinfo, directory, strip_idx, totalstrips,
+                    points_per_batch, nworkers, tag)
+
     # TODO other info here like strips and windows
     query_metadata = QueryMetadata(reduced_metadata)
     pickle_metadata(directory, query_metadata)

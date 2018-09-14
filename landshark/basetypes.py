@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 ContinuousType = np.float32
 CategoricalType = np.int32
 CoordinateType = np.float64
+IndexType = np.int32
 
 # Union[ContinuousType, CategoricalType] but mypy doesn't support yet
 FeatureType = Union[np.float32, np.int32]

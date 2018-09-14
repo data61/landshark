@@ -82,10 +82,6 @@ The basic steps in using Landshark are:
 3. Train a model and predict with the `landshark` command, 
    or `skshark` for scikit-learn models.
 
-If you would like to use landshark outputs for other tools, you can
-export training, testing and query data with the `landshark-dump` command.
-
-
 ## Data Prerequisites
 
 Landshark has not tried to replicate features that exist in other tools,
@@ -193,7 +189,6 @@ Command | Description
 `landshark-extract` | Extract train/test data and query data from imported features and targets
 `landshark` | Train a model and make predictions
 `skshark` | Train a scikit-learn model for comparison/baseline purposes
-`landshark-dump` | Dump train/test and query data into HDF5 for use in external tools
 
 There are two global options for all these commands:
 
@@ -395,51 +390,6 @@ Flag | Argument | Description
 `--data` | `DIRECTORY` | The directory containing the query data.
 `--config` | `FILE` | The model config file.
 `--checkpoint` | `DIRECTORY` | The directory containing the trained model checkpoint to use for prediction. Must match the config file.
-
-### landshark-dump
-
-Option | Argument | Default | Description
-| --- | --- | --- | --- |
-`--nworkers` | `INT>=0` | number of cores | The number of *additional* worker processes beyond the parent process. Setting this value to 0 disables multiprocessing entirely. The default is the number of logical CPUs python has detected.
-`--batch-mb` | `FLOAT>0` | 100 | The approximate size in megabytes of data read per worker and per iteration. See Memory Usage for details.
-
-
-#### traintest
-
-Required Flags:
-
-Flag | Argument | Description
-| --- | --- | --- |
-`--name` | `STRING` | A name describing the training dataset being constructed.
-`--features` | `FILE` | The landshark HDF5 feature file from which to extract
-`--targets` | `FILE` | The landshark HDF5 target file from which to extract
-
-
-Optional Arguments:
-
-Option | Argument | Default | Description
-| --- | --- | --- | --- |
-`--nfolds` | `INT>0` | 10 | The number of folds into which to assign training folds. The fold number gets written into the HDF5 so that train/test splits can be directly compared with other tools.
-`--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
-
-#### query
-
-
-Required Flags:
-
-Flag | Argument | Description
-| --- | --- | --- |
-`--name` | `STRING` | A name describing the training dataset being constructed.
-`--features` | `FILE` | The landshark HDF5 feature file from which to extract
-
-
-Optional Arguments:
-
-Option | Argument | Default | Description
-| --- | --- | --- | --- |
-`--strip` | `INT>0` `INT>0` | 1 1 | The horizontal strip of the image to dump.  The second argument is the number of horizontal strips to divide the image, the first argument is the index (from 1) of those strips. For example, `--strip 3 5` is the 3rd strip of 5. 
-`--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
-
 
 
 ## Design choices

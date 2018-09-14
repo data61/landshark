@@ -8,7 +8,7 @@ from affine import Affine
 from rasterio.transform import from_bounds
 
 from landshark import iteration
-from landshark.basetypes import CoordinateType, FixedSlice
+from landshark.basetypes import CoordinateType, FixedSlice, IndexType
 
 log = logging.getLogger(__name__)
 
@@ -236,6 +236,7 @@ def world_to_image(points: np.ndarray,
     res = pixel_coordinate_array.shape[0] - 1
     if (not all(np.logical_and(idx >= 0, idx < res))):
         raise ValueError("Queried location is not in the image")
+    idx = idx.astype(IndexType)
     return idx
 
 
@@ -277,7 +278,7 @@ def strip_image_spec(strip: int, nstrips: int,
 
 def indices_strip(image_spec: ImageSpec, strip: int, nstrips: int,
                   batchsize: int) \
-        -> Tuple[Iterable[Tuple[np.ndarray, np.ndarray]], int]:
+        -> Tuple[Iterable[np.ndarray], int]:
     """
     Create an iterator over each row of a strip.
 
@@ -324,11 +325,10 @@ def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
     return slices
 
 
-def _array_pair_it(x: Iterable[Any]) -> Tuple[np.ndarray, np.ndarray]:
+def _array_pair_it(x: Iterable[Any]) -> np.ndarray:
     """Get the x and y coordinate arrays from the batch iterator."""
-    a = np.array(x).T[::-1]
-    r = (a[0], a[1])
-    return r
+    a = np.array(x, dtype=IndexType)[:, ::-1]
+    return a
 
 
 def _indices_query(
@@ -337,7 +337,7 @@ def _indices_query(
     batchsize: int,
     column_slice: Optional[FixedSlice]=None,
     row_slice: Optional[FixedSlice]=None
-        ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
+        ) -> Iterable[np.ndarray]:
     """Create a generator of batches of coordinates from an image."""
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)

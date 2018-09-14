@@ -42,7 +42,7 @@ class CliArgs(NamedTuple):
               default="INFO", help="Level of logging")
 @click.option("--nworkers", type=click.IntRange(0, None), default=cpu_count(),
               help="Number of additional worker processes")
-@click.option("--batch-mb", type=float, default=100,
+@click.option("--batch-mb", type=float, default=10,
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
 @click.pass_context

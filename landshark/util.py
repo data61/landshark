@@ -30,7 +30,7 @@ def mb_to_points(batchMB: float, ndim_con: int, ndim_cat: int,
     bytes_coord = np.dtype(CoordinateType).itemsize * ndim_coord
     mbytes_per_point = (bytes_con + bytes_cat + bytes_coord) * patchsize * 1e-6
     npoints = int(round(max(1., batchMB / mbytes_per_point)))
-    log.info("Batch size set to {} points, total {}MB".format(
+    log.info("Batch size set to {} points, total {:0.2f}MB".format(
         npoints, npoints * mbytes_per_point))
     return npoints
 
@@ -44,6 +44,6 @@ def mb_to_rows(batchMB: float, row_width: int, ndim_con: int, ndim_cat: int,
     point_mbytes = (bytes_con + bytes_cat) * patchsize * 1e-6
     npoints = batchMB / point_mbytes
     nrows = int(round(max(1., npoints / row_width)))
-    log.info("Batch size set to {} rows, total {}MB".format(
+    log.info("Batch size set to {} rows, total {:0.2f}MB".format(
         nrows, point_mbytes * row_width * nrows))
     return nrows

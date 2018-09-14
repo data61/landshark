@@ -31,7 +31,7 @@ def write_feature_metadata(meta: FeatureSetMetadata,
                            hfile: tables.File) -> None:
     hfile.root._v_attrs.N = meta.N
     write_imagespec(meta.image, hfile)
-    if meta.:
+    if meta.continuous:
         write_continuous_metadata(meta.continuous, hfile)
     if meta.categorical:
         write_categorical_metadata(meta.categorical, hfile)
