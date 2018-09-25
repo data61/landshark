@@ -71,9 +71,11 @@ def _get_data(records_train: List[str], records_test: List[str],
     data_frac = min(npoints / metadata.N, 1.0) if npoints else None
 
 
-    X, Y = train_data(records_train, metadata, batch_size,
+    train_dataset = train_data(records_train, metadata, batch_size,
                       epochs=1, random_seed=random_seed)()
-    Xt, Yt = test_data(records_test, metadata, batch_size)()
+    X, Y = train_dataset.make_one_shot_iterator().get_next()
+    test_dataset = test_data(records_test, metadata, batch_size)()
+    Xt, Yt = test_dataset.make_one_shot_iterator().get_next()
 
     with tf.Session() as sess:
         con_array, cat_array, y_array = _extract(X['con'], X['con_mask'],

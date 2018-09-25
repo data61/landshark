@@ -27,13 +27,17 @@ class SKModel:
                                          random_state=random_seed)
 
     def train(self, Xo: np.ndarray, Xc: np.ndarray, Y: np.array) -> None:
+
+
         X_list = []
         if Xc is not None:
+            Xc = Xc.reshape((Xc.shape[0], -1))
             Xc.data[Xc.mask] = -1
             X_cat_imp = self.cat_imp.fit_transform(Xc.data)
             X_onehot = self.enc.fit_transform(X_cat_imp)
             X_list.append(X_onehot)
         if Xo is not None:
+            Xo = Xo.reshape((Xo.shape[0], -1))
             Xo.data[Xo.mask] = np.nan
             X_imputed = self.ord_imp.fit_transform(Xo.data)
             X_list.append(X_imputed)
@@ -49,11 +53,13 @@ class SKModel:
             -> Dict[str, np.ndarray]:
         X_list = []
         if Xc is not None:
+            Xc = Xc.reshape((Xc.shape[0], -1))
             Xc.data[Xc.mask] = -1
             X_cat_imp = self.cat_imp.transform(Xc.data)
             X_onehot = self.enc.transform(X_cat_imp)
             X_list.append(X_onehot)
         if Xo is not None:
+            Xo = Xo.reshape((Xo.shape[0], -1))
             Xo.data[Xo.mask] = np.nan
             X_imputed = self.ord_imp.transform(Xo)
             X_list.append(X_imputed)
