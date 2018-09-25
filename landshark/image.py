@@ -184,7 +184,7 @@ def image_to_world(indices: np.ndarray,
 
     """
     assert indices.ndim == 1
-    assert indices.dtype == np.int64
+    assert indices.dtype == IndexType
     assert pixel_coordinate_array.ndim == 1
     assert pixel_coordinate_array.dtype == CoordinateType
     assert np.all(indices >= 0)
@@ -219,6 +219,8 @@ def world_to_image(points: np.ndarray,
     each world point.
 
     """
+    assert points.dtype is CoordinateType
+    assert pixel_coordinate_array.dtype is CoordinateType
     reverse = pixel_coordinate_array[1] < pixel_coordinate_array[0]
     if reverse:
         rev_idx = np.searchsorted(pixel_coordinate_array[::-1], points,

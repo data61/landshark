@@ -1,17 +1,26 @@
 """Generic classification config file."""
 import aboleth as ab
 import tensorflow as tf
-
-from landshark.model import patch_categories, patch_slices
+import numpy as np
 
 ab.set_hyperseed(666)
 embed_dim = 3
+
+
+def flatten_patch(x):
+    new_shp = (tf.shape(x)[0], np.product(x.shape[1:]))
+    new_x = tf.reshape(x, new_shp)
+    return new_x
+
 
 def model(features, labels, mode, params):
 
     metadata = params["metadata"]
     N = metadata.features.N
     n_samples = 3
+
+    x_con = flatten_patch(features["con"])
+    x_cat = flatten_patch(features["cat"])
 
     kernel = ab.RBF(10.0, learn_lenscale=True)
     net = (
@@ -21,9 +30,8 @@ def model(features, labels, mode, params):
                             learn_prior=True)
     )
 
-    phi, kl = net(X=features["ord"])
+    phi, kl = net(X=x_con)
     std = ab.pos_variable(10.0, name="noise")
-    ll_f = tf.distributions.Normal(loc=phi, scale=std)
     predict_mean = ab.sample_mean(phi)
 
     # Compute predictions.
@@ -36,6 +44,7 @@ def model(features, labels, mode, params):
         }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
+    ll_f = tf.distributions.Normal(loc=phi, scale=std)
     ll = ll_f.log_prob(labels)
     loss = ab.elbo(ll, kl, N)
     tf.summary.scalar('loss', loss)

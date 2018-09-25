@@ -54,10 +54,9 @@ def train_data(records: List[str], metadata: TrainingMetadata,
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .repeat(count=epochs) \
             .shuffle(buffer_size=shuffle_buffer, seed=random_seed) \
-            .batch(batch_size)
-        raw_data = dataset.make_one_shot_iterator().get_next()
-        x, y = deserialise(raw_data, metadata)
-        return x, y
+            .batch(batch_size) \
+            .map(lambda x: deserialise(x, metadata))
+        return dataset
     return f
 
 
@@ -66,10 +65,9 @@ def test_data(records: List[str], metadata: TrainingMetadata,
     """Test and query dataset feeder."""
     def f():
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .batch(batch_size)
-        raw_data = dataset.make_one_shot_iterator().get_next()
-        x, y = deserialise(raw_data, metadata)
-        return x, y
+            .batch(batch_size) \
+            .map(lambda x: deserialise(x, metadata))
+        return dataset
     return f
 
 
@@ -78,10 +76,9 @@ def predict_data(records: List[str], metadata: TrainingMetadata,
     """Test and query dataset feeder."""
     def f():
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .batch(batch_size)
-        raw_data = dataset.make_one_shot_iterator().get_next()
-        x, _ = deserialise(raw_data, metadata)
-        return x
+            .batch(batch_size) \
+            .map(lambda x: deserialise(x, metadata, ignore_y=True))
+        return dataset
     return f
 
 
@@ -161,26 +158,6 @@ def predict(checkpoint_dir: str,
                 pbar.update()
             except StopIteration:
                 return
-
-def patch_slices(metadata: TrainingMetadata) -> List[slice]:
-    """Get slices into the covariates corresponding to patches."""
-    assert metadata.features.categorical
-    npatch = (metadata.halfwidth * 2 + 1) ** 2
-    dim = npatch * metadata.features.categorical.D
-    begin = range(0, dim, npatch)
-    end = range(npatch, dim + npatch, npatch)
-    slices = [slice(b, e) for b, e in zip(begin, end)]
-    return slices
-
-
-def patch_categories(metadata: TrainingMetadata) -> List[int]:
-    """Get the number of categories including the extra patch columns."""
-    assert metadata.features.categorical
-    bmul = (2 * metadata.halfwidth + 1) ** 2
-    ncats_nested = [[k] * bmul for k in
-                    metadata.features.categorical.ncategories]
-    ncategories_patched = [e for l in ncats_nested for e in l]
-    return ncategories_patched
 
 #
 # Private module utility functions

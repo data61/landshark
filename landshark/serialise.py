@@ -1,6 +1,6 @@
 """Serialise and Deserialise to and from tf records."""
 from itertools import repeat
-from typing import List, Tuple, NamedTuple, Optional
+from typing import List, Tuple, NamedTuple, Optional, Union
 
 import numpy as np
 import tensorflow as tf
@@ -53,8 +53,8 @@ def serialise(x: DataArrays) -> [List[bytes]]:
     return string_list
 
 
-def deserialise(row: str, metadata: TrainingMetadata) \
-        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
+        -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)
     npatch_side = 2 * metadata.halfwidth + 1
@@ -98,8 +98,8 @@ def deserialise(row: str, metadata: TrainingMetadata) \
                      "indices": indices,
                      "coords": coords}
 
-    return feat_dict, y
-
+    result = feat_dict if ignore_y else (feat_dict, y)
+    return result
 
 #
 # Private module utilities
