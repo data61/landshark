@@ -47,13 +47,15 @@ class QueryConfig(NamedTuple):
 
 def train_data(records: List[str], metadata: TrainingMetadata,
                batch_size: int, epochs: int=1, shuffle_buffer: int=1000,
-               random_seed: Optional[int]=None) \
+               take: Optional[int]=None, random_seed: Optional[int]=None) \
         -> tf.data.TFRecordDataset:
     """Train dataset feeder."""
+    take = -1 if take is None else take
     def f():
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .repeat(count=epochs) \
             .shuffle(buffer_size=shuffle_buffer, seed=random_seed) \
+            .take(take) \
             .batch(batch_size) \
             .map(lambda x: deserialise(x, metadata))
         return dataset

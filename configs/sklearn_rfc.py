@@ -2,7 +2,7 @@
 from typing import Optional, Tuple, Dict
 
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import Imputer, OneHotEncoder
 
 NTREES = 100
@@ -23,7 +23,7 @@ class SKModel:
                                      categorical_features="all",
                                      dtype=np.float32, sparse=False)
 
-        self.est = RandomForestRegressor(n_estimators=NTREES,
+        self.est = RandomForestClassifier(n_estimators=NTREES,
                                          random_state=random_seed)
 
     def train(self, X: Dict[str, np.ndarray],  Y: np.array) -> None:

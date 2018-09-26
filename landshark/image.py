@@ -219,8 +219,8 @@ def world_to_image(points: np.ndarray,
     each world point.
 
     """
-    assert points.dtype is CoordinateType
-    assert pixel_coordinate_array.dtype is CoordinateType
+    assert points.dtype == CoordinateType
+    assert pixel_coordinate_array.dtype == CoordinateType
     reverse = pixel_coordinate_array[1] < pixel_coordinate_array[0]
     if reverse:
         rev_idx = np.searchsorted(pixel_coordinate_array[::-1], points,

@@ -1,9 +1,10 @@
 """Configuration for test suite."""
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=ImportWarning)
 import os
 
 import pytest
-
 
 @pytest.fixture(scope="module")
 def data_loc(request):
@@ -12,7 +13,7 @@ def data_loc(request):
     data_dir = os.path.join(test_dir, "data")
     target_dir = os.path.join(data_dir, "targets")
     cat_dir = os.path.join(data_dir, "categorical")
-    ord_dir = os.path.join(data_dir, "ordinal")
+    con_dir = os.path.join(data_dir, "continuous")
     model_dir = os.path.abspath(
         os.path.join(test_dir, "..", "configs"))
     result_dir = os.path.abspath(
@@ -22,4 +23,4 @@ def data_loc(request):
     except FileExistsError:
         pass
 
-    return ord_dir, cat_dir, target_dir, model_dir, result_dir
+    return con_dir, cat_dir, target_dir, model_dir, result_dir
