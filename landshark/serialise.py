@@ -85,19 +85,29 @@ def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
                      "coords": coords}
 
         if nfeatures_con > 0:
-            feat_dict["con"] = tf.reshape(
+            con_all = tf.reshape(
                 x_con, (tf.shape(x_con)[0], npatch_side,
                         npatch_side, nfeatures_con))
-            feat_dict["con_mask"] = tf.reshape(
+            con_all_mask = tf.reshape(
                 x_con_mask, (tf.shape(x_con_mask)[0], npatch_side,
                              npatch_side, nfeatures_con))
+            con_dict = {}
+            for i, lbl in enumerate(metadata.features.continuous.labels):
+                con_dict[lbl] = con_all[..., i][..., tf.newaxis]
+                con_dict[lbl + "_mask"] = con_all_mask[..., i][..., tf.newaxis]
+            feat_dict["con"] = con_dict
         if nfeatures_cat > 0:
-            feat_dict["cat"] = tf.reshape(
+            cat_all = tf.reshape(
                 x_cat, (tf.shape(x_cat)[0], npatch_side,
                         npatch_side, nfeatures_cat))
-            feat_dict["cat_mask"] = tf.reshape(
+            cat_all_mask = tf.reshape(
                 x_cat_mask, (tf.shape(x_cat_mask)[0], npatch_side,
                              npatch_side, nfeatures_cat))
+            cat_dict = {}
+            for i, lbl in enumerate(metadata.features.categorical.labels):
+                cat_dict[lbl] = cat_all[..., i][...,tf.newaxis]
+                cat_dict[lbl + "_mask"] = cat_all_mask[..., i:i][...,tf.newaxis]
+            feat_dict["cat"] = cat_dict
     result = feat_dict if ignore_y else (feat_dict, y)
     return result
 

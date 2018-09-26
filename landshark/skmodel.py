@@ -8,8 +8,6 @@ from typing import Iterator, List, Optional, Tuple, Dict
 
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
-                             r2_score)
 from tqdm import tqdm
 
 from landshark.basetypes import CategoricalType, ContinuousType
@@ -20,12 +18,27 @@ from landshark.serialise import deserialise
 log = logging.getLogger(__name__)
 
 
-def _make_mask(x: Dict[str, np.ndarray], label: str):
-    if label in x:
+def _make_mask(x: Dict[str, np.ndarray]):
+    keys_orig = set(x.keys())
+    keys_valid = set(k for k in keys_orig if (k + "_mask") in keys_orig)
+    for label in keys_valid:
         a = x.pop(label)
         m = x.pop(label + "_mask")
         ma = np.ma.MaskedArray(data=a, mask=m)
         x[label] = ma
+
+
+def _concat_dict2(xlist):
+    out_dict = {}
+    for k, v in xlist[0].items():
+        if isinstance(v, np.ndarray):
+            out_dict[k] = np.concatenate([di[k] for di in xlist], axis=0)
+        else:
+            out_dict[k] = {
+                kv: np.concatenate([di[k][kv] for di in xlist], axis=0)
+                for kv in v.keys()
+                }
+    return out_dict
 
 
 def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
@@ -41,11 +54,12 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
         pass
 
     y_full = np.concatenate(y_list, axis=0)
-    x_full = {k: np.concatenate([di[k] for di in x_list], axis=0)
-              for k,v in x_list[0].items()}
+    x_full = _concat_dict2(x_list)
 
-    _make_mask(x_full, "con")
-    _make_mask(x_full, "cat")
+    if "con" in x_full:
+        _make_mask(x_full["con"])
+    if "cat" in x_full:
+        _make_mask(x_full["cat"])
 
     return x_full, y_full
 
@@ -79,8 +93,10 @@ def _query_it(records_query: List[str], batch_size: int,
             while True:
                 try:
                     X = sess.run(X_tensor)
-                    _make_mask(X, "con")
-                    _make_mask(X, "cat")
+                    if "con" in X:
+                        _make_mask(X["con"])
+                    if "cat" in X:
+                        _make_mask(X["cat"])
                     n = X['indices'].shape[0]
                     pbar.update(n)
                     yield X

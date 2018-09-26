@@ -44,8 +44,7 @@ def half_width(request):
     return request.param
 
 
-# @pytest.fixture(params=["landshark", "skshark"])
-@pytest.fixture(params=["skshark"])
+@pytest.fixture(params=["landshark", "skshark"])
 def whichalgo(request):
     return request.param
 
