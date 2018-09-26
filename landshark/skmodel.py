@@ -42,7 +42,7 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
 
     y_full = np.concatenate(y_list, axis=0)
     x_full = {k: np.concatenate([di[k] for di in x_list], axis=0)
-              for k,v in x_list[0].items() if v.shape[-1] != 0}
+              for k,v in x_list[0].items()}
 
     _make_mask(x_full, "con")
     _make_mask(x_full, "cat")
@@ -79,7 +79,6 @@ def _query_it(records_query: List[str], batch_size: int,
             while True:
                 try:
                     X = sess.run(X_tensor)
-                    X = {k: v for k, v in X.items() if v.shape[-1] > 0}
                     _make_mask(X, "con")
                     _make_mask(X, "cat")
                     n = X['indices'].shape[0]

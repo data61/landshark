@@ -77,27 +77,27 @@ def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
             if metadata.features.categorical else 0
         ntargets = metadata.targets.D
 
-        x_con = tf.reshape(x_con, (tf.shape(x_con)[0], npatch_side,
-                           npatch_side, nfeatures_con))
-        x_con_mask = tf.reshape(x_con_mask, (tf.shape(x_con_mask)[0],
-                                             npatch_side, npatch_side,
-                                             nfeatures_con))
-        x_cat = tf.reshape(x_cat, (tf.shape(x_cat)[0], npatch_side,
-                           npatch_side, nfeatures_cat))
-        x_cat_mask = tf.reshape(x_cat_mask, (tf.shape(x_cat_mask)[0],
-                                             npatch_side, npatch_side,
-                                             nfeatures_cat))
         y.set_shape((None, ntargets))
         indices.set_shape((None, 2))
         coords.set_shape((None, 2))
 
-        feat_dict = {"con": x_con,
-                     "con_mask": x_con_mask,
-                     "cat": x_cat,
-                     "cat_mask": x_cat_mask,
-                     "indices": indices,
+        feat_dict = {"indices": indices,
                      "coords": coords}
 
+        if nfeatures_con > 0:
+            feat_dict["con"] = tf.reshape(
+                x_con, (tf.shape(x_con)[0], npatch_side,
+                        npatch_side, nfeatures_con))
+            feat_dict["con_mask"] = tf.reshape(
+                x_con_mask, (tf.shape(x_con_mask)[0], npatch_side,
+                             npatch_side, nfeatures_con))
+        if nfeatures_cat > 0:
+            feat_dict["cat"] = tf.reshape(
+                x_cat, (tf.shape(x_cat)[0], npatch_side,
+                        npatch_side, nfeatures_cat))
+            feat_dict["cat_mask"] = tf.reshape(
+                x_cat_mask, (tf.shape(x_cat_mask)[0], npatch_side,
+                             npatch_side, nfeatures_cat))
     result = feat_dict if ignore_y else (feat_dict, y)
     return result
 
