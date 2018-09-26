@@ -289,9 +289,6 @@ Option | Argument | Default | Description
 | --- | --- | --- | --- |
 `--split` | `INT>0` `INT>0` | 1 10 | The specification of folds for the train/test split.  For example, `--split 1 10` uses fold 1 of 10 for testing. Repeated extractions with different folds allows for k-fold cross validation.
 `--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
-`--withfeat` | `STRING` | | Extract the given feature from the feature file.  Can be used multiple times for multiple features. Incompatible with `--withoutfeat` and `--withlist`.
-`--withoutfeat` | `STRING` | | Don't extract the given feature from the feature file. Can be used multiple times for multiple features. Incompatible with `--withfeat` and `--withlist`.
-`--withlist` | `TXTFILE` | | Provide a newline-separated  (and \#-commented) text file with a list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
 
 #### query
 
@@ -310,9 +307,6 @@ Option | Argument | Default | Description
 | --- | --- | --- | --- |
 `--strip` | `INT>0` `INT>0` | 1 1 | The horizontal strip of the image to extract.  The second argument is the number of horizontal strips to divide the image, the first argument is the index (from 1) of those strips. For example, `--strip 3 5` is the 3rd strip of 5. 
 `--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
-`--withfeat` | `STRING` | | Extract the given feature from the feature file.  Can be used multiple times for multiple features. Incompatible with `--withoutfeat` and `--withlist`.
-`--withoutfeat` | `STRING` | | Don't extract the given feature from the feature file. Can be used multiple times for multiple features. Incompatible with `--withfeat` and `--withlist`.
-`--withlist` | `TXTFILE` | | Provide a newline-separated  (and \#-commented) text file with a list of features to extract. Incompatible with `--withfeat` and `--withoutfeat`.
 
 
 ### landshark

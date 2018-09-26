@@ -25,28 +25,24 @@ class SourceMetadata(NamedTuple):
     image_spec: ImageSpec
     halfwidth: int
     folds: KFolds
-    active_cons: np.ndarray
-    active_cats: np.ndarray
 
 
 def _direct_read(array: tables.CArray,
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int,
-                 active_cols: np.ndarray) -> np.ma.MaskedArray:
+                 patchwidth: int) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
-    assert active_cols.shape[0] == array.atom.shape[0]
-    nfeatures = np.sum(active_cols)
+    nfeatures = array.atom.shape[0]
     dtype = array.atom.dtype.base
     patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures),
                           dtype=dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
-        patch_data[r.idx, r.yp, r.xp] = array[r.y, r.x][:, active_cols]
+        patch_data[r.idx, r.yp, r.xp] = array[r.y, r.x]
 
     for m in mask_reads:
         patch_mask[m.idx, m.yp, m.xp] = True
@@ -63,13 +59,11 @@ def _cached_read(row_dict: Dict[int, np.ndarray],
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int,
-                 active_cols: np.ndarray) -> np.ma.MaskedArray:
+                 patchwidth: int) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
-    assert active_cols.shape[0] == array.atom.shape[0]
-    nfeatures = np.sum(active_cols)
+    nfeatures = array.atom.shape[0]
     dtype = array.atom.dtype.base
     patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures),
                           dtype=dtype)
@@ -107,10 +101,10 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     return slices
 
 
-def _get_rows(slices: List[FixedSlice], array: tables.CArray,
-              active_cols: np.ndarray) -> Dict[int, np.ndarray]:
+def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
+        -> Dict[int, np.ndarray]:
     # TODO make faster
-    data_slices = [array[s.start:s.stop][..., active_cols] for s in slices]
+    data_slices = [array[s.start:s.stop] for s in slices]
     data = {}
     for s, d in zip(slices, data_slices):
         for i, d_io in zip(range(s[0], s[1]), d):
@@ -135,11 +129,11 @@ def _process_training(coords: np.ndarray,
     if feature_source.continuous:
         con_marray = _direct_read(feature_source.continuous,
                                   patch_reads, mask_reads,
-                                  npatches, patchwidth, rec.active_cons)
+                                  npatches, patchwidth)
     if feature_source.categorical:
         cat_marray = _direct_read(feature_source.categorical,
                                   patch_reads, mask_reads,
-                                  npatches, patchwidth, rec.active_cats)
+                                  npatches, patchwidth)
     indices = np.vstack((indices_x, indices_y)).T
     output = DataArrays(con_marray, cat_marray, targets, coords, indices)
     return output
@@ -161,20 +155,18 @@ def _process_query(indices: np.ndarray,
     con_marray, cat_marray = None, None
     if feature_source.continuous:
         con_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.continuous,
-                                   rec.active_cons)
+                                   feature_source.continuous)
         con_marray = _cached_read(con_data_cache,
                                   feature_source.continuous,
                                   patch_reads, mask_reads, npatches,
-                                  patchwidth, rec.active_cons)
+                                  patchwidth)
     if feature_source.categorical:
         cat_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.categorical,
-                                   rec.active_cats)
+                                   feature_source.categorical
         cat_marray = _cached_read(cat_data_cache,
                                   feature_source.categorical,
                                   patch_reads, mask_reads, npatches,
-                                  patchwidth, rec.active_cats)
+                                  patchwidth)
     coords = np.vstack((coords_x, coords_y)).T
     output = DataArrays(con_marray, cat_marray, None, coords, indices)
     return output
