@@ -6,3 +6,27 @@ def flatten_patch(x):
     new_x = tf.reshape(x, new_shp)
     return new_x
 
+def value_impute(d, newval):
+    data = d["data"]
+    mask = d["mask"]
+    tmask = tf.cast(mask, dtype=data.dtype)
+    fmask = tf.cast(tf.logical_not(mask), dtype=data.dtype)
+    newdata = data * fmask + newval * tmask
+    return newdata
+
+def continuous_input(d):
+    cols = [tf.feature_column.numeric_column(k)
+                   for k in d.keys()]
+    inputs = tf.feature_column.input_layer(d, cols)
+    return inputs
+
+def categorical_embedded_input(d, embed_dict, metadata):
+    columns_cat = [tf.feature_column.embedding_column(
+        tf.feature_column.categorical_column_with_identity(
+        key=k, num_buckets=(v + 1)), embed_dict[k])
+        for k, v in zip(metadata.features.categorical.labels,
+        metadata.features.categorical.ncategories)]
+    inputs_cat = tf.feature_column.input_layer(d, columns_cat)
+    return inputs_cat
+
+
