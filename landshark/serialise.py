@@ -85,31 +85,29 @@ def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
                      "coords": coords}
 
         if nfeatures_con > 0:
-            con_all = tf.reshape(
-                x_con, (tf.shape(x_con)[0], npatch_side,
-                        npatch_side, nfeatures_con))
-            con_all_mask = tf.reshape(
-                x_con_mask, (tf.shape(x_con_mask)[0], npatch_side,
-                             npatch_side, nfeatures_con))
-            con_dict = {}
-            for i, lbl in enumerate(metadata.features.continuous.labels):
-                con_dict[lbl] = con_all[..., i][..., tf.newaxis]
-                con_dict[lbl + "_mask"] = con_all_mask[..., i][..., tf.newaxis]
-            feat_dict["con"] = con_dict
+            feat_dict["con"] = _unpack(x_con, x_con_mask,
+                                       metadata.features.continuous.labels,
+                                       npatch_side)
         if nfeatures_cat > 0:
-            cat_all = tf.reshape(
-                x_cat, (tf.shape(x_cat)[0], npatch_side,
-                        npatch_side, nfeatures_cat))
-            cat_all_mask = tf.reshape(
-                x_cat_mask, (tf.shape(x_cat_mask)[0], npatch_side,
-                             npatch_side, nfeatures_cat))
-            cat_dict = {}
-            for i, lbl in enumerate(metadata.features.categorical.labels):
-                cat_dict[lbl] = cat_all[..., i][...,tf.newaxis]
-                cat_dict[lbl + "_mask"] = cat_all_mask[..., i:i][...,tf.newaxis]
-            feat_dict["cat"] = cat_dict
+            feat_dict["cat"] = _unpack(x_cat, x_cat_mask,
+                                       metadata.features.categorical.labels,
+                                       npatch_side)
+
     result = feat_dict if ignore_y else (feat_dict, y)
     return result
+
+
+def _unpack(x, mask, labels, npatch_side):
+    nfeatures = len(labels)
+    x_all = tf.reshape(x, (tf.shape(x)[0], npatch_side,
+                           npatch_side, nfeatures))
+    mask_all = tf.reshape(mask, (tf.shape(mask)[0], npatch_side,
+                                 npatch_side, nfeatures))
+    d = {}
+    for i, lbl in enumerate(labels):
+        d[lbl] = {"data": x_all[..., i][..., tf.newaxis],
+                  "mask": mask_all[..., i][..., tf.newaxis]}
+    return d
 
 #
 # Private module utilities

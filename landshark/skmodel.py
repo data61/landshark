@@ -17,27 +17,23 @@ from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
 
+def _make_mask(x):
 
-def _make_mask(x: Dict[str, np.ndarray]):
-    keys_orig = set(x.keys())
-    keys_valid = set(k for k in keys_orig if (k + "_mask") in keys_orig)
-    for label in keys_valid:
-        a = x.pop(label)
-        m = x.pop(label + "_mask")
-        ma = np.ma.MaskedArray(data=a, mask=m)
-        x[label] = ma
+    if isinstance(x, np.ndarray):
+        return x
+    elif set(x.keys()) == {"data", "mask"}:
+        return np.ma.MaskedArray(data=x["data"], mask=x["mask"])
+    else:
+        return {k: _make_mask(v) for k, v in x.items()}
 
 
-def _concat_dict2(xlist):
+def _concat_dict(xlist):
     out_dict = {}
     for k, v in xlist[0].items():
         if isinstance(v, np.ndarray):
             out_dict[k] = np.concatenate([di[k] for di in xlist], axis=0)
         else:
-            out_dict[k] = {
-                kv: np.concatenate([di[k][kv] for di in xlist], axis=0)
-                for kv in v.keys()
-                }
+            out_dict[k] = _concat_dict([di[k] for di in xlist])
     return out_dict
 
 
@@ -54,12 +50,7 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
         pass
 
     y_full = np.concatenate(y_list, axis=0)
-    x_full = _concat_dict2(x_list)
-
-    if "con" in x_full:
-        _make_mask(x_full["con"])
-    if "cat" in x_full:
-        _make_mask(x_full["cat"])
+    x_full = _make_mask(_concat_dict(x_list))
 
     return x_full, y_full
 

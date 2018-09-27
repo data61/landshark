@@ -162,7 +162,7 @@ def _process_query(indices: np.ndarray,
                                   patchwidth)
     if feature_source.categorical:
         cat_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.categorical
+                                   feature_source.categorical)
         cat_marray = _cached_read(cat_data_cache,
                                   feature_source.categorical,
                                   patch_reads, mask_reads, npatches,
