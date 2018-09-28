@@ -9,8 +9,8 @@ import click
 
 from landshark import metadata as meta
 from landshark import errors
-from landshark.dataprocess import SourceMetadata
-from landshark.datawrite import write_querydata, write_trainingdata
+from landshark.dataprocess import write_querydata, write_trainingdata, \
+    ProcessTrainingArgs, ProcessQueryArgs
 from landshark.featurewrite import (read_feature_metadata,
                                     read_target_metadata)
 from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
@@ -93,20 +93,32 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
 
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
-    import IPython; IPython.embed(); import sys; sys.exit()
+
     tinfo = SourceMetadata(name, features, target_src,
                            feature_metadata.image, halfwidth, kfolds)
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
-    write_trainingdata(tinfo, directory, testfold, points_per_batch, nworkers)
+
+
+    args = ProcessTrainingArgs(name=name,
+                               feature_path=features,
+                               target_src=target_src,
+                               image_spec=feature_metadata.image,
+                               halfwidth=halfwidth,
+                               testfold=testfold
+                               kfolds=kfolds,
+                               directory=directory,
+                               batchsize=points_per_batch,
+                               nworkers=nworkers)
+    write_trainingdata(args)
     training_metadata = meta.Training(targets=target_metadata,
-                                         features=feature_metadata,
-                                         halfwidth=halfwidth,
-                                         nfolds=folds,
-                                         testfold=testfold,
-                                         fold_counts=tinfo.folds.counts)
-    pickle_metadata(directory, training_metadata)
+                                      features=feature_metadata,
+                                      halfwidth=halfwidth,
+                                      nfolds=folds,
+                                      testfold=testfold,
+                                      fold_counts=tinfo.folds.counts)
+    training_metadata.save(directory)
     log.info("Training import complete")
 
 

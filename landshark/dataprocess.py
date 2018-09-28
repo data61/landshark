@@ -18,13 +18,30 @@ from landshark.serialise import serialise, DataArrays
 log = logging.getLogger(__name__)
 
 
-class SourceMetadata(NamedTuple):
+class ProcessTrainingArgs(NamedTuple):
     name: str
     feature_path: str
     target_src: Optional[ArraySource]
     image_spec: ImageSpec
     halfwidth: int
+    testfold: int
     folds: KFolds
+    directory: str
+    batchsize: int
+    nworkers: int
+
+class ProcessQueryArgs(NamedTuple):
+    name: str
+    feature_path: str
+    image_spec: ImageSpec
+    strip_idx: int
+    total_strips: int
+    halfwidth: int
+    directory: str
+    points_per_batch: int
+    nworkers: int
+    tag: str
+
 
 
 def _direct_read(array: tables.CArray,
@@ -173,7 +190,7 @@ def _process_query(indices: np.ndarray,
 
 
 
-class TrainingDataProcessor(Worker):
+class _TrainingDataProcessor(Worker):
 
     def __init__(self, tinfo: SourceMetadata) -> None:
         self.source_info = tinfo
@@ -189,7 +206,7 @@ class TrainingDataProcessor(Worker):
         return strings
 
 
-class QueryDataProcessor(Worker):
+class _QueryDataProcessor(Worker):
 
     def __init__(self, qinfo: SourceMetadata) -> None:
         self.source_info = qinfo
@@ -202,3 +219,30 @@ class QueryDataProcessor(Worker):
         arrays = _process_query(indices, self.feature_source, self.source_info)
         strings = serialise(arrays)
         return strings
+
+
+
+def write_trainingdata(args: ProcessTrainingArgs) -> None:
+    log.info("Testing data is fold {} of {}".format(testfold, tinfo.folds))
+    log.info("Writing training data to tfrecord in {}-point batches".format(
+        batchsize))
+    n_rows = len(tinfo.target_src)
+    worker = _TrainingDataProcessor(tinfo)
+    tasks = list(batch_slices(batchsize, n_rows))
+    out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
+    fold_it = tinfo.folds.iterator(batchsize)
+    tfwrite.training(out_it, n_rows, output_directory, testfold, fold_it)
+
+
+def write_querydata(args: ProcessQueryArgs) -> None:
+
+    log.info("Query data is strip {} of {}".format(strip, total_strips))
+    log.info("Writing query data to tfrecord in {}-point batches".format(
+        batchsize))
+    reader_src = IdReader()
+    it, n_total = indices_strip(qinfo.image_spec, strip, total_strips,
+                                batchsize)
+    worker = _QueryDataProcessor(qinfo)
+    tasks = list(it)
+    out_it = task_list(tasks, reader_src, worker, nworkers)
+    tfwrite.query(out_it, n_total, output_directory, tag)
