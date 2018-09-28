@@ -11,8 +11,9 @@ from landshark.basetypes import (ArraySource, CategoricalArraySource,
 from landshark.category import CategoryMapper
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
-from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
-                                ContinuousMetadata, TargetMetadata)
+from landshark.metadata import (CategoricalFeatureSet, FeatureSet,
+                                ContinuousFeatureSet, ContinuousTarget,
+                                CategoricalTarget, Target)
 from landshark.multiproc import task_list
 from landshark.normalise import Normaliser
 
@@ -27,85 +28,46 @@ def _cat(it: Iterator[Iterator[T]]) -> List[T]:
     return result
 
 
-def write_feature_metadata(meta: FeatureSetMetadata,
-                           hfile: tables.File) -> None:
-    hfile.root._v_attrs.N = meta.N
+def write_feature_metadata(meta: FeatureSet,
+                   hfile: tables.File) -> None:
+    hfile.root._v_attrs.N = len(meta)
     write_imagespec(meta.image, hfile)
     if meta.continuous:
-        write_continuous_metadata(meta.continuous, hfile)
+        hfile.root.continuous_data.attrs.metadata = meta.continuous
     if meta.categorical:
-        write_categorical_metadata(meta.categorical, hfile)
+        hfile.root.categorical_data.attrs.metadata = meta.categorical
 
 
-def read_featureset_metadata(path: str) -> FeatureSetMetadata:
+def read_feature_metadata(path: str) -> FeatureSet:
     with tables.open_file(path, 'r') as hfile:
         N = hfile.root._v_attrs.N
         image_spec = read_imagespec(hfile)
         continuous, categorical = None, None
         if hasattr(hfile.root, "continuous_data"):
-            continuous = read_continuous_metadata(hfile)
+            continuous = hfile.root.continuous_data.attrs.metadata
         if hasattr(hfile.root, "categorical_data"):
-            categorical = read_categorical_metadata(hfile)
-    m = FeatureSetMetadata(continuous, categorical, image_spec)
+            categorical = hfile.root.categorical_data.attrs.metadata
+    m = FeatureSet(continuous, categorical, image_spec, N)
     return m
 
 
-def read_target_metadata(path: str) -> TargetMetadata:
+def write_target_metadata(meta: Target, hfile: tables.File) -> None:
+    if isinstance(meta, ContinuousTarget):
+        hfile.root.continuous_data.attrs.metadata = meta
+    elif isinstance(meta, CategoricalTarget):
+        hfile.root.categorical_data.attrs.metadata = meta
+    else:
+        raise RuntimeError("Don't recognise type of target metadata")
+
+def read_target_metadata(path: str) -> Target:
     with tables.open_file(path, 'r') as hfile:
         if hasattr(hfile.root, "continuous_data"):
-            con_meta = read_continuous_metadata(hfile)
-            return con_meta
+            meta = hfile.root.continuous_data.attrs.metadata
         elif hasattr(hfile.root, "categorical_data"):
-            cat_meta = read_categorical_metadata(hfile)
-            return cat_meta
+            meta = hfile.root.categorical_data.attrs.metadata
         else:
-            raise RuntimeError("Can't find data in target file")
-
-
-def write_continuous_metadata(meta: ContinuousMetadata,
-                           hfile: tables.File) -> None:
-    hfile.root._v_attrs.continuous_N = meta.N
-    hfile.root.continuous_data.attrs.missing = meta.missing
-    hfile.root.continuous_data.attrs.D = meta.D
-    _make_str_vlarray(hfile, "continuous_labels", meta.labels)
-    hfile.root.continuous_data.attrs.mean = meta.means
-    hfile.root.continuous_data.attrs.variance = meta.variances
-
-
-def read_continuous_metadata(hfile: tables.File) -> ContinuousMetadata:
-    N = hfile.root._v_attrs.continuous_N
-    missing = hfile.root.continuous_data.attrs.missing
-    D = hfile.root.continuous_data.attrs.D
-    labels = [k.decode() for k in hfile.root.continuous_labels.read()]
-    mean = hfile.root.continuous_data.attrs.mean
-    var = hfile.root.continuous_data.attrs.variance
-    m = ContinuousMetadata(N, D, labels, missing, mean, var)
-    return m
-
-
-def write_categorical_metadata(meta: CategoricalMetadata,
-                               hfile: tables.File) -> None:
-
-    hfile.root._v_attrs.categorical_N = meta.N
-    hfile.root.categorical_data.attrs.missing = meta.missing
-    hfile.root.categorical_data.attrs.D = meta.D
-    _make_str_vlarray(hfile, "categorical_labels", meta.labels)
-    hfile.create_array(hfile.root, name="ncategories",
-                       obj=meta.ncategories)
-    _make_int_vlarray(hfile, "categorical_counts", meta.counts)
-    _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
-
-
-def read_categorical_metadata(hfile: tables.File) -> CategoricalMetadata:
-    N = hfile.root._v_attrs.categorical_N
-    missing = hfile.root.categorical_data.attrs.missing
-    D = hfile.root.categorical_data.attrs.D
-    labels = [k.decode() for k in hfile.root.categorical_labels.read()]
-    ncats = hfile.root.ncategories.read()
-    mappings = hfile.root.categorical_mappings.read()
-    counts = hfile.root.categorical_counts.read()
-    m = CategoricalMetadata(N, D, labels, missing, ncats, mappings, counts)
-    return m
+            raise RuntimeError("Can't find Metadata")
+        return meta
 
 
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:
@@ -159,6 +121,7 @@ def _write_source(src: ArraySource,
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = hfile.create_carray(hfile.root, name=name,
                                 atom=atom, shape=front_shape, filters=filters)
+    array.attrs.missing = src.missing
     batchrows = batchrows if batchrows else src.native
     log.info("Writing {} to HDF5 in {}-row batches".format(name, batchrows))
     _write(src, array, batchrows, n_workers, transform)

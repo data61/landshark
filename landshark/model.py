@@ -21,6 +21,7 @@ from tqdm import tqdm
 from landshark.metadata import CategoricalMetadata, TrainingMetadata
 from landshark.serialise import deserialise
 from landshark.saver import BestScoreSaver
+from landshark import config as util_module
 
 import aboleth as ab
 
@@ -110,9 +111,9 @@ def train_test(records_train: List[str],
     )
 
     estimator = tf.estimator.Estimator(
-        model_fn=cf.model,
+        model_fn=_model_wrapper,
         config=run_config,
-        params={"metadata": metadata}
+        params={"metadata": metadata, "config": cf.model}
     )
 
     counter = range(iterations) if iterations else count()
@@ -146,9 +147,9 @@ def predict(checkpoint_dir: str,
     )
 
     estimator = tf.estimator.Estimator(
-        model_fn=cf.model,
+        model_fn=_model_wrapper,
         config=run_config,
-        params={"metadata": metadata}
+        params={"metadata": metadata, "config": cf.model}
     )
     it = estimator.predict(predict_fn, yield_single_examples=False)
     total_size = (metadata.features.image.height *
@@ -161,9 +162,22 @@ def predict(checkpoint_dir: str,
             except StopIteration:
                 return
 
+
 #
 # Private module utility functions
 #
+
+def _model_wrapper(features, labels, mode, params) \
+        -> tf.estimator.EstimatorSpec:
+    metadata = params["metadata"]
+    model_fn = params["config"]
+    result = model_fn(mode, features["con"], features["con_mask"],
+                      features["cat"], features["cat_mask"], labels,
+                      features["indices"], features["coords"],
+                      metadata, util_module)
+    return result
+
+
 
 def _log_scores(scores: dict) -> None:
     """Log testing scores."""

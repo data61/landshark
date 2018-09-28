@@ -10,14 +10,14 @@ import numpy as np
 import tables
 
 from landshark import errors
+from landshark import metadata as meta
 from landshark.category import get_maps
 from landshark.featurewrite import (write_categorical,
-                                    write_categorical_metadata,
-                                    write_coordinates, write_feature_metadata,
-                                    write_continuous, write_continuous_metadata)
+                                    write_coordinates,
+                                    write_continuous,
+                                    write_feature_metadata,
+                                    write_target_metadata)
 from landshark.fileio import tifnames
-from landshark.metadata import (CategoricalMetadata, FeatureSetMetadata,
-                                ContinuousMetadata)
 from landshark.normalise import get_stats
 from landshark.scripts.logger import configure_logging
 from landshark.shpread import (CategoricalShpArraySource,
@@ -97,6 +97,7 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
         raise errors.NoTifFilesFound()
 
     N_con, N_cat = None, None
+    N = None
     con_meta, cat_meta = None, None
     spec = shared_image_spec(all_filenames, ignore_crs)
 
@@ -106,6 +107,7 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
             ndims_con = con_source.shape[-1]
             con_rows_per_batch = mb_to_rows(batchMB, spec.width, ndims_con, 0)
             N_con = con_source.shape[0] * con_source.shape[1]
+            N = N_con
             log.info("Continuous missing value set to {}".format(
                 con_source.missing))
             stats = None
@@ -117,18 +119,17 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
                 log.info("Writing normalised continuous data to output file")
             else:
                 log.info("Writing unnormalised continuous data to output file")
-            con_meta = ContinuousMetadata(N=N_con,
-                                       D=con_source.shape[-1],
-                                       labels=con_source.columns,
-                                       missing=con_source.missing,
-                                       means=mean,
-                                       variances=var)
+            con_meta = meta.ContinuousFeatureSet(labels=con_source.columns,
+                                          missing=con_source.missing,
+                                          means=mean,
+                                          variances=var)
             write_continuous(con_source, outfile, nworkers, con_rows_per_batch,
                           stats)
 
         if has_cat:
             cat_source = CategoricalStackSource(spec, cat_filenames)
             N_cat = cat_source.shape[0] * cat_source.shape[1]
+            N = N_cat
             if N_con and N_cat != N_con:
                 raise errors.ConCatNMismatch(N_con, N_cat)
 
@@ -140,18 +141,16 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
             maps, counts = catdata.mappings, catdata.counts
             ncats = np.array([len(m) for m in maps])
             log.info("Writing mapped categorical data to output file")
-            cat_meta = CategoricalMetadata(N=N_cat,
-                                           D=cat_source.shape[-1],
-                                           labels=cat_source.columns,
+            cat_meta = meta.CategoricalFeatureSet(labels=cat_source.columns,
                                            missing=cat_source.missing,
-                                           ncategories=ncats,
+                                           nvalues=ncats,
                                            mappings=maps,
                                            counts=counts)
             write_categorical(cat_source, outfile, nworkers,
                               cat_rows_per_batch, maps)
-        meta = FeatureSetMetadata(continuous=con_meta, categorical=cat_meta,
-                                  image=spec)
-        write_feature_metadata(meta, outfile)
+        m = meta.FeatureSet(continuous=con_meta, categorical=cat_meta,
+                            image=spec, N=N)
+        write_feature_metadata(m, outfile)
     log.info("Tif import complete")
 
 
@@ -209,14 +208,12 @@ def targets_entrypoint(batchMB: float, shapefile: str, records: List[str],
             ncats = np.array([len(m) for m in mappings])
             write_categorical(cat_source, h5file, nworkers, cat_batchsize,
                               mappings)
-            cat_meta = CategoricalMetadata(N=cat_source.shape[0],
-                                           D=cat_source.shape[-1],
-                                           labels=cat_source.columns,
-                                           ncategories=ncats,
-                                           mappings=mappings,
-                                           counts=counts,
-                                           missing=None)
-            write_categorical_metadata(cat_meta, h5file)
+            cat_meta = meta.CategoricalTarget(N=cat_source.shape[0],
+                                              labels=cat_source.columns,
+                                              nvalues=ncats,
+                                              mappings=mappings,
+                                              counts=counts)
+            write_target_metadata(cat_meta, h5file)
         else:
             log.info("Reading shapefile continuous records")
             con_source = ContinuousShpArraySource(shapefile, records, random_seed)
@@ -226,13 +223,11 @@ def targets_entrypoint(batchMB: float, shapefile: str, records: List[str],
             mean, var = get_stats(con_source, con_batchsize) \
                 if normalise else None, None
             write_continuous(con_source, h5file, nworkers, con_batchsize)
-            con_meta = ContinuousMetadata(N=con_source.shape[0],
-                                       D=con_source.shape[-1],
-                                       labels=con_source.columns,
-                                       means=mean,
-                                       variances=var,
-                                       missing=None)
-            write_continuous_metadata(con_meta, h5file)
+            con_meta = meta.ContinuousTarget(N=con_source.shape[0],
+                                             labels=con_source.columns,
+                                             means=mean,
+                                             variances=var)
+            write_target_metadata(con_meta, h5file)
     log.info("Target import complete")
 
 

@@ -9,96 +9,136 @@ import numpy as np
 from landshark.basetypes import CategoricalType, ContinuousType
 from landshark.image import ImageSpec
 
+class PickleObj:
 
-class Array2DMetadata:
-    def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[Union[ContinuousType, CategoricalType]]
-                 ) -> None:
-        self.N = N
-        self.D = D
-        self.labels = labels
-        self.missing = missing
+    _filename = None
 
+    @classmethod
+    def load(cls, directory):
+        path = os.path.join(directory, _filename + ".bin")
+        with open(path, "rb") as f:
+            obj = pickle.load(f)
+        return obj
 
-class ContinuousMetadata(Array2DMetadata):
-    def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[ContinuousType], means: Optional[np.ndarray],
-                 variances: Optional[np.ndarray]) -> None:
-        super().__init__(N, D, labels, missing)
-        self.means = means
-        self.variances = variances
+    def save(self, directory: str) -> None:
+        path = os.path.join(directory, _filename + ".bin")
+        with open(spec_path, "wb") as f:
+            pickle.dump(self, f)
 
 
-class CategoricalMetadata(Array2DMetadata):
-    def __init__(self, N: int, D: int, labels: List[str],
-                 missing: Optional[CategoricalType], ncategories: np.ndarray,
-                 mappings: List[np.ndarray], counts: List[np.ndarray]) -> None:
-        super().__init__(N, D, labels, missing)
-        self.ncategories = ncategories
-        self.mappings = mappings
-        self.counts = counts
+class CategoricalFeature(NamedTuple):
+    nvalues: int
+    D: int
+    mapping: np.ndarray
+    counts: np.ndarray
+
+class ContinuousFeature(NamedTuple):
+    D: int
+    mean: np.ndarray
+    sd: np.ndarray
 
 
-class FeatureSetMetadata:
+class ContinuousFeatureSet:
 
-    def __init__(self,
-                 continuous: Optional[ContinuousMetadata],
-                 categorical: Optional[CategoricalMetadata],
-                 image: ImageSpec) -> None:
-        assert not(continuous is None and categorical is None)
-        if continuous and not categorical:
-            self.N = continuous.N
-        elif categorical and not continuous:
-            self.N = categorical.N
-        elif categorical and continuous:
-            assert continuous.N == categorical.N
-            self.N = continuous.N
-        else:
-            raise ValueError("Must have at least 1 of continuous or categorical")
+    def __init__(self, labels, missing, means, variances) -> None:
+
+        D = len(labels)
+        if means is None:
+            means = [None] * D
+            variances = [None] * D
+
+        self._missing = missing
+        self._columns = {l: ContinuousFeature(1, m, v)
+            for l, m, v in zip(labels, means, variances)}
+        self._n = len(self._columns)
+
+    @property
+    def columns(self):
+        return self._columns
+
+    @property
+    def missing_value(self):
+        return self._missing
+
+    def __len__(self):
+        return self._n
+
+
+class CategoricalFeatureSet:
+
+    def __init__(self, labels, missing, nvalues, mappings, counts) \
+                 -> None:
+        self._missing = missing
+        self._columns = {l: CategoricalFeature(n, 1, m, c)
+            for l, n, m, c in zip(labels, nvalues, mappings, counts)}
+        self._n = len(self._columns)
+
+    @property
+    def columns(self):
+        return self._columns
+
+    @property
+    def missing_value(self):
+        return self._missing
+
+    def __len__(self):
+        return self._n
+
+
+class FeatureSet(PickleObj):
+
+    _filename = "FEATURESET"
+
+    def __init__(self, continuous: Optional[ContinuousFeatureSet],
+                 categorical: Optional[CategoricalFeatureSet],
+                 image: ImageSpec, N: int) -> None:
         self.continuous = continuous
         self.categorical = categorical
         self.image = image
-        self.D_continuous = continuous.D if continuous else 0
-        self.D_categorical = categorical.D if categorical else 0
+        self._N = N
+
+    def __len__(self):
+        return self._N
 
 
-TargetMetadata = Union[ContinuousMetadata, CategoricalMetadata]
+class CategoricalTarget(PickleObj):
+
+    _filename = "CATEGORICALTARGET"
+
+    def __init__(self, N, labels, nvalues: np.ndarray,
+                 mappings: List[np.ndarray], counts: List[np.ndarray]) \
+            -> None:
+        self.N = N
+        self.D = len(labels)
+        self.nvalues = nvalues
+        self.mappings = mappings
+        self.counts = counts
+        self.labels = labels
+
+class ContinuousTarget(PickleObj):
+
+    _filename = "CONTINUOUSTARGET"
+
+    def __init__(self, N: int, labels, means: np.ndarray,
+                 variances: np.ndarray) -> None:
+        self.N = N
+        self.D = len(labels)
+        self.means = means
+        self.variances = variances
+        self.labels = labels
 
 
-class TrainingMetadata(NamedTuple):
-    targets: TargetMetadata
-    features: FeatureSetMetadata
-    halfwidth: int
-    nfolds: int
-    testfold: int
-    fold_counts: Dict[int, int]
+Target = Union[ContinuousTarget, CategoricalTarget]
 
 
-class QueryMetadata(NamedTuple):
-    features: FeatureSetMetadata
+class Training(PickleObj):
 
+    _filename = "TRAINING"
 
-def pickle_metadata(directory: str, m: Any) -> None:
-    """TODO."""
-    spec_path = os.path.join(directory, "METADATA.bin")
-    with open(spec_path, "wb") as f:
-        pickle.dump(m, f)
-
-
-def _load_metadata(path: str) -> Any:
-    """TODO."""
-    with open(path, "rb") as f:
-        obj = pickle.load(f)
-    return obj
-
-
-def unpickle_training_metadata(path: str) -> TrainingMetadata:
-    obj = _load_metadata(path)
-    m = cast(TrainingMetadata, obj)
-    return m
-
-
-def unpickle_query_metadata(path: str) -> QueryMetadata:
-    obj = _load_metadata(path)
-    m = cast(QueryMetadata, obj)
-    return m
+    def __init__(self, targets: Target, features: FeatureSet, nfolds: int,
+                 testfold: int, fold_counts: Dict[int, int]) -> None:
+        self.targets = targets
+        self.features = features
+        self.nfolds = nfolds
+        self.testfold = testfold
+        self.found_counts = found_counts

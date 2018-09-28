@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import ContinuousType
-from landshark.metadata import CategoricalMetadata, TrainingMetadata
+from landshark.metadata import CategoricalTarget, Training
 
 #
 # Module constants and types
@@ -53,12 +53,12 @@ def serialise(x: DataArrays) -> [List[bytes]]:
     return string_list
 
 
-def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
+def deserialise(row: str, metadata: Training, ignore_y=False) \
         -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)
     npatch_side = 2 * metadata.halfwidth + 1
-    categorical = isinstance(metadata.targets, CategoricalMetadata)
+    categorical = isinstance(metadata.targets, CategoricalTarget)
     y_type = tf.int32 if categorical else tf.float32
     with tf.name_scope("Inputs"):
         x_con = tf.decode_raw(raw_features["x_con"], tf.float32)
@@ -85,11 +85,17 @@ def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
                      "coords": coords}
 
         if nfeatures_con > 0:
-            feat_dict["con"] = _unpack(x_con, x_con_mask,
+            feat_dict["con"] = _unpack(x_con,
+                                       metadata.features.continuous.labels,
+                                       npatch_side)
+            feat_dict["con_mask"] = _unpack(x_con_mask,
                                        metadata.features.continuous.labels,
                                        npatch_side)
         if nfeatures_cat > 0:
-            feat_dict["cat"] = _unpack(x_cat, x_cat_mask,
+            feat_dict["cat"] = _unpack(x_cat,
+                                       metadata.features.categorical.labels,
+                                       npatch_side)
+            feat_dict["cat_mask"] = _unpack(x_cat_mask,
                                        metadata.features.categorical.labels,
                                        npatch_side)
 
@@ -97,16 +103,11 @@ def deserialise(row: str, metadata: TrainingMetadata, ignore_y=False) \
     return result
 
 
-def _unpack(x, mask, labels, npatch_side):
+def _unpack(x, labels, npatch_side):
     nfeatures = len(labels)
     x_all = tf.reshape(x, (tf.shape(x)[0], npatch_side,
                            npatch_side, nfeatures))
-    mask_all = tf.reshape(mask, (tf.shape(mask)[0], npatch_side,
-                                 npatch_side, nfeatures))
-    d = {}
-    for i, lbl in enumerate(labels):
-        d[lbl] = {"data": x_all[..., i][..., tf.newaxis],
-                  "mask": mask_all[..., i][..., tf.newaxis]}
+    d = {lbl: x_all[..., i][..., tf.newaxis] for i, lbl in enumerate(labels)}
     return d
 
 #

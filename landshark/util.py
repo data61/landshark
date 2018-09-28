@@ -6,6 +6,7 @@ import numpy as np
 
 from landshark.basetypes import (CategoricalType, CoordinateType, MissingType,
                                  ContinuousType)
+from landshark.metadata import FeatureSet
 
 log = logging.getLogger(__name__)
 

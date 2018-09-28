@@ -7,16 +7,15 @@ from typing import List, NamedTuple, Optional, Tuple
 
 import click
 
+from landshark import metadata as meta
 from landshark import errors
 from landshark.dataprocess import SourceMetadata
 from landshark.datawrite import write_querydata, write_trainingdata
-from landshark.featurewrite import (read_featureset_metadata,
+from landshark.featurewrite import (read_feature_metadata,
                                     read_target_metadata)
 from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
-from landshark.metadata import (CategoricalMetadata, QueryMetadata,
-                                TrainingMetadata, pickle_metadata)
 from landshark.scripts.logger import configure_logging
 from landshark.util import mb_to_points
 
@@ -78,28 +77,30 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
                          random_seed: int, name: str, halfwidth: int,
                          nworkers: int, features: str, batchMB: float) -> None:
     """Get training data."""
-    feature_metadata = read_featureset_metadata(features)
+    feature_metadata = read_feature_metadata(features)
     target_metadata = read_target_metadata(targets)
 
-    ndim_con = feature_metadata.D_continuous
-    ndim_cat = feature_metadata.D_categorical
+    ndim_con = len(feature_metadata.continuous.columns) \
+        if feature_metadata.continuous else 0
+    ndim_cat = len(feature_metadata.categorical.columns) \
+        if feature_metadata.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
     target_src = CategoricalH5ArraySource(targets) \
-        if isinstance(target_metadata, CategoricalMetadata) \
+        if isinstance(target_metadata, meta.CategoricalTarget) \
         else ContinuousH5ArraySource(targets)
 
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
+    import IPython; IPython.embed(); import sys; sys.exit()
     tinfo = SourceMetadata(name, features, target_src,
                            feature_metadata.image, halfwidth, kfolds)
-    # TODO check this is being used correctly in the tensorflow regulariser
     n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
     write_trainingdata(tinfo, directory, testfold, points_per_batch, nworkers)
-    training_metadata = TrainingMetadata(targets=target_metadata,
+    training_metadata = meta.Training(targets=target_metadata,
                                          features=feature_metadata,
                                          halfwidth=halfwidth,
                                          nfolds=folds,
@@ -145,7 +146,7 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     except FileExistsError:
         pass
 
-    feature_metadata = read_featureset_metadata(features)
+    feature_metadata = read_feature_metadata(features)
     ndim_con = feature_metadata.D_continuous
     ndim_cat = feature_metadata.D_categorical
     points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
@@ -163,7 +164,7 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
                     points_per_batch, nworkers, tag)
 
     # TODO other info here like strips and windows
-    query_metadata = QueryMetadata(feature_metadata)
+    query_metadata = meta.Query(feature_metadata)
     pickle_metadata(directory, query_metadata)
     log.info("Query import complete")
     return 0
