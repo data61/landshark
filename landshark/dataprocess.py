@@ -8,9 +8,10 @@ import numpy as np
 import tables
 
 from landshark import patch
-from landshark.basetypes import ArraySource, FixedSlice, Worker
+from landshark.basetypes import ArraySource, FixedSlice, Worker, IdReader
 from landshark.hread import H5Features
-from landshark.image import ImageSpec, world_to_image, image_to_world
+from landshark.image import ImageSpec, world_to_image, image_to_world, \
+    indices_strip
 from landshark.kfold import KFolds
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import serialise, DataArrays
@@ -41,7 +42,7 @@ class ProcessQueryArgs(NamedTuple):
     total_strips: int
     halfwidth: int
     directory: str
-    points_per_batch: int
+    batchsize: int
     nworkers: int
     tag: str
 
@@ -233,7 +234,8 @@ class _QueryDataProcessor(Worker):
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
-    log.info("Testing data is fold {} of {}".format(args.testfold, args.folds))
+    log.info("Testing data is fold {} of {}".format(args.testfold,
+                                                    args.folds.N))
     log.info("Writing training data to tfrecord in {}-point batches".format(
         args.batchsize))
     n_rows = len(args.target_src)
@@ -247,14 +249,15 @@ def write_trainingdata(args: ProcessTrainingArgs) -> None:
 
 def write_querydata(args: ProcessQueryArgs) -> None:
 
-    log.info("Query data is strip {} of {}".format(strip, total_strips))
+    log.info("Query data is strip {} of {}".format(args.strip_idx,
+                                                   args.total_strips))
     log.info("Writing query data to tfrecord in {}-point batches".format(
-        batchsize))
+        args.batchsize))
     reader_src = IdReader()
-    it, n_total = indices_strip(args.image_spec, strip, total_strips,
-                                batchsize)
+    it, n_total = indices_strip(args.image_spec, args.strip_idx,
+                                args.total_strips, args.batchsize)
     worker = _QueryDataProcessor(args.feature_path, args.image_spec,
                                  args.halfwidth)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, args.nworkers)
-    tfwrite.query(out_it, n_total, output_directory, tag)
+    tfwrite.query(out_it, n_total, args.directory, args.tag)

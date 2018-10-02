@@ -155,8 +155,10 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
         pass
 
     feature_metadata = read_feature_metadata(features)
-    ndim_con = feature_metadata.D_continuous
-    ndim_cat = feature_metadata.D_categorical
+    ndim_con = len(feature_metadata.continuous.columns) \
+        if feature_metadata.continuous else 0
+    ndim_cat = len(feature_metadata.categorical.columns) \
+        if feature_metadata.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
                                     halfwidth=halfwidth)
 
@@ -165,15 +167,12 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     feature_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
-    qars = ProcessQueryArgs(name, features, strip_imspec,
+    qargs = ProcessQueryArgs(name, features, strip_imspec,
                             strip_idx, totalstrips, halfwidth, directory,
                             points_per_batch, nworkers, tag)
 
     write_querydata(qargs)
-
-    # TODO other info here like strips and windows
-    query_metadata = meta.Query(feature_metadata)
-    pickle_metadata(directory, query_metadata)
+    feature_metadata.save(directory)
     log.info("Query import complete")
     return 0
 
