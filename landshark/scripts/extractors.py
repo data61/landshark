@@ -94,30 +94,26 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
 
-    tinfo = SourceMetadata(name, features, target_src,
-                           feature_metadata.image, halfwidth, kfolds)
-    n_train = len(tinfo.target_src) - tinfo.folds.counts[testfold]
+    n_train = len(target_src) - kfolds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
-
 
     args = ProcessTrainingArgs(name=name,
                                feature_path=features,
                                target_src=target_src,
                                image_spec=feature_metadata.image,
                                halfwidth=halfwidth,
-                               testfold=testfold
-                               kfolds=kfolds,
+                               testfold=testfold,
+                               folds=kfolds,
                                directory=directory,
                                batchsize=points_per_batch,
                                nworkers=nworkers)
     write_trainingdata(args)
     training_metadata = meta.Training(targets=target_metadata,
                                       features=feature_metadata,
-                                      halfwidth=halfwidth,
                                       nfolds=folds,
                                       testfold=testfold,
-                                      fold_counts=tinfo.folds.counts)
+                                      fold_counts=kfolds.counts)
     training_metadata.save(directory)
     log.info("Training import complete")
 
@@ -169,11 +165,11 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     feature_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
-    qinfo = SourceMetadata(name, features, None, strip_imspec,
-                           halfwidth, None)
+    qars = ProcessQueryArgs(name, features, strip_imspec,
+                            strip_idx, totalstrips, halfwidth, directory,
+                            points_per_batch, nworkers, tag)
 
-    write_querydata(qinfo, directory, strip_idx, totalstrips,
-                    points_per_batch, nworkers, tag)
+    write_querydata(qargs)
 
     # TODO other info here like strips and windows
     query_metadata = meta.Query(feature_metadata)

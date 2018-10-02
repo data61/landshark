@@ -79,7 +79,7 @@ class H5Features:
             self.continuous.missing = self._hfile.root.continuous_data.attrs.missing
         if hasattr(self._hfile.root, "categorical_data"):
             self.categorical = self._hfile.root.categorical_data
-            self.categorical.metadata = self._hfile.root.attrs.metadata
+            self.categorical.metadata = self.categorical.attrs.metadata
             self.categorical.missing = \
                 self._hfile.root.categorical_data.attrs.missing
         if self.continuous:

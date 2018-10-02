@@ -14,6 +14,9 @@ from landshark.image import ImageSpec, world_to_image, image_to_world
 from landshark.kfold import KFolds
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import serialise, DataArrays
+from landshark.iteration import batch_slices
+from landshark.multiproc import task_list
+from landshark import tfwrite
 
 log = logging.getLogger(__name__)
 
@@ -132,16 +135,16 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
 def _process_training(coords: np.ndarray,
                       targets: np.ndarray,
                       feature_source: H5Features,
-                      rec: SourceMetadata) -> DataArrays:
+                      image_spec, halfwidth) -> DataArrays:
     coords_x, coords_y = coords.T
-    indices_x = world_to_image(coords_x, rec.image_spec.x_coordinates)
-    indices_y = world_to_image(coords_y, rec.image_spec.y_coordinates)
+    indices_x = world_to_image(coords_x, image_spec.x_coordinates)
+    indices_y = world_to_image(coords_y, image_spec.y_coordinates)
     patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                            rec.halfwidth,
-                                            rec.image_spec.width,
-                                            rec.image_spec.height)
+                                            halfwidth,
+                                            image_spec.width,
+                                            image_spec.height)
     npatches = indices_x.shape[0]
-    patchwidth = 2 * rec.halfwidth + 1
+    patchwidth = 2 * halfwidth + 1
     con_marray, cat_marray = None, None
     if feature_source.continuous:
         con_marray = _direct_read(feature_source.continuous,
@@ -158,17 +161,18 @@ def _process_training(coords: np.ndarray,
 
 def _process_query(indices: np.ndarray,
                    feature_source: H5Features,
-                   rec: SourceMetadata) -> DataArrays:
+                   image_spec,
+                   halfwidth) -> DataArrays:
     indices_x, indices_y = indices.T
-    coords_x = image_to_world(indices_x, rec.image_spec.x_coordinates)
-    coords_y = image_to_world(indices_y, rec.image_spec.y_coordinates)
+    coords_x = image_to_world(indices_x, image_spec.x_coordinates)
+    coords_y = image_to_world(indices_y, image_spec.y_coordinates)
     patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                            rec.halfwidth,
-                                            rec.image_spec.width,
-                                            rec.image_spec.height)
+                                            halfwidth,
+                                            image_spec.width,
+                                            image_spec.height)
     patch_data_slices = _slices_from_patches(patch_reads)
     npatches = indices_x.shape[0]
-    patchwidth = 2 * rec.halfwidth + 1
+    patchwidth = 2 * halfwidth + 1
     con_marray, cat_marray = None, None
     if feature_source.continuous:
         con_data_cache = _get_rows(patch_data_slices,
@@ -192,46 +196,53 @@ def _process_query(indices: np.ndarray,
 
 class _TrainingDataProcessor(Worker):
 
-    def __init__(self, tinfo: SourceMetadata) -> None:
-        self.source_info = tinfo
+    def __init__(self, feature_path, image_spec, halfwidth) -> None:
+        self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
+        self.image_spec = image_spec
+        self.halfwidth = halfwidth
 
     def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> List[bytes]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.source_info.feature_path)
+            self.feature_source = H5Features(self.feature_path)
         targets, coords = values
         arrays = _process_training(coords, targets, self.feature_source,
-                                   self.source_info)
+                                   self.image_spec, self.halfwidth)
         strings = serialise(arrays)
         return strings
 
 
 class _QueryDataProcessor(Worker):
 
-    def __init__(self, qinfo: SourceMetadata) -> None:
-        self.source_info = qinfo
+    def __init__(self, feature_path, image_spec, halfwidth) -> None:
+        self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
+        self.image_spec = image_spec
+        self.halfwidth = halfwidth
+
 
 
     def __call__(self, indices: np.ndarray) -> List[bytes]:
         if not self.feature_source:
-            self.feature_source = H5Features(self.source_info.feature_path)
-        arrays = _process_query(indices, self.feature_source, self.source_info)
+            self.feature_source = H5Features(self.feature_path)
+        arrays = _process_query(indices, self.feature_source, self.image_spec,
+                                self.halfwidth)
         strings = serialise(arrays)
         return strings
 
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
-    log.info("Testing data is fold {} of {}".format(testfold, tinfo.folds))
+    log.info("Testing data is fold {} of {}".format(args.testfold, args.folds))
     log.info("Writing training data to tfrecord in {}-point batches".format(
-        batchsize))
-    n_rows = len(tinfo.target_src)
-    worker = _TrainingDataProcessor(tinfo)
-    tasks = list(batch_slices(batchsize, n_rows))
-    out_it = task_list(tasks, tinfo.target_src, worker, nworkers)
-    fold_it = tinfo.folds.iterator(batchsize)
-    tfwrite.training(out_it, n_rows, output_directory, testfold, fold_it)
+        args.batchsize))
+    n_rows = len(args.target_src)
+    worker = _TrainingDataProcessor(args.feature_path, args.image_spec,
+                                    args.halfwidth)
+    tasks = list(batch_slices(args.batchsize, n_rows))
+    out_it = task_list(tasks, args.target_src, worker, args.nworkers)
+    fold_it = args.folds.iterator(args.batchsize)
+    tfwrite.training(out_it, n_rows, args.directory, args.testfold, fold_it)
 
 
 def write_querydata(args: ProcessQueryArgs) -> None:
@@ -240,9 +251,10 @@ def write_querydata(args: ProcessQueryArgs) -> None:
     log.info("Writing query data to tfrecord in {}-point batches".format(
         batchsize))
     reader_src = IdReader()
-    it, n_total = indices_strip(qinfo.image_spec, strip, total_strips,
+    it, n_total = indices_strip(args.image_spec, strip, total_strips,
                                 batchsize)
-    worker = _QueryDataProcessor(qinfo)
+    worker = _QueryDataProcessor(args.feature_path, args.image_spec,
+                                 args.halfwidth)
     tasks = list(it)
-    out_it = task_list(tasks, reader_src, worker, nworkers)
+    out_it = task_list(tasks, reader_src, worker, args.nworkers)
     tfwrite.query(out_it, n_total, output_directory, tag)

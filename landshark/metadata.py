@@ -15,14 +15,14 @@ class PickleObj:
 
     @classmethod
     def load(cls, directory):
-        path = os.path.join(directory, _filename + ".bin")
+        path = os.path.join(directory, self._filename + ".bin")
         with open(path, "rb") as f:
             obj = pickle.load(f)
         return obj
 
     def save(self, directory: str) -> None:
-        path = os.path.join(directory, _filename + ".bin")
-        with open(spec_path, "wb") as f:
+        path = os.path.join(directory, self._filename + ".bin")
+        with open(path, "wb") as f:
             pickle.dump(self, f)
 
 
@@ -141,4 +141,4 @@ class Training(PickleObj):
         self.features = features
         self.nfolds = nfolds
         self.testfold = testfold
-        self.found_counts = found_counts
+        self.fold_counts = fold_counts
