@@ -10,8 +10,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from landshark.basetypes import CategoricalType, ContinuousType
-from landshark.metadata import CategoricalMetadata, TrainingMetadata
+from landshark.metadata import Training
 from landshark.model import train_data, test_data, predict_data
 from landshark.serialise import deserialise
 
@@ -55,7 +54,7 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
     return x_full, y_full
 
 def _get_data(records_train: List[str], records_test: List[str],
-              metadata: TrainingMetadata, npoints: Optional[int],
+              metadata: Training, npoints: Optional[int],
               batch_size: int,
               random_seed: int) -> Tuple[Dict[str, np.ndarray], np.ndarray,
                                          Dict[str, np.ndarray], np.ndarray]:
@@ -73,7 +72,7 @@ def _get_data(records_train: List[str], records_test: List[str],
 
 
 def _query_it(records_query: List[str], batch_size: int,
-              metadata: TrainingMetadata) \
+              metadata: Training) \
         -> Iterator[Dict[str, np.ndarray]]:
 
     total_size = metadata.features.image.height * metadata.features.image.width
@@ -95,8 +94,16 @@ def _query_it(records_query: List[str], batch_size: int,
                     break
             return
 
+
+def _split(x):
+    x_con = x["con"] if "con" in x else None
+    x_cat = x["cat"] if "cat" in x else None
+    indices = x["indices"]
+    coords = x["coords"]
+    return x_con, x_cat, indices, coords
+
 def train_test(config_module: str, records_train: List[str],
-               records_test: List[str], metadata: TrainingMetadata,
+               records_test: List[str], metadata: Training,
                model_dir: str, maxpoints: Optional[int], batchsize: int,
                random_seed: int) -> None:
 
@@ -104,15 +111,17 @@ def train_test(config_module: str, records_train: List[str],
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
                            batchsize, random_seed)
     x, y, x_test, y_test = data_tuple
+    x_con, x_cat, indices, coords = _split(x)
+    xt_con, xt_cat, indicest, coordst = _split(x_test)
 
     userconfig = __import__(config_module)
 
     log.info("Training model")
     model = userconfig.SKModel(metadata, random_seed=random_seed)
 
-    model.train(x, y)
+    model.train(x_con, x_cat, indices, coords, y)
     log.info("Evaluating test data")
-    res = model.predict(x_test)
+    res = model.predict(xt_con, xt_cat, indicest, coordst)
     scores = model.test(y_test, res)
     log.info("Sklearn test metrics: {}".format(scores))
 
@@ -126,7 +135,7 @@ def train_test(config_module: str, records_train: List[str],
         json.dump(scores, f)
 
 
-def predict(modeldir: str, metadata: TrainingMetadata,
+def predict(modeldir: str, metadata: Training,
             query_records: List[str], batch_size: int) \
         -> Iterator[Dict[str, np.ndarray]]:
 
@@ -135,5 +144,6 @@ def predict(modeldir: str, metadata: TrainingMetadata,
         model = pickle.load(f)
 
     for xi in _query_it(query_records, batch_size, metadata):
-        res = model.predict(xi)
+        x_con, x_cat, indices, coords = _split(xi)
+        res = model.predict(x_con, x_cat, indices, coords)
         yield res

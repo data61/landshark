@@ -61,10 +61,12 @@ def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
 
-    ndims_con = metadata.features.D_continuous
-    ndims_cat = metadata.features.D_categorical
+    ndims_con = len(metadata.features.continuous) \
+        if metadata.features.continuous else 0
+    ndims_cat = len(metadata.features.categorical) \
+        if metadata.features.categorical else 0
     batchsize = mb_to_points(batchMB, ndims_con, ndims_cat,
-                             halfwidth=metadata.halfwidth)
+                             metadata.features.halfwidth)
     # copy the model spec to the model dir
     copyfile(config, os.path.join(model_dir, "config.py"))
     skmodel.train_test(cf, training_records, testing_records,
@@ -92,10 +94,12 @@ def predict_entrypoint(config: str, checkpoint: str,
     """Entry point for prediction with sklearn."""
     train_metadata, query_metadata, query_records, strip, nstrips, _ = \
         setup_query(config, data, checkpoint)
-    ndims_con = train_metadata.features.D_continuous
-    ndims_cat = train_metadata.features.D_categorical
+    ndims_con = len(train_metadata.features.continuous) \
+        if train_metadata.features.continuous else 0
+    ndims_cat = len(train_metadata.features.categorical) \
+        if train_metadata.features.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
-                                    halfwidth=train_metadata.halfwidth)
+                                    train_metadata.features.halfwidth)
     # load_model(config)
     y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
                                 points_per_batch)
