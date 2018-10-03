@@ -78,6 +78,7 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
                          nworkers: int, features: str, batchMB: float) -> None:
     """Get training data."""
     feature_metadata = read_feature_metadata(features)
+    feature_metadata.halfwidth = halfwidth
     target_metadata = read_target_metadata(targets)
 
     ndim_con = len(feature_metadata.continuous.columns) \
@@ -155,6 +156,7 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
         pass
 
     feature_metadata = read_feature_metadata(features)
+    feature_metadata.halfwidth = halfwidth
     ndim_con = len(feature_metadata.continuous.columns) \
         if feature_metadata.continuous else 0
     ndim_cat = len(feature_metadata.categorical.columns) \

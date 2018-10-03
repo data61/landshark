@@ -10,8 +10,7 @@ from rasterio.windows import Window
 
 from landshark.basetypes import (CategoricalType, NumericalType, ContinuousType)
 from landshark.image import ImageSpec
-from landshark.metadata import (CategoricalMetadata, ContinuousMetadata,
-                                TrainingMetadata)
+from landshark.metadata import Training, FeatureSet
 from landshark.errors import PredictionShape
 
 log = logging.getLogger(__name__)
@@ -67,7 +66,7 @@ def _make_writer(directory: str, label: str, dtype: np.dtype,
 
 def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
                    directory: str,
-                   metadata: TrainingMetadata,
+                   metadata: FeatureSet,
                    tag: str="") -> None:
 
     imspec = metadata.features.image

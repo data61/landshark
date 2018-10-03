@@ -9,7 +9,15 @@ import json
 from typing import Dict
 import numpy as np
 
+from landshark import metadata
+
 log = logging.getLogger(__name__)
+
+metadata_files = [metadata.FeatureSet._filename,
+                  metadata.CategoricalTarget._filename,
+                  metadata.ContinuousTarget._filename,
+                  metadata.Training._filename]
+
 
 
 def overwrite_model_dir(model_dir: str, checkpoint_dir: str) -> None:
@@ -32,8 +40,10 @@ class BestScoreSaver:
     def _init_dir(self, score_path: str) -> None:
         if not os.path.exists(score_path):
             os.mkdir(score_path)
-            shutil.copy2(os.path.join(self.directory, "METADATA.bin"),
-                         score_path)
+            for f in metadata_files:
+                fpath = os.path.join(self.directory, f)
+                if os.path.exists(fpath):
+                    shutil.copy2(fpath, score_path)
 
     def _to_64bit(self, scores: Dict[str, np.ndarray]) \
             -> Dict[str, np.ndarray]:
@@ -54,10 +64,6 @@ class BestScoreSaver:
         if os.path.exists(score_file):
             with open(score_file, 'r') as f:
                 best_scores = json.load(f)
-            # if s == "loss":
-            #     if best_scores[s] < score:
-            #         overwrite = False
-            # else:
             if best_scores[s] > score:
                 overwrite = False
         return overwrite

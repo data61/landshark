@@ -1,5 +1,6 @@
 """Metadata."""
 
+from collections import OrderedDict
 import os.path
 import pickle
 from typing import Any, Dict, List, NamedTuple, Optional, Union, cast
@@ -15,13 +16,13 @@ class PickleObj:
 
     @classmethod
     def load(cls, directory):
-        path = os.path.join(directory, self._filename + ".bin")
+        path = os.path.join(directory, cls._filename)
         with open(path, "rb") as f:
             obj = pickle.load(f)
         return obj
 
     def save(self, directory: str) -> None:
-        path = os.path.join(directory, self._filename + ".bin")
+        path = os.path.join(directory, self._filename)
         with open(path, "wb") as f:
             pickle.dump(self, f)
 
@@ -48,8 +49,8 @@ class ContinuousFeatureSet:
             variances = [None] * D
 
         self._missing = missing
-        self._columns = {l: ContinuousFeature(1, m, v)
-            for l, m, v in zip(labels, means, variances)}
+        self._columns = OrderedDict([(l, ContinuousFeature(1, m, v))
+            for l, m, v in zip(labels, means, variances)])
         self._n = len(self._columns)
 
     @property
@@ -69,8 +70,8 @@ class CategoricalFeatureSet:
     def __init__(self, labels, missing, nvalues, mappings, counts) \
                  -> None:
         self._missing = missing
-        self._columns = {l: CategoricalFeature(n, 1, m, c)
-            for l, n, m, c in zip(labels, nvalues, mappings, counts)}
+        self._columns = OrderedDict([(l, CategoricalFeature(n, 1, m, c))
+            for l, n, m, c in zip(labels, nvalues, mappings, counts)])
         self._n = len(self._columns)
 
     @property
@@ -87,15 +88,16 @@ class CategoricalFeatureSet:
 
 class FeatureSet(PickleObj):
 
-    _filename = "FEATURESET"
+    _filename = "FEATURESET.bin"
 
     def __init__(self, continuous: Optional[ContinuousFeatureSet],
                  categorical: Optional[CategoricalFeatureSet],
-                 image: ImageSpec, N: int) -> None:
+                 image: ImageSpec, N: int, halfwidth: int) -> None:
         self.continuous = continuous
         self.categorical = categorical
         self.image = image
         self._N = N
+        self.halfwidth = halfwidth
 
     def __len__(self):
         return self._N
@@ -103,7 +105,8 @@ class FeatureSet(PickleObj):
 
 class CategoricalTarget(PickleObj):
 
-    _filename = "CATEGORICALTARGET"
+    _filename = "CATEGORICALTARGET.bin"
+    dtype = CategoricalType
 
     def __init__(self, N, labels, nvalues: np.ndarray,
                  mappings: List[np.ndarray], counts: List[np.ndarray]) \
@@ -117,7 +120,8 @@ class CategoricalTarget(PickleObj):
 
 class ContinuousTarget(PickleObj):
 
-    _filename = "CONTINUOUSTARGET"
+    _filename = "CONTINUOUSTARGET.bin"
+    dtype = ContinuousType
 
     def __init__(self, N: int, labels, means: np.ndarray,
                  variances: np.ndarray) -> None:
@@ -133,7 +137,7 @@ Target = Union[ContinuousTarget, CategoricalTarget]
 
 class Training(PickleObj):
 
-    _filename = "TRAINING"
+    _filename = "TRAINING.bin"
 
     def __init__(self, targets: Target, features: FeatureSet, nfolds: int,
                  testfold: int, fold_counts: Dict[int, int]) -> None:

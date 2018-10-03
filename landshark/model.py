@@ -18,7 +18,7 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
                              r2_score)
 from tqdm import tqdm
 
-from landshark.metadata import CategoricalMetadata, TrainingMetadata
+from landshark.metadata import Training
 from landshark.serialise import deserialise
 from landshark.saver import BestScoreSaver
 from landshark import config as util_module
@@ -46,7 +46,7 @@ class QueryConfig(NamedTuple):
     use_gpu: bool
 
 
-def train_data(records: List[str], metadata: TrainingMetadata,
+def train_data(records: List[str], metadata: Training,
                batch_size: int, epochs: int=1, shuffle_buffer: int=1000,
                take: Optional[int]=None, random_seed: Optional[int]=None) \
         -> tf.data.TFRecordDataset:
@@ -63,7 +63,7 @@ def train_data(records: List[str], metadata: TrainingMetadata,
     return f
 
 
-def test_data(records: List[str], metadata: TrainingMetadata,
+def test_data(records: List[str], metadata: Training,
                       batch_size: int) -> tf.data.TFRecordDataset:
     """Test and query dataset feeder."""
     def f():
@@ -74,7 +74,7 @@ def test_data(records: List[str], metadata: TrainingMetadata,
     return f
 
 
-def predict_data(records: List[str], metadata: TrainingMetadata,
+def predict_data(records: List[str], metadata: Training,
                       batch_size: int) -> tf.data.TFRecordDataset:
     """Test and query dataset feeder."""
     def f():
@@ -87,7 +87,7 @@ def predict_data(records: List[str], metadata: TrainingMetadata,
 
 def train_test(records_train: List[str],
                records_test: List[str],
-               metadata: TrainingMetadata,
+               metadata: Training,
                directory: str,
                cf: Any,  # Module type
                params: TrainingConfig,
@@ -132,7 +132,7 @@ def train_test(records_train: List[str],
 
 def predict(checkpoint_dir: str,
             cf: Any,  # Module type
-            metadata: TrainingMetadata,
+            metadata: Training,
             records: List[str],
             params: QueryConfig) -> Generator:
     """Load a model and predict results for record inputs."""

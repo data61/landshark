@@ -7,9 +7,7 @@ from glob import glob
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import List, Tuple
 
-from landshark.metadata import (QueryMetadata, TrainingMetadata,
-                                pickle_metadata, unpickle_query_metadata,
-                                unpickle_training_metadata)
+from landshark.metadata import Training, FeatureSet
 
 log = logging.getLogger(__name__)
 
@@ -32,15 +30,14 @@ def load_model(config_file: str) -> str:
 
 
 def setup_training(config: str, directory: str) -> \
-        Tuple[List[str], List[str], TrainingMetadata, str, str]:
+        Tuple[List[str], List[str], Training, str, str]:
     # Get the data
     test_dir = os.path.join(directory, "testing")
     training_records = glob(os.path.join(directory, "*.tfrecord"))
     testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
 
     # Get metadata for feeding to the model
-    metadata_path = os.path.join(directory, "METADATA.bin")
-    metadata = unpickle_training_metadata(metadata_path)
+    metadata = Training.load(directory)
 
     # Write the metadata
     name = os.path.basename(config).rsplit(".")[0] + \
@@ -50,7 +47,7 @@ def setup_training(config: str, directory: str) -> \
         os.makedirs(model_dir)
     except FileExistsError:
         pass
-    pickle_metadata(model_dir, metadata)
+    metadata.save(model_dir)
 
     # Load the model
     module_name = load_model(config)
@@ -59,16 +56,14 @@ def setup_training(config: str, directory: str) -> \
 
 
 def setup_query(config: str, querydir: str, checkpoint: str) \
-        -> Tuple[TrainingMetadata, QueryMetadata, List[str], int, int, str]:
+        -> Tuple[Training, FeatureSet, List[str], int, int, str]:
     strip_list = querydir.split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])
     nstrip = int(strip_list[1])
 
-    query_metadata = unpickle_query_metadata(os.path.join(querydir,
-                                                          "METADATA.bin"))
-    training_metadata = unpickle_training_metadata(
-        os.path.join(checkpoint, "METADATA.bin"))
+    query_metadata = FeatureSet.load(querydir)
+    training_metadata = Training.load(checkpoint)
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
 

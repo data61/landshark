@@ -31,6 +31,7 @@ def _cat(it: Iterator[Iterator[T]]) -> List[T]:
 def write_feature_metadata(meta: FeatureSet,
                    hfile: tables.File) -> None:
     hfile.root._v_attrs.N = len(meta)
+    hfile.root._v_attrs.halfwidth = meta.halfwidth
     write_imagespec(meta.image, hfile)
     if meta.continuous:
         hfile.root.continuous_data.attrs.metadata = meta.continuous
@@ -41,13 +42,14 @@ def write_feature_metadata(meta: FeatureSet,
 def read_feature_metadata(path: str) -> FeatureSet:
     with tables.open_file(path, 'r') as hfile:
         N = hfile.root._v_attrs.N
+        halfwidth = hfile.root._v_attrs.halfwidth
         image_spec = read_imagespec(hfile)
         continuous, categorical = None, None
         if hasattr(hfile.root, "continuous_data"):
             continuous = hfile.root.continuous_data.attrs.metadata
         if hasattr(hfile.root, "categorical_data"):
             categorical = hfile.root.categorical_data.attrs.metadata
-    m = FeatureSet(continuous, categorical, image_spec, N)
+    m = FeatureSet(continuous, categorical, image_spec, N, halfwidth)
     return m
 
 

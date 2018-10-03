@@ -149,7 +149,7 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
             write_categorical(cat_source, outfile, nworkers,
                               cat_rows_per_batch, maps)
         m = meta.FeatureSet(continuous=con_meta, categorical=cat_meta,
-                            image=spec, N=N)
+                            image=spec, N=N, halfwidth=0)
         write_feature_metadata(m, outfile)
     log.info("Tif import complete")
 
