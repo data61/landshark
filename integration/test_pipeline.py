@@ -13,10 +13,10 @@ from landshark.scripts import cli, extractors, importers, skcli
 # small batch size to emulate normal use
 BATCH_MB = 0.001
 
-model_files = {"regression": {"landshark": "nnr_aboleth.py",
-                              "skshark": "sklearn_rfr.py"},
-               "classification": {"landshark": "nnc_aboleth.py",
-                                  "skshark": "sklearn_rfc.py"}}
+model_files = {"regression": {"landshark": "nn_regression.py",
+                              "skshark": "sklearn_regression.py"},
+               "classification": {"landshark": "nn_classification.py",
+                                  "skshark": "sklearn_classification.py"}}
 
 training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
                  "skshark": []}

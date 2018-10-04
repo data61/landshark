@@ -1,16 +1,15 @@
 """Generic classification config file."""
 import tensorflow as tf
+from tensorflow.estimator import ModeKeys
 
-from landshark.config import flatten_patch
-
-EMBED_DIM = 3
-
-def model(features, labels, mode, params):
+def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
+          image_indices, coordinates, metadata, utils):
     """
     Describe the specification of a Tensorflow custom estimator model.
 
-    This function must be implemented in all configurations. It is exactly
-    the model function passed to a custom Tensorflow estimator.
+    This function must be implemented in all configurations. It is almost
+    exactly the model function passed to a custom Tensorflow estimator,
+    apart from having more convenient input arguments.
     See https://www.tensorflow.org/guide/custom_estimators
 
     Parameters
@@ -48,64 +47,65 @@ def model(features, labels, mode, params):
 
     """
 
-    metadata = params["metadata"]
-    N = metadata.features.N
+    # Single-task classification
+    Y = Y[:, 0]
+    nvalues_target = metadata.targets.nvalues[0]
 
-    # let's 0-impute continuous columns
-    def zero_impute(x, m):
-        r = x * tf.cast(tf.logical_not(m), x.dtype)
-        return r
-    con_cols = {k: zero_impute(v["data"], v["mask"])
-                for k, v in features["con"].items()}
-    # zero is the missing value so we can use it as extra category
-    cat_cols = {k: v["data"] for k, v in features["cat"].items()}
+    inputs_list = []
+    if X_con:
+        # let's 0-impute continuous columns
+        X_con = {k: utils.value_impute(X_con[k], X_con_mask[k],
+                                       tf.constant(0.0)) for k in X_con}
 
-    # just concatenate the patch pixels as more features
-    con_cols = {k: flatten_patch(v) for k, v in con_cols.items()}
-    cat_cols = {k: flatten_patch(v) for k, v in cat_cols.items()}
+        # just concatenate the patch pixels as more features
+        X_con = {k: utils.flatten_patch(v) for k, v in X_con.items()}
 
-    # For simplicity, use the tensorflow feature columns.
-    columns_con = [tf.feature_column.numeric_column(k)
-                   for k in con_cols.keys()]
-    columns_cat = [tf.feature_column.embedding_column(
-        tf.feature_column.categorical_column_with_identity(
-        key=k, num_buckets=(v + 1)), EMBED_DIM)
-        for k, v in zip(metadata.features.categorical.labels,
-        metadata.features.categorical.ncategories)]
+        # convenience function for catting all columns into tensor
+        inputs_con = utils.continuous_input(X_con)
+        inputs_list.append(inputs_con)
 
-    inputs_con = tf.feature_column.input_layer(con_cols, columns_con)
-    inputs_cat = tf.feature_column.input_layer(cat_cols, columns_cat)
-    inputs = tf.concat([inputs_con, inputs_cat], axis=1)
+    if X_cat:
+        X_cat = {k: utils.flatten_patch(v) for k, v in X_cat.items()}
+
+        # zero is the missing categorical value so we can use it as extra category
+        # some convenience functions for embedding / catting cols together
+        nvalues = {k : v.nvalues + 1
+                   for k, v in metadata.features.categorical.columns.items()}
+        embedding_dims = {k: 3 for k in X_cat.keys()}
+        inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
+                                                    embedding_dims)
+        inputs_list.append(inputs_cat)
 
     # Build a simple 2-layer network
+    inputs = tf.concat(inputs_list, axis=1)
     l1 = tf.layers.dense(inputs, units=64, activation=tf.nn.relu)
     l2 = tf.layers.dense(l1, units=32, activation=tf.nn.relu)
 
     # Get some predictions for the labels
-    phi = tf.layers.dense(l2, units=labels.shape[1], activation=tf.nn.relu)
+    phi = tf.layers.dense(l2, units=nvalues_target,
+                          activation=None)
+    predicted_classes = tf.argmax(phi, 1)
 
     # Compute predictions.
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {'predictions_{}'.format(l): phi[:, i]
-                       for i, l in enumerate(metadata.targets.labels)}
+    if mode == ModeKeys.PREDICT:
+        predictions = {'predictions': predicted_classes}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
-    ll_f = tf.distributions.Normal(loc=phi, scale=1.0)
-    loss = -1 * tf.reduce_mean(ll_f.log_prob(labels))
+    ll_f = tf.distributions.Categorical(logits=phi)
+    loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
     tf.summary.scalar('loss', loss)
 
     # Compute evaluation metrics.
-    mse = tf.metrics.mean_squared_error(labels=labels,
-                                        predictions=phi)
-    metrics = {'mse': mse}
+    acc = tf.metrics.accuracy(labels=Y, predictions=predicted_classes)
+    metrics = {'accuracy': acc}
 
-    if mode == tf.estimator.ModeKeys.EVAL:
+    if mode == ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(
             mode, loss=loss, eval_metric_ops=metrics)
 
     # For training, use Adam to learn
-    assert mode == tf.estimator.ModeKeys.TRAIN
+    assert mode == ModeKeys.TRAIN
     optimizer = tf.train.AdamOptimizer()
     train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
