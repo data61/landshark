@@ -9,7 +9,7 @@ import shutil
 import signal
 from itertools import count
 from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
-                    Tuple, Union)
+                    Tuple, Union, Callable)
 
 import aboleth as ab
 import numpy as np
@@ -49,10 +49,10 @@ class QueryConfig(NamedTuple):
 def train_data(records: List[str], metadata: Training,
                batch_size: int, epochs: int=1, shuffle_buffer: int=1000,
                take: Optional[int]=None, random_seed: Optional[int]=None) \
-        -> tf.data.TFRecordDataset:
+        -> Callable[[],tf.data.TFRecordDataset]:
     """Train dataset feeder."""
     take = -1 if take is None else take
-    def f():
+    def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .repeat(count=epochs) \
             .shuffle(buffer_size=shuffle_buffer, seed=random_seed) \
@@ -64,9 +64,9 @@ def train_data(records: List[str], metadata: Training,
 
 
 def test_data(records: List[str], metadata: Training,
-                      batch_size: int) -> tf.data.TFRecordDataset:
+                      batch_size: int) -> Callable[[],tf.data.TFRecordDataset]:
     """Test and query dataset feeder."""
-    def f():
+    def f() -> tf.data.TFRecordDataSet:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .batch(batch_size) \
             .map(lambda x: deserialise(x, metadata))
@@ -75,9 +75,9 @@ def test_data(records: List[str], metadata: Training,
 
 
 def predict_data(records: List[str], metadata: Training,
-                      batch_size: int) -> tf.data.TFRecordDataset:
+                      batch_size: int) -> Callable[[],tf.data.TFRecordDataset]:
     """Test and query dataset feeder."""
-    def f():
+    def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .batch(batch_size) \
             .map(lambda x: deserialise(x, metadata, ignore_y=True))
@@ -167,7 +167,8 @@ def predict(checkpoint_dir: str,
 # Private module utility functions
 #
 
-def _model_wrapper(features, labels, mode, params) \
+def _model_wrapper(features: Dict[str, tf.Tensor], labels: tf.Tensor,
+                   mode: tf.estimator.ModeKeys, params: Dict[str, Any]) \
         -> tf.estimator.EstimatorSpec:
     metadata = params["metadata"]
     model_fn = params["config"]
@@ -186,7 +187,7 @@ def _model_wrapper(features, labels, mode, params) \
 
 
 
-def _log_scores(scores: dict) -> None:
+def _log_scores(scores: Dict[str, np.ndarray]) -> None:
     """Log testing scores."""
     logmsg = "Evaluation scores: "
     for k, v in scores.items():

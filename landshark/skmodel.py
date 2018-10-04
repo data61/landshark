@@ -4,7 +4,7 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Iterator, List, Optional, Tuple, Dict
+from typing import Iterator, List, Optional, Tuple, Dict, Union
 
 import numpy as np
 import tensorflow as tf
@@ -16,7 +16,11 @@ from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
 
-def _make_mask(x):
+
+
+# TODO simplify now I'm no longer using the recursive dict structure
+
+def _make_mask(x: dict) -> Union[dict, np.ndarray]:
 
     if isinstance(x, np.ndarray):
         return x
@@ -26,7 +30,7 @@ def _make_mask(x):
         return {k: _make_mask(v) for k, v in x.items()}
 
 
-def _concat_dict(xlist):
+def _concat_dict(xlist: dict) -> dict:
     out_dict = {}
     for k, v in xlist[0].items():
         if isinstance(v, np.ndarray):
@@ -36,7 +40,8 @@ def _concat_dict(xlist):
     return out_dict
 
 
-def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session):
+def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
+        -> Tuple[dict, np.ndarray]:
 
     x_list = []
     y_list = []
@@ -95,7 +100,8 @@ def _query_it(records_query: List[str], batch_size: int,
             return
 
 
-def _split(x):
+def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
+                                              np.ndarray, np.ndarray]:
     x_con = x["con"] if "con" in x else None
     x_cat = x["cat"] if "cat" in x else None
     indices = x["indices"]

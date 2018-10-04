@@ -1,12 +1,13 @@
 """Serialise and Deserialise to and from tf records."""
+
 from itertools import repeat
-from typing import List, Tuple, NamedTuple, Optional, Union
+from typing import List, Tuple, NamedTuple, Optional, Union, Dict
 
 import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import ContinuousType, CategoricalType
-from landshark.metadata import Training
+from landshark.metadata import Training, Feature
 
 #
 # Module constants and types
@@ -34,7 +35,7 @@ class DataArrays(NamedTuple):
 # Module functions
 #
 
-def serialise(x: DataArrays) -> [List[bytes]]:
+def serialise(x: DataArrays) -> List[bytes]:
     """Serialise data to tf.records."""
     x_con = repeat(np.ma.MaskedArray(data=[], mask=[])) \
         if x.con_marray is None else x.con_marray
@@ -52,8 +53,7 @@ def serialise(x: DataArrays) -> [List[bytes]]:
         string_list.append(example.SerializeToString())
     return string_list
 
-
-def deserialise(row: str, metadata: Training, ignore_y=False) \
+def deserialise(row: str, metadata: Training, ignore_y: bool=False) \
         -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)
@@ -84,14 +84,14 @@ def deserialise(row: str, metadata: Training, ignore_y=False) \
         feat_dict = {"indices": indices,
                      "coords": coords}
 
-        if nfeatures_con > 0:
+        if metadata.features.continuous:
             feat_dict["con"] = _unpack(x_con,
                                        metadata.features.continuous.columns,
                                        npatch_side)
             feat_dict["con_mask"] = _unpack(x_con_mask,
                                        metadata.features.continuous.columns,
                                        npatch_side)
-        if nfeatures_cat > 0:
+        if metadata.features.categorical:
             feat_dict["cat"] = _unpack(x_cat,
                                        metadata.features.categorical.columns,
                                        npatch_side)
@@ -103,7 +103,8 @@ def deserialise(row: str, metadata: Training, ignore_y=False) \
     return result
 
 
-def _unpack(x, columns, npatch_side):
+def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
+        -> Dict[str, tf.Tensor]:
     nfeatures = len(columns)
     x_all = tf.reshape(x, (tf.shape(x)[0], npatch_side,
                            npatch_side, nfeatures))

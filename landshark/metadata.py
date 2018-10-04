@@ -12,16 +12,20 @@ from landshark.image import ImageSpec
 
 class PickleObj:
 
-    _filename = None
+    _filename: Optional[str] = None
 
     @classmethod
-    def load(cls, directory):
+    def load(cls, directory: str) -> Any:
+        if not cls._filename:
+            raise NotImplementedError("PickleObj must be subclassed")
         path = os.path.join(directory, cls._filename)
         with open(path, "rb") as f:
             obj = pickle.load(f)
         return obj
 
     def save(self, directory: str) -> None:
+        if not self._filename:
+            raise NotImplementedError("PickleObj must be subclassed")
         path = os.path.join(directory, self._filename)
         with open(path, "wb") as f:
             pickle.dump(self, f)
@@ -39,9 +43,12 @@ class ContinuousFeature(NamedTuple):
     sd: np.ndarray
 
 
+Feature = Union[CategoricalFeature, ContinuousFeature]
+
 class ContinuousFeatureSet:
 
-    def __init__(self, labels, missing, means, variances) -> None:
+    def __init__(self, labels: List[str], missing: ContinuousType,
+                 means: np.ndarray, variances: np.ndarray) -> None:
 
         D = len(labels)
         if means is None:
@@ -54,35 +61,36 @@ class ContinuousFeatureSet:
         self._n = len(self._columns)
 
     @property
-    def columns(self):
+    def columns(self) -> OrderedDict:
         return self._columns
 
     @property
-    def missing_value(self):
+    def missing_value(self) -> ContinuousType:
         return self._missing
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._n
 
 
 class CategoricalFeatureSet:
 
-    def __init__(self, labels, missing, nvalues, mappings, counts) \
-                 -> None:
+    def __init__(self, labels: List[str], missing: CategoricalType,
+                 nvalues: np.ndarray, mappings: List[np.ndarray],
+                 counts: np.ndarray) -> None:
         self._missing = missing
         self._columns = OrderedDict([(l, CategoricalFeature(n, 1, m, c))
             for l, n, m, c in zip(labels, nvalues, mappings, counts)])
         self._n = len(self._columns)
 
     @property
-    def columns(self):
+    def columns(self) -> OrderedDict:
         return self._columns
 
     @property
-    def missing_value(self):
+    def missing_value(self) -> CategoricalType:
         return self._missing
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._n
 
 
@@ -99,7 +107,7 @@ class FeatureSet(PickleObj):
         self._N = N
         self.halfwidth = halfwidth
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._N
 
 
@@ -108,7 +116,7 @@ class CategoricalTarget(PickleObj):
     _filename = "CATEGORICALTARGET.bin"
     dtype = CategoricalType
 
-    def __init__(self, N, labels, nvalues: np.ndarray,
+    def __init__(self, N: int, labels: np.ndarray, nvalues: np.ndarray,
                  mappings: List[np.ndarray], counts: List[np.ndarray]) \
             -> None:
         self.N = N
@@ -123,7 +131,7 @@ class ContinuousTarget(PickleObj):
     _filename = "CONTINUOUSTARGET.bin"
     dtype = ContinuousType
 
-    def __init__(self, N: int, labels, means: np.ndarray,
+    def __init__(self, N: int, labels: np.ndarray, means: np.ndarray,
                  variances: np.ndarray) -> None:
         self.N = N
         self.D = len(labels)

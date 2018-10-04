@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 class ProcessTrainingArgs(NamedTuple):
     name: str
     feature_path: str
-    target_src: Optional[ArraySource]
+    target_src: ArraySource
     image_spec: ImageSpec
     halfwidth: int
     testfold: int
@@ -136,7 +136,7 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
 def _process_training(coords: np.ndarray,
                       targets: np.ndarray,
                       feature_source: H5Features,
-                      image_spec, halfwidth) -> DataArrays:
+                      image_spec: ImageSpec, halfwidth: int) -> DataArrays:
     coords_x, coords_y = coords.T
     indices_x = world_to_image(coords_x, image_spec.x_coordinates)
     indices_y = world_to_image(coords_y, image_spec.y_coordinates)
@@ -162,8 +162,8 @@ def _process_training(coords: np.ndarray,
 
 def _process_query(indices: np.ndarray,
                    feature_source: H5Features,
-                   image_spec,
-                   halfwidth) -> DataArrays:
+                   image_spec: ImageSpec,
+                   halfwidth: int) -> DataArrays:
     indices_x, indices_y = indices.T
     coords_x = image_to_world(indices_x, image_spec.x_coordinates)
     coords_y = image_to_world(indices_y, image_spec.y_coordinates)
@@ -197,7 +197,8 @@ def _process_query(indices: np.ndarray,
 
 class _TrainingDataProcessor(Worker):
 
-    def __init__(self, feature_path, image_spec, halfwidth) -> None:
+    def __init__(self, feature_path: str, image_spec: ImageSpec,
+                 halfwidth: int) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec
@@ -215,7 +216,8 @@ class _TrainingDataProcessor(Worker):
 
 class _QueryDataProcessor(Worker):
 
-    def __init__(self, feature_path, image_spec, halfwidth) -> None:
+    def __init__(self, feature_path: str, image_spec: ImageSpec,
+                 halfwidth: int) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec

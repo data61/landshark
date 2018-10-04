@@ -114,7 +114,7 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
     params = QueryConfig(points_per_batch, gpu)
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,
                            query_records, params)
-    write_geotiffs(y_dash_it, checkpoint, train_metadata,
+    write_geotiffs(y_dash_it, checkpoint, train_metadata.features.image,
                    tag="{}of{}".format(strip, nstrips))
 
 
