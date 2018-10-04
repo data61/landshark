@@ -114,7 +114,7 @@ def predict(cmd, model_filename, trained_model_dir,
                   "--config", model_filename,
                   "--checkpoint", trained_model_dir,
                   "--data", querydata_folder])
-    image_filename = "predictions_5of10.tif"
+    image_filename = "predictions_{}_5of10.tif".format(target_name)
     image_path = os.path.join(trained_model_dir, image_filename)
     assert os.path.isfile(image_path)
 

@@ -171,8 +171,15 @@ def _model_wrapper(features, labels, mode, params) \
         -> tf.estimator.EstimatorSpec:
     metadata = params["metadata"]
     model_fn = params["config"]
-    result = model_fn(mode, features["con"], features["con_mask"],
-                      features["cat"], features["cat_mask"], labels,
+
+    con, con_mask, cat, cat_mask = None, None, None, None
+    if "con" in features:
+        con = features["con"]
+        con_mask = features["con_mask"]
+    if "cat" in features:
+        cat = features["cat"]
+        cat_mask = features["cat_mask"]
+    result = model_fn(mode, con, con_mask, cat, cat_mask, labels,
                       features["indices"], features["coords"],
                       metadata, util_module)
     return result

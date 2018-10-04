@@ -48,7 +48,6 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
     """
 
     # Single-task classification
-    Y = Y[:, 0]
     nvalues_target = metadata.targets.nvalues[0]
 
     inputs_list = []
@@ -84,14 +83,18 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
     # Get some predictions for the labels
     phi = tf.layers.dense(l2, units=nvalues_target,
                           activation=None)
-    predicted_classes = tf.argmax(phi, 1)
+
+    # geottiff doesn't support 64bit output from argmax
+    predicted_classes = tf.cast(tf.argmax(phi, 1), tf.uint8)
 
     # Compute predictions.
     if mode == ModeKeys.PREDICT:
-        predictions = {'predictions': predicted_classes}
+        predictions = {'predictions_{}'.format(
+            metadata.targets.labels[0]): predicted_classes}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
+    Y = Y[:, 0]
     ll_f = tf.distributions.Categorical(logits=phi)
     loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
     tf.summary.scalar('loss', loss)

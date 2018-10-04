@@ -17,6 +17,7 @@ class SKModel:
                                strategy="most_frequent",
                                axis=0, verbose=0, copy=True)
         psize = (2 * metadata.features.halfwidth + 1)**2
+        self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
             n_values = [k.nvalues for k in \
                         metadata.features.categorical.columns.values()]
@@ -52,7 +53,7 @@ class SKModel:
     def test(self, Y: np.array, predictions: Dict[str, np.array]) \
             -> Dict[str, np.ndarray]:
         Y = Y[:, 0]
-        acc = accuracy_score(Y, predictions["predictions"])
+        acc = accuracy_score(Y, predictions["predictions_" + self.label])
         return {"accuracy": acc}
 
 
@@ -74,5 +75,5 @@ class SKModel:
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         Ey = self.est.predict(X)
-        predictions = {"predictions": Ey}
+        predictions = {'predictions_' + self.label: Ey}
         return predictions

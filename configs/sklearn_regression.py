@@ -17,6 +17,7 @@ class SKModel:
                                strategy="most_frequent",
                                axis=0, verbose=0, copy=True)
         psize = (2 * metadata.features.halfwidth + 1)**2
+        self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
             n_values = [k.nvalues for k in \
                         metadata.features.categorical.columns.values()]
@@ -29,6 +30,7 @@ class SKModel:
 
     def train(self, X_con, X_cat, indices, coords, Y: np.array) -> None:
 
+        Y = Y[:, 0]
         X_list = []
         if X_cat is not None:
             X_cat = np.ma.concatenate(list(X_cat.values()), axis=1)
@@ -48,7 +50,9 @@ class SKModel:
 
     def test(self, Y: np.array, predictions: Dict[str, np.array]) \
             -> Dict[str, np.ndarray]:
-        mse = mean_squared_error(Y, predictions["predictions"])
+        Y = Y[:, 0]
+        mse = mean_squared_error(
+            Y, predictions["predictions_" + self.label])
         return {"mse": mse}
 
 
@@ -71,5 +75,5 @@ class SKModel:
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         Ey = self.est.predict(X)
-        predictions = {"predictions": Ey}
+        predictions = {"predictions_" + self.label: Ey}
         return predictions
