@@ -20,17 +20,18 @@ log = logging.getLogger(__name__)
 
 # TODO simplify now I'm no longer using the recursive dict structure
 
-def _make_mask(x: dict) -> Union[dict, np.ndarray]:
 
-    if isinstance(x, np.ndarray):
-        return x
-    elif set(x.keys()) == {"data", "mask"}:
-        return np.ma.MaskedArray(data=x["data"], mask=x["mask"])
-    else:
-        return {k: _make_mask(v) for k, v in x.items()}
+def _make_mask(x: Dict[str, np.ndarray],
+               xm: Dict[str, np.ndarray]) -> Dict[str, np.ma.MaskedArray]:
+    assert x.keys() == xm.keys()
+    d = {k: np.ma.MaskedArray(data=x[k], mask=xm[k]) for k in x.keys()}
+    return d
 
 
-def _concat_dict(xlist: dict) -> dict:
+T = Union[np.ndarray, Dict[str, np.ndarray]]
+
+
+def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
     out_dict = {}
     for k, v in xlist[0].items():
         if isinstance(v, np.ndarray):
@@ -54,7 +55,9 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
         pass
 
     y_full = np.concatenate(y_list, axis=0)
-    x_full = _make_mask(_concat_dict(x_list))
+    x_full = _concat_dict(x_list)
+    x_full["con"] = _make_mask(x_full["con"], x_full["con_mask"])
+    x_full["cat"] = _make_mask(x_full["cat"], x_full["cat_mask"])
 
     return x_full, y_full
 
@@ -89,9 +92,9 @@ def _query_it(records_query: List[str], batch_size: int,
                 try:
                     X = sess.run(X_tensor)
                     if "con" in X:
-                        _make_mask(X["con"])
+                        X["con"] = _make_mask(X["con"], X["con_mask"])
                     if "cat" in X:
-                        _make_mask(X["cat"])
+                        X["cat"] = _make_mask(X["cat"], X["cat_mask"])
                     n = X['indices'].shape[0]
                     pbar.update(n)
                     yield X

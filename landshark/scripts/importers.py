@@ -97,7 +97,6 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
         raise errors.NoTifFilesFound()
 
     N_con, N_cat = None, None
-    N = None
     con_meta, cat_meta = None, None
     spec = shared_image_spec(all_filenames, ignore_crs)
 

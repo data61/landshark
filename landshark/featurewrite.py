@@ -64,12 +64,15 @@ def write_target_metadata(meta: Target, hfile: tables.File) -> None:
 def read_target_metadata(path: str) -> Target:
     with tables.open_file(path, 'r') as hfile:
         if hasattr(hfile.root, "continuous_data"):
-            meta = hfile.root.continuous_data.attrs.metadata
+            meta_con: ContinuousTarget = \
+                hfile.root.continuous_data.attrs.metadata
+            return meta_con
         elif hasattr(hfile.root, "categorical_data"):
-            meta = hfile.root.categorical_data.attrs.metadata
+            meta_cat: CategoricalTarget = \
+                hfile.root.categorical_data.attrs.metadata
+            return meta_cat
         else:
             raise RuntimeError("Can't find Metadata")
-        return meta
 
 
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:

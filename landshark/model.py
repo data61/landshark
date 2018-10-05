@@ -66,7 +66,7 @@ def train_data(records: List[str], metadata: Training,
 def test_data(records: List[str], metadata: Training,
                       batch_size: int) -> Callable[[],tf.data.TFRecordDataset]:
     """Test and query dataset feeder."""
-    def f() -> tf.data.TFRecordDataSet:
+    def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .batch(batch_size) \
             .map(lambda x: deserialise(x, metadata))
