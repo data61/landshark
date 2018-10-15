@@ -51,12 +51,16 @@ class ContinuousFeatureSet:
                  means: np.ndarray, variances: np.ndarray) -> None:
 
         D = len(labels)
-        if means is None:
+        self.normalised = means is not None
+        if not self.normalised:
             means = [None] * D
             variances = [None] * D
 
+
         self._missing = missing
-        self._columns = OrderedDict([(l, ContinuousFeature(1, m, v))
+        # hard-code that each feature has 1 band for now
+        self._columns = OrderedDict(
+            [(l, ContinuousFeature(1, np.array([m]), np.array([v])))
             for l, m, v in zip(labels, means, variances)])
         self._n = len(self._columns)
 
@@ -78,7 +82,9 @@ class CategoricalFeatureSet:
                  nvalues: np.ndarray, mappings: List[np.ndarray],
                  counts: np.ndarray) -> None:
         self._missing = missing
-        self._columns = OrderedDict([(l, CategoricalFeature(n, 1, m, c))
+        # hard-code that each feature has 1 band for now
+        self._columns = OrderedDict(
+            [(l, CategoricalFeature(np.array([n]), 1, m, c))
             for l, n, m, c in zip(labels, nvalues, mappings, counts)])
         self._n = len(self._columns)
 
@@ -135,6 +141,7 @@ class ContinuousTarget(PickleObj):
                  variances: np.ndarray) -> None:
         self.N = N
         self.D = len(labels)
+        self.normalised = means is not None
         self.means = means
         self.variances = variances
         self.labels = labels

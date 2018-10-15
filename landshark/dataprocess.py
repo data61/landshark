@@ -114,7 +114,8 @@ def _as_range(iterable: Iterator[int]) -> FixedSlice:
 def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     rowlist = sorted(list({k.y for k in patch_reads}))
 
-    def _get(n: int, c: Iterator[int]=count()) -> int:
+    c_init = count()
+    def _get(n: int, c: Iterator[int]=c_init) -> int:
         res = n - next(c)
         return res
 

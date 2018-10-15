@@ -1,15 +1,35 @@
+"""Useful functions for simplifying model (config) files."""
+
 from typing import Dict, Union
 
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
 
 def flatten_patch(x: tf.Tensor) -> tf.Tensor:
+    """
+    Reshape tensor by concatenating patch pixel columns.
+
+    Arguments
+    ---------
+    x : tf.Tensor
+        A tensor of shape (n,p,p,d) where the middle p is the patch width.
+
+    Returns
+    -------
+    x_new : tf.Tensor
+        A reshaped version of x, of shape (n, p * p * d).
+
+    """
     new_shp = (tf.shape(x)[0], np.product(x.shape[1:]))
     new_x = tf.reshape(x, new_shp)
     return new_x
 
 def value_impute(data: tf.Tensor, mask: tf.Tensor,
                  newval: Union[tf.Tensor, np.ndarray]) -> tf.Tensor:
+    """
+    Impute missing (masked) values with a single value.
+    """
     tmask = tf.cast(mask, dtype=data.dtype)
     fmask = tf.cast(tf.logical_not(mask), dtype=data.dtype)
     newdata = data * fmask + newval * tmask

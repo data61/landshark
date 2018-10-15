@@ -34,9 +34,9 @@ def write_feature_metadata(meta: FeatureSet,
     hfile.root._v_attrs.halfwidth = meta.halfwidth
     write_imagespec(meta.image, hfile)
     if meta.continuous:
-        hfile.root.continuous_data.attrs.metadata = meta.continuous
+        _write_continuous_metadata(meta.continuous, hfile)
     if meta.categorical:
-        hfile.root.categorical_data.attrs.metadata = meta.categorical
+        _write_categorical_metadata(meta.categorical, hfile)
 
 
 def read_feature_metadata(path: str) -> FeatureSet:
@@ -46,33 +46,105 @@ def read_feature_metadata(path: str) -> FeatureSet:
         image_spec = read_imagespec(hfile)
         continuous, categorical = None, None
         if hasattr(hfile.root, "continuous_data"):
-            continuous = hfile.root.continuous_data.attrs.metadata
+            continuous = _read_continuous_meta(hfile)
         if hasattr(hfile.root, "categorical_data"):
-            categorical = hfile.root.categorical_data.attrs.metadata
+            categorical = _read_categorical_meta(hfile)
     m = FeatureSet(continuous, categorical, image_spec, N, halfwidth)
     return m
 
 
 def write_target_metadata(meta: Target, hfile: tables.File) -> None:
     if isinstance(meta, ContinuousTarget):
-        hfile.root.continuous_data.attrs.metadata = meta
+        _write_continuous_target_metadata(meta, hfile)
     elif isinstance(meta, CategoricalTarget):
-        hfile.root.categorical_data.attrs.metadata = meta
+        _write_categorical_target_metadata(meta, hfile)
     else:
         raise RuntimeError("Don't recognise type of target metadata")
 
 def read_target_metadata(path: str) -> Target:
     with tables.open_file(path, 'r') as hfile:
         if hasattr(hfile.root, "continuous_data"):
-            meta_con: ContinuousTarget = \
-                hfile.root.continuous_data.attrs.metadata
-            return meta_con
+            continuous = _read_continuous_target_metadata(hfile)
+            return continuous
         elif hasattr(hfile.root, "categorical_data"):
-            meta_cat: CategoricalTarget = \
-                hfile.root.categorical_data.attrs.metadata
-            return meta_cat
+            categorical = _read_categorical_target_metadata(hfile)
+            return categorical
         else:
             raise RuntimeError("Can't find Metadata")
+
+
+def _write_continuous_metadata(meta: ContinuousFeatureSet,
+                               hfile: tables.File) -> None:
+    hfile.root.continuous_data.attrs.missing = meta.missing_value
+    hfile.root.continuous_data.attrs.normalised = meta.normalised
+    labels = [k for k in meta.columns.keys()]
+    D = np.array([v.D for v in meta.columns.values()], dtype=int)
+    means = [v.mean for v in meta.columns.values()]
+    sds = [v.sd for v in meta.columns.values()]
+    _make_str_vlarray(hfile, "continuous_labels", labels)
+    hfile.create_array(hfile.root, name="continuous_D", obj=D)
+    if meta.normalised:
+        _make_float_vlarray(hfile, "continuous_means", means)
+        _make_float_vlarray(hfile, "continuous_sds", sds)
+
+
+def _write_continuous_target_metadata(meta: ContinuousTarget,
+                                      hfile: tables.File) -> None:
+    hfile.root.continuous_data.attrs.D = meta.D
+    hfile.root.continuous_data.attrs.N = meta.N
+    _make_str_vlarray(hfile, "continuous_labels", meta.labels)
+    if meta.normalised:
+        _make_float_vlarray(hfile, "continuous_means", meta.means)
+        _make_float_vlarray(hfile, "continuous_sds", meta.sds)
+
+# def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
+#     N = hfile.root._v_attrs.ordinal_N
+#     missing = hfile.root.ordinal_data.attrs.missing
+#     D = hfile.root.ordinal_data.attrs.D
+#     labels = [k.decode() for k in hfile.root.ordinal_labels.read()]
+#     mean = hfile.root.ordinal_data.attrs.mean
+#     var = hfile.root.ordinal_data.attrs.variance
+#     m = OrdinalMetadata(N, D, labels, missing, mean, var)
+#     return m
+
+
+def _write_categorical_metadata(meta: CategoricalFeatureSet,
+                                hfile: tables.File) -> None:
+    hfile.root.categorical_data.attrs.missing = meta.missing_value
+    labels = [k for k in meta.columns.keys()]
+    nvalues = np.array([v.nvalues for v in meta.columns.values()])
+    D = np.array([v.D for v in meta.columns.values()])
+    mappings = [v.mapping for v in meta.columns.values()]
+    counts = [v.counts for v in meta.columns.values()]
+    _make_str_vlarray(hfile, "categorical_labels", labels)
+    hfile.create_array(hfile.root, name="categorical_D", obj=D)
+    _make_int_vlarray(hfile, "categorical_counts", counts)
+    _make_int_vlarray(hfile, "categorical_mappings", mappings)
+    _make_int_vlarray(hfile, "categorical_nvalues", nvalues)
+
+
+def _write_categorical_target_metadata(meta: CategoricalTarget,
+                                       hfile: tables.File) -> None:
+    hfile.root.categorical_data.attrs.D = meta.D
+    hfile.root.categorical_data.attrs.N = meta.N
+    _make_str_vlarray(hfile, "categorical_labels", meta.labels)
+    _make_int_vlarray(hfile, "categorical_counts", meta.counts)
+    _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
+    hfile.create_array(hfile.root, name="categorical_nvalues", obj=meta.nvalues)
+
+
+# def read_categorical_metadata(hfile: tables.File) -> CategoricalMetadata:
+#     N = hfile.root._v_attrs.categorical_N
+#     missing = hfile.root.categorical_data.attrs.missing
+#     D = hfile.root.categorical_data.attrs.D
+#     labels = [k.decode() for k in hfile.root.categorical_labels.read()]
+#     ncats = hfile.root.ncategories.read()
+#     mappings = hfile.root.categorical_mappings.read()
+#     counts = hfile.root.categorical_counts.read()
+#     m = CategoricalMetadata(N, D, labels, missing, ncats, mappings, counts)
+#     return m
+
+
 
 
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:
@@ -160,6 +232,13 @@ def _make_int_vlarray(h5file: tables.File, name: str,
                       attribute: np.ndarray) -> None:
     vlarray = h5file.create_vlarray(h5file.root, name=name,
                                     atom=tables.Int32Atom(shape=()))
+    for a in attribute:
+        vlarray.append(a)
+
+def _make_float_vlarray(h5file: tables.File, name: str,
+                        attribute: np.ndarray) -> None:
+    vlarray = h5file.create_vlarray(h5file.root, name=name,
+                                    atom=tables.Float64Atom(shape=()))
     for a in attribute:
         vlarray.append(a)
 

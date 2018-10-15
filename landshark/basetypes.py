@@ -1,4 +1,4 @@
-"""Baseclass for datatypes. Modron-light basically."""
+"""Base classes for datatypes."""
 
 import logging
 from types import TracebackType
@@ -49,6 +49,7 @@ class Reader:
         pass
 
     def __call__(self, index: Any) -> T:
+        """Read data at index and return."""
         raise NotImplementedError
 
 
@@ -56,16 +57,23 @@ class Worker:
     """Generic worker (callable)."""
 
     def __call__(self, x: Any) -> Any:
+        """Perform work on x and return result."""
         raise NotImplementedError
 
 
 class IdReader(Reader):
+    """Reader that returns its input."""
+
     def __call__(self, index: T) -> T:
+        """Return index provided (do no work)."""
         return index
 
 
 class IdWorker(Worker):
+    """Worker that applies the identity function."""
+
     def __call__(self, x: T) -> T:
+        """Return the provided input."""
         return x
 
 

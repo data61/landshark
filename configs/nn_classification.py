@@ -47,6 +47,10 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
     """
 
+    X = tf.Constant([3])
+    X_new = X + 1
+    print(X_new)
+
     # Single-task classification
     nvalues_target = metadata.targets.nvalues[0]
 

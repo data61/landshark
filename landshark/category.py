@@ -14,11 +14,22 @@ log = logging.getLogger(__name__)
 
 
 class CategoryInfo(NamedTuple):
+    """
+    Information about categorical features.
+
+    The mappings contain the original numerical categories in an array.
+    Their index in that array is the number they have been mapped to.
+    The counts list gives, for each categorical feature, the numbers of
+    appearances in the data of that category.
+
+    """
+
     mappings: List[np.ndarray]
     counts: List[np.ndarray]
 
 
-def unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
+def _unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
+    """Provide the unique entries and their counts for each column x."""
     x = x.reshape((-1), x.shape[-1])
     unique_vals, counts = zip(*[np.unique(c, return_counts=True)
                                 for c in x.T])
@@ -54,7 +65,23 @@ def get_maps(src: CategoricalArraySource, batchrows: int) -> CategoryInfo:
     """
     Extract the unique categorical variables and their counts.
 
-    TODO
+    The function maps k arbitrary numerical categories to the integers
+    (0..k-1). It returns that mapping along with the counts of how many
+    times each value appeared in the dataset.
+
+    Arguments
+    ---------
+    src : CategoricalArraySource
+        The ArraySource from which to extract the data.
+    batchrows : int
+        The number of rows to read from src in a single batch. Larger
+        values are probably faster but will use more memory.
+
+    Returns
+    -------
+    result : CategoryInfo
+        The mappings and counts for each categorical column in the dataset.
+
     """
     n_rows = src.shape[0]
     n_features = src.shape[-1]
@@ -68,7 +95,7 @@ def get_maps(src: CategoricalArraySource, batchrows: int) -> CategoryInfo:
         with src:
             for s in iteration.batch_slices(batchrows, n_rows):
                 x = src(s)
-                unique, counts = unique_values(x)
+                unique, counts = _unique_values(x)
                 for a, u, c in zip(accums, unique, counts):
                     a.update(u, c)
                 pbar.update(x.shape[0])
@@ -85,8 +112,23 @@ def get_maps(src: CategoricalArraySource, batchrows: int) -> CategoryInfo:
 
 
 class CategoryMapper(Worker):
+    """
+    Worker class to perform a categorical data remapping.
+
+    Arguments
+    ---------
+    mappings : List[np.ndarray]
+        The arrays giving the maps from arbitary numerical categories in
+        each column to the numbers 0..n-1.
+
+    missing_value : Optional[int]
+        If this dataset has a missing value, then providing here will ensure
+        that it gets mapped to 0 (helpful for doing extra-category imputing).
+    """
+
     def __init__(self, mappings: List[np.ndarray],
                  missing_value: Optional[int]) -> None:
+        """Initialise the worker object."""
         for m in mappings:
             is_sorted = np.all(m[:-1] <= m[1:])
             assert is_sorted
@@ -94,6 +136,20 @@ class CategoryMapper(Worker):
         self._missing = missing_value
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
+        """Map the data in x into the new categories.
+
+        Arguments
+        ---------
+        x : np.ndarray
+            The categorical data to remap. Assuming the last dimenion
+            of x is where the separate features are indexed.
+
+        Returns
+        -------
+        x_new : np.ndarray
+            The version of x in which the remappings have been applied.
+
+        """
         fill = self._missing if self._missing is not None else 0
         x_new = np.empty_like(x)
         for i, cats in enumerate(self._mappings):
