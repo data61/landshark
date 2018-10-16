@@ -33,13 +33,13 @@ class NoTifFilesFound(Error):
     message = "The supplied paths had no files with .tif or .gtif extensions"
 
 
-class ZeroVariance(Error):
-    """Zero variance in supplied column."""
+class ZeroDeviation(Error):
+    """Zero standard deviation in supplied column."""
 
-    def __init__(self, var: np.ndarray, cols: List[str]) -> None:
-        zsrcs = [c for z, c in zip(var, cols) if z]
+    def __init__(self, sd: np.ndarray, cols: List[str]) -> None:
+        zsrcs = [c for z, c in zip(sd, cols) if z]
         self.message = "The following sources have bands \
-            with zero variance: {}".format(zsrcs)
+            with zero standard deviation: {}".format(zsrcs)
 
 
 class ConCatNMismatch(Error):

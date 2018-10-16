@@ -10,20 +10,22 @@ from landshark.basetypes import (ArraySource, CategoricalArraySource,
                                  ContinuousArraySource)
 from landshark.category import CategoryInfo
 from landshark.image import ImageSpec
-
+from landshark.featurewrite import read_target_metadata, read_feature_metadata
 
 class H5ArraySource(ArraySource):
+    """Note these are only used for targets! see the target specific metadata
+    call. Should probably be renamed."""
 
     _array_name = ""
 
     def __init__(self, path: str) -> None:
         self._path = path
+        self.metadata = read_target_metadata(path)
         with tables.open_file(self._path, "r") as hfile:
             carray = hfile.get_node("/" + self._array_name)
             self._shape = tuple(list(carray.shape) +
                                 [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
-            self.metadata = carray.attrs.metadata
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
 
@@ -72,16 +74,14 @@ class H5Features:
     def __init__(self, h5file: str) -> None:
 
         self.continuous, self.categorical, self.coordinates = None, None, None
+        self.metadata = read_feature_metadata(h5file)
         self._hfile = tables.open_file(h5file, "r")
         if hasattr(self._hfile.root, "continuous_data"):
             self.continuous = self._hfile.root.continuous_data
-            self.continuous.metadata = self._hfile.root.continuous_data.attrs.metadata
-            self.continuous.missing = self._hfile.root.continuous_data.attrs.missing
+            self.continuous.missing = self.metadata.continuous.missing_value
         if hasattr(self._hfile.root, "categorical_data"):
             self.categorical = self._hfile.root.categorical_data
-            self.categorical.metadata = self.categorical.attrs.metadata
-            self.categorical.missing = \
-                self._hfile.root.categorical_data.attrs.missing
+            self.categorical.missing = self.metadata.categorical.missing_value
         if self.continuous:
             self._n = len(self.continuous)
         if self.categorical:
@@ -94,12 +94,3 @@ class H5Features:
 
     def __del__(self) -> None:
         self._hfile.close()
-
-
-def read_image_spec(filename: str) -> ImageSpec:
-    with tables.open_file(filename, mode="r") as h5file:
-        x_coordinates = h5file.root.x_coordinates.read()
-        y_coordinates = h5file.root.y_coordinates.read()
-        crs = h5file.root._v_attrs.crs
-    imspec = ImageSpec(x_coordinates, y_coordinates, crs)
-    return imspec

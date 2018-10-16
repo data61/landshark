@@ -50,11 +50,12 @@ class StatCounter:
         return self._mean
 
     @property
-    def variance(self) -> np.ndarray:
-        """Get the current estimate of the variance."""
+    def sd(self) -> np.ndarray:
+        """Get the current estimate of the standard deviation."""
         assert np.all(self._n > 1)
         var = self._m2 / self._n
-        return var
+        sd = np.sqrt(var)
+        return sd
 
     @property
     def count(self) -> np.ndarray:
@@ -64,16 +65,16 @@ class StatCounter:
 
 class Normaliser(Worker):
 
-    def __init__(self, mean: np.ndarray, var: np.ndarray,
+    def __init__(self, mean: np.ndarray, sd: np.ndarray,
                  missing: Optional[ContinuousType]) -> None:
         self._mean = mean
-        self._std = np.sqrt(var)
+        self._sd = sd
         self._missing = missing
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         xm = to_masked(x, self._missing)
         xm -= self._mean
-        xm /= self._std
+        xm /= self._sd
         return xm.data
 
 
@@ -91,5 +92,5 @@ def get_stats(src: ContinuousArraySource, batchrows: int) \
                 bm = to_masked(bs, src.missing)
                 stats.update(bm)
                 pbar.update(x.shape[0])
-    mean, variance = stats.mean, stats.variance
-    return mean, variance
+    mean, sd = stats.mean, stats.sd
+    return mean, sd

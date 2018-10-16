@@ -112,16 +112,16 @@ def tifs_entrypoint(nworkers: int, batchMB: float, categorical: List[str],
             stats = None
             if normalise:
                 stats = get_stats(con_source, con_rows_per_batch)
-                mean, var = stats
-                if any(var == 0.0):
-                    raise errors.ZeroVariance(var, con_source.columns)
+                mean, sd = stats
+                if any(sd == 0.0):
+                    raise errors.ZeroDeviation(sd, con_source.columns)
                 log.info("Writing normalised continuous data to output file")
             else:
                 log.info("Writing unnormalised continuous data to output file")
             con_meta = meta.ContinuousFeatureSet(labels=con_source.columns,
                                           missing=con_source.missing,
                                           means=mean,
-                                          variances=var)
+                                          sds=sd)
             write_continuous(con_source, outfile, nworkers, con_rows_per_batch,
                           stats)
 
@@ -219,13 +219,13 @@ def targets_entrypoint(batchMB: float, shapefile: str, records: List[str],
             con_batchsize = mb_to_points(batchMB,
                                          ndim_con=con_source.shape[-1],
                                          ndim_cat=0)
-            mean, var = get_stats(con_source, con_batchsize) \
+            mean, sd = get_stats(con_source, con_batchsize) \
                 if normalise else None, None
             write_continuous(con_source, h5file, nworkers, con_batchsize)
             con_meta = meta.ContinuousTarget(N=con_source.shape[0],
                                              labels=con_source.columns,
                                              means=mean,
-                                             variances=var)
+                                             sds=sd)
             write_target_metadata(con_meta, h5file)
     log.info("Target import complete")
 

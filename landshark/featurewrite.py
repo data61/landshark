@@ -46,9 +46,9 @@ def read_feature_metadata(path: str) -> FeatureSet:
         image_spec = read_imagespec(hfile)
         continuous, categorical = None, None
         if hasattr(hfile.root, "continuous_data"):
-            continuous = _read_continuous_meta(hfile)
+            continuous = _read_continuous_metadata(hfile)
         if hasattr(hfile.root, "categorical_data"):
-            categorical = _read_categorical_meta(hfile)
+            categorical = _read_categorical_metadata(hfile)
     m = FeatureSet(continuous, categorical, image_spec, N, halfwidth)
     return m
 
@@ -88,24 +88,39 @@ def _write_continuous_metadata(meta: ContinuousFeatureSet,
         _make_float_vlarray(hfile, "continuous_sds", sds)
 
 
+def _read_continuous_metadata(hfile: tables.File) -> ContinuousFeatureSet:
+    missing_value = hfile.root.continuous_data.attrs.missing
+    normalised = hfile.root.continuous_data.attrs.normalised
+    labels = [k.decode() for k in hfile.root.continuous_labels.read()]
+    means, sds = None, None
+    if normalised:
+        means = hfile.root.continuous_means.read()
+        sds = hfile.root.continuous_sds.read()
+    meta = ContinuousFeatureSet(labels, missing_value, means, sds)
+    return meta
+
+
 def _write_continuous_target_metadata(meta: ContinuousTarget,
                                       hfile: tables.File) -> None:
     hfile.root.continuous_data.attrs.D = meta.D
     hfile.root.continuous_data.attrs.N = meta.N
+    hfile.root.continuous_data.attrs.normalised = meta.normalised
     _make_str_vlarray(hfile, "continuous_labels", meta.labels)
     if meta.normalised:
         _make_float_vlarray(hfile, "continuous_means", meta.means)
         _make_float_vlarray(hfile, "continuous_sds", meta.sds)
 
-# def read_ordinal_metadata(hfile: tables.File) -> OrdinalMetadata:
-#     N = hfile.root._v_attrs.ordinal_N
-#     missing = hfile.root.ordinal_data.attrs.missing
-#     D = hfile.root.ordinal_data.attrs.D
-#     labels = [k.decode() for k in hfile.root.ordinal_labels.read()]
-#     mean = hfile.root.ordinal_data.attrs.mean
-#     var = hfile.root.ordinal_data.attrs.variance
-#     m = OrdinalMetadata(N, D, labels, missing, mean, var)
-#     return m
+
+def _read_continuous_target_metadata(hfile: tables.File) -> ContinuousTarget:
+    normalised = hfile.root.continuous_data.attrs.normalised
+    N = hfile.root.continuous_data.attrs.N
+    labels = [k.decode() for k in hfile.root.continuous_labels.read()]
+    means, sds = None, None
+    if normalised:
+        means = hfile.root.continuous_means.read()
+        sds = hfile.root.continuous_sds.read()
+    meta = ContinuousTarget(N, labels, means, sds)
+    return meta
 
 
 def _write_categorical_metadata(meta: CategoricalFeatureSet,
@@ -123,6 +138,18 @@ def _write_categorical_metadata(meta: CategoricalFeatureSet,
     _make_int_vlarray(hfile, "categorical_nvalues", nvalues)
 
 
+def _read_categorical_metadata(hfile: tables.File) -> CategoricalFeatureSet:
+    missing_value = hfile.root.categorical_data.attrs.missing
+    labels = [k.decode() for k in hfile.root.categorical_labels.read()]
+
+    mappings = hfile.root.categorical_mappings.read()
+    counts = hfile.root.categorical_counts.read()
+    nvalues = hfile.root.categorical_nvalues.read()
+
+    meta = CategoricalFeatureSet(labels, missing_value,
+                                 nvalues, mappings, counts)
+    return meta
+
 def _write_categorical_target_metadata(meta: CategoricalTarget,
                                        hfile: tables.File) -> None:
     hfile.root.categorical_data.attrs.D = meta.D
@@ -130,21 +157,19 @@ def _write_categorical_target_metadata(meta: CategoricalTarget,
     _make_str_vlarray(hfile, "categorical_labels", meta.labels)
     _make_int_vlarray(hfile, "categorical_counts", meta.counts)
     _make_int_vlarray(hfile, "categorical_mappings", meta.mappings)
-    hfile.create_array(hfile.root, name="categorical_nvalues", obj=meta.nvalues)
+    hfile.create_array(hfile.root, name="categorical_nvalues",
+                       obj=meta.nvalues)
 
 
-# def read_categorical_metadata(hfile: tables.File) -> CategoricalMetadata:
-#     N = hfile.root._v_attrs.categorical_N
-#     missing = hfile.root.categorical_data.attrs.missing
-#     D = hfile.root.categorical_data.attrs.D
-#     labels = [k.decode() for k in hfile.root.categorical_labels.read()]
-#     ncats = hfile.root.ncategories.read()
-#     mappings = hfile.root.categorical_mappings.read()
-#     counts = hfile.root.categorical_counts.read()
-#     m = CategoricalMetadata(N, D, labels, missing, ncats, mappings, counts)
-#     return m
+def _read_categorical_target_metadata(hfile: tables.File) -> CategoricalTarget:
+    N = hfile.root.categorical_data.attrs.N
+    labels = [k.decode() for k in hfile.root.categorical_labels.read()]
+    mappings = hfile.root.categorical_mappings.read()
+    counts = hfile.root.categorical_counts.read()
+    nvalues = hfile.root.categorical_nvalues.read()
 
-
+    meta = CategoricalTarget(N, labels, nvalues, mappings, counts)
+    return meta
 
 
 def write_imagespec(spec: ImageSpec, hfile: tables.File) -> None:

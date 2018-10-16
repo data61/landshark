@@ -48,20 +48,20 @@ Feature = Union[CategoricalFeature, ContinuousFeature]
 class ContinuousFeatureSet:
 
     def __init__(self, labels: List[str], missing: ContinuousType,
-                 means: np.ndarray, variances: np.ndarray) -> None:
+                 means: np.ndarray, sds: np.ndarray) -> None:
 
         D = len(labels)
         self.normalised = means is not None
         if not self.normalised:
             means = [None] * D
-            variances = [None] * D
+            sds = [None] * D
 
 
         self._missing = missing
         # hard-code that each feature has 1 band for now
         self._columns = OrderedDict(
             [(l, ContinuousFeature(1, np.array([m]), np.array([v])))
-            for l, m, v in zip(labels, means, variances)])
+            for l, m, v in zip(labels, means, sds)])
         self._n = len(self._columns)
 
     @property
@@ -138,12 +138,12 @@ class ContinuousTarget(PickleObj):
     dtype = ContinuousType
 
     def __init__(self, N: int, labels: np.ndarray, means: np.ndarray,
-                 variances: np.ndarray) -> None:
+                 sds: np.ndarray) -> None:
         self.N = N
         self.D = len(labels)
         self.normalised = means is not None
         self.means = means
-        self.variances = variances
+        self.sds = sds
         self.labels = labels
 
 
