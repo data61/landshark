@@ -58,8 +58,10 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
     x_full = _concat_dict(x_list)
     if "con" in x_full:
         x_full["con"] = _make_mask(x_full["con"], x_full["con_mask"])
+        x_full.pop("con_mask")
     if "cat" in x_full:
         x_full["cat"] = _make_mask(x_full["cat"], x_full["cat_mask"])
+        x_full.pop("cat_mask")
 
     return x_full, y_full
 

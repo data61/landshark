@@ -11,7 +11,6 @@ from itertools import count
 from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
                     Tuple, Union, Callable)
 
-import aboleth as ab
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
@@ -22,8 +21,6 @@ from landshark.metadata import Training
 from landshark.serialise import deserialise
 from landshark.saver import BestScoreSaver
 from landshark import config as util_module
-
-import aboleth as ab
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)

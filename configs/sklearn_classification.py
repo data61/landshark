@@ -3,7 +3,8 @@ from typing import Optional, Tuple, Dict
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import Imputer, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
 
 NTREES = 100
@@ -11,16 +12,16 @@ NTREES = 100
 
 class SKModel:
     def __init__(self, metadata, random_seed) -> None:
-        self.ord_imp = Imputer(missing_values="NaN", strategy="mean", axis=0,
+        self.ord_imp = SimpleImputer(strategy="mean",
                                verbose=0, copy=True)
-        self.cat_imp = Imputer(missing_values=-1,
+        self.cat_imp = SimpleImputer(missing_values=-1,
                                strategy="most_frequent",
-                               axis=0, verbose=0, copy=True)
+                               verbose=0, copy=True)
         psize = (2 * metadata.features.halfwidth + 1)**2
         self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
-            n_values = [k.nvalues for k in \
-                        metadata.features.categorical.columns.values()]
+            n_values = np.array([k.nvalues.flatten()[0] for k in \
+                        metadata.features.categorical.columns.values()])
             self.enc = OneHotEncoder(n_values=n_values,
                                      categorical_features="all",
                                      dtype=np.float32, sparse=False)
