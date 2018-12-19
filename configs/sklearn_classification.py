@@ -22,8 +22,7 @@ class SKModel:
         if metadata.features.categorical:
             n_values = np.array([k.nvalues.flatten()[0] for k in \
                         metadata.features.categorical.columns.values()])
-            self.enc = OneHotEncoder(n_values=n_values,
-                                     categorical_features="all",
+            self.enc = OneHotEncoder(categories=[range(k) for k in n_values],
                                      dtype=np.float32, sparse=False)
 
         self.est = RandomForestClassifier(n_estimators=NTREES,
