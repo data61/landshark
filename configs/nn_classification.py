@@ -68,16 +68,20 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
         inputs_list.append(inputs_con)
 
     if X_cat:
+        X_cat = {k: utils.value_impute(X_cat[k], X_cat_mask[k],
+                                       tf.constant(0)) for k in X_cat}
         X_cat = {k: utils.flatten_patch(v) for k, v in X_cat.items()}
 
         # zero is the missing categorical value so we can use it as extra category
         # some convenience functions for embedding / catting cols together
-        nvalues = {k : v.nvalues + 1
+        # TODO explain the double zero
+        nvalues = {k : v.nvalues[0][0] + 1
                    for k, v in metadata.features.categorical.columns.items()}
         embedding_dims = {k: 3 for k in X_cat.keys()}
         inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
                                                     embedding_dims)
         inputs_list.append(inputs_cat)
+
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
