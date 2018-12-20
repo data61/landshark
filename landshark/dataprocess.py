@@ -238,7 +238,7 @@ class _QueryDataProcessor(Worker):
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
     log.info("Testing data is fold {} of {}".format(args.testfold,
-                                                    args.folds.N))
+                                                    args.folds.K))
     log.info("Writing training data to tfrecord in {}-point batches".format(
         args.batchsize))
     n_rows = len(args.target_src)
