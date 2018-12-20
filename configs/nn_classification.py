@@ -14,30 +14,38 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
     Parameters
     ----------
-    features : dict
-        Features is a recursive dictionary of tensors, proving the X inputs
-        for the model (from the images). The dictonary has the following
-        entries:
-            indices -- (?, 2) the image coordinates of features
-            coords -- (?, 2) the world coordinates (x, y) of features
-            con -- dict of continuous feature columns
-            cat -- dict of categorical feature columns
-        Each con and cat feature is itself a dict, with two items:
-            data -- the column data tensor
-            mask -- the mask tensor
-        The data and mask tensors are always of shape (?, p, p, 1)
-        where p is the patch side length.
-    labels : tf.Tensor
-        A (?, k) tensor giving the k targets for the prediction.
     mode : tf.estimator.ModeSpec
         One of TRAIN, TEST or EVAL, describing in which context this code
         is being run by the estimator.
+    coordinates : tf.Tensor
+        A (?, 2) the world coordinates (x, y) of features
+    X_con : dict
+        A dictionary of tensors containing the continuous feature columns.
+        Indexed by column names.
+    X_con_mask : dict
+        A dictionary of tensors containing the masks for the continuous
+        feature columns.
+    X_cat : dict
+        A dictionary of tensors containing the categorical feature columns.
+        Indexed by column names.
+    X_cat_mask : dict
+        A dictionary of tensors containing the masks for the categorical
+        feature columns.
+    Y : tf.Tensor
+        A (?, k) tensor giving the k targets for the prediction.
+    image_indices : tf.Tensor
+        A (?, 2) the image coordinates of features
     params : dict
-        Extra params given by the estimator. The critical one for configs
-        is "metadata" that has comprehensive information about the features
+        Extra params given by the estimator.
+    metadata : Metadata
+        The metadata object has comprehensive information about the features
         and targets useful for model building (for example, the number of
         possible values for each categorical column). For more details
-        check the Landshark documentation.
+        check the landshark documentation.
+    utils : module
+        A module of useful functions for doing things like imputing missing
+        data and embedding categorical features. For more details see the
+        landshark documentation.
 
     Returns
     -------
