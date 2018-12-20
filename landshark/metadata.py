@@ -84,7 +84,7 @@ class CategoricalFeatureSet:
         self._missing = missing
         # hard-code that each feature has 1 band for now
         self._columns = OrderedDict(
-            [(l, CategoricalFeature(np.array([n]), 1, m, c))
+            [(l, CategoricalFeature(n, 1, m, c))
             for l, n, m, c in zip(labels, nvalues, mappings, counts)])
         self._n = len(self._columns)
 

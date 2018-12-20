@@ -135,7 +135,7 @@ def _write_categorical_metadata(meta: CategoricalFeatureSet,
     hfile.create_array(hfile.root, name="categorical_D", obj=D)
     _make_int_vlarray(hfile, "categorical_counts", counts)
     _make_int_vlarray(hfile, "categorical_mappings", mappings)
-    _make_int_vlarray(hfile, "categorical_nvalues", nvalues)
+    hfile.create_array(hfile.root, name="categorical_nvalues", obj=nvalues)
 
 
 def _read_categorical_metadata(hfile: tables.File) -> CategoricalFeatureSet:
@@ -144,8 +144,7 @@ def _read_categorical_metadata(hfile: tables.File) -> CategoricalFeatureSet:
 
     mappings = hfile.root.categorical_mappings.read()
     counts = hfile.root.categorical_counts.read()
-    nvalues = hfile.root.categorical_nvalues.read()
-
+    nvalues = np.array(hfile.root.categorical_nvalues.read())
     meta = CategoricalFeatureSet(labels, missing_value,
                                  nvalues, mappings, counts)
     return meta
