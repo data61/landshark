@@ -259,6 +259,7 @@ def _make_int_vlarray(h5file: tables.File, name: str,
     for a in attribute:
         vlarray.append(a)
 
+
 def _make_float_vlarray(h5file: tables.File, name: str,
                         attribute: np.ndarray) -> None:
     vlarray = h5file.create_vlarray(h5file.root, name=name,

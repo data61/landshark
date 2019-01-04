@@ -78,9 +78,11 @@ class H5Features:
         self._hfile = tables.open_file(h5file, "r")
         if hasattr(self._hfile.root, "continuous_data"):
             self.continuous = self._hfile.root.continuous_data
+            assert self.metadata.continuous is not None
             self.continuous.missing = self.metadata.continuous.missing_value
         if hasattr(self._hfile.root, "categorical_data"):
             self.categorical = self._hfile.root.categorical_data
+            assert self.metadata.categorical is not None
             self.categorical.missing = self.metadata.categorical.missing_value
         if self.continuous:
             self._n = len(self.continuous)
