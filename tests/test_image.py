@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from landshark import image
+from landshark.basetypes import IndexType
 
 SEED = 666
 
@@ -152,25 +153,20 @@ def test_indices_strip(nstrips, rows, cols):
     crs = {"init": "egs123"}
     spec = image.ImageSpec(x_coords, y_coords, crs)
     batchsize = 10
-    x_inds = []
-    y_inds = []
+    xy_inds = []
     n = 0
     for i in range(nstrips):
         it_i, n_i = image.indices_strip(spec, i + 1, nstrips, batchsize)
         n += n_i
-        for x, y in it_i:
-            assert x.shape[0] <= batchsize
-            assert y.shape[0] <= batchsize
-            x_inds.append(x)
-            y_inds.append(y)
-    x_inds = np.concatenate(x_inds, axis=0)
-    y_inds = np.concatenate(y_inds, axis=0)
+        for xy in it_i:
+            assert xy.shape[0] <= batchsize
+            assert xy.shape[1] == 2
+            x, y = xy.T
+            xy_inds.append(xy)
+    xy_inds = np.concatenate(xy_inds, axis=0)
     assert n == rows * cols
-
-    ans = list(product(range(rows), range(cols)))
-    pairs = zip(x_inds, y_inds)
-    pairs_rev = [(a, b) for b, a in pairs]
-    assert ans == pairs_rev
+    ans = np.fliplr(np.array(list(product(range(rows), range(cols)))))
+    assert np.all(xy_inds == ans)
 
 
 @pytest.mark.parametrize("total_size, nstrips",
@@ -189,8 +185,7 @@ def test_array_pair_it():
     x = np.random.randn(10, 2)
     x_list = x.tolist()
     out = image._array_pair_it(x_list)
-    assert np.all(out[0] == x[:, 1])
-    assert np.all(out[1] == x[:, 0])
+    assert np.all(out == np.fliplr(x))
 
 
 def test_indices_query():
@@ -207,14 +202,14 @@ def test_indices_query():
     coord_gen = image._indices_query(width, height, batchsize)
 
     coord_accum = []
-    for cx, cy in coord_gen:
+    for c in coord_gen:
 
         # Test sensible batch sizes
-        assert len(cx) <= batchsize
-        assert len(cy) <= batchsize
+        assert c.shape[0] <= batchsize
+        assert c.shape[1] == 2
 
-        coord_accum.append((cx, cy))
+        coord_accum.append(c)
 
     # Test we can reconstruct the labels array
-    coord_accum = np.concatenate(coord_accum, axis=-1).T
+    coord_accum = np.concatenate(coord_accum)
     assert np.all(coord_accum == xy)
