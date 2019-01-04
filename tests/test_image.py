@@ -71,8 +71,8 @@ def test_image_to_world(random_image_transform):
     data = random_image_transform
     coords_x, coords_y = image.pixel_coordinates(data.width, data.height,
                                                  data.affine)
-    w = np.arange(data.width, dtype=int)
-    h = np.arange(data.height, dtype=int)
+    w = np.arange(data.width, dtype=IndexType)
+    h = np.arange(data.height, dtype=IndexType)
     true_coords_x = (w * data.pixel_width) + data.origin_x
     true_coords_y = (h * (-1.0 * data.pixel_height)) + data.origin_y
     result_x = image.image_to_world(w, coords_x)
@@ -87,17 +87,17 @@ def test_world_to_image_edges(random_image_transform):
     pixel_coords_x, pixel_coords_y = image.pixel_coordinates(data.width,
                                                              data.height,
                                                              data.affine)
-    w = np.arange(data.width + 1, dtype=int)
-    h = np.arange(data.height + 1, dtype=int)
+    w = np.arange(data.width + 1, dtype=IndexType)
+    h = np.arange(data.height + 1, dtype=IndexType)
     coords_x = (w * data.pixel_width) + data.origin_x
     coords_y = (h * (-1.0 * data.pixel_height)) + data.origin_y
     idx_x = image.world_to_image(coords_x, pixel_coords_x)
     idx_y = image.world_to_image(coords_y, pixel_coords_y)
 
     true_idx_x = np.array(list(range(data.width)) +
-                          [data.width - 1], dtype=int)
+                          [data.width - 1], dtype=IndexType)
     true_idx_y = np.array(list(range(data.height)) +
-                          [data.height - 1], dtype=int)
+                          [data.height - 1], dtype=IndexType)
 
     assert np.all(true_idx_x == idx_x)
     assert np.all(true_idx_y == idx_y)
@@ -109,16 +109,16 @@ def test_world_to_image_centers(random_image_transform):
     pixel_coords_x, pixel_coords_y = image.pixel_coordinates(data.width,
                                                              data.height,
                                                              data.affine)
-    w = np.arange(data.width, dtype=int)
-    h = np.arange(data.height, dtype=int)
+    w = np.arange(data.width, dtype=IndexType)
+    h = np.arange(data.height, dtype=IndexType)
     coords_x = ((w.astype(float) + 0.5) * data.pixel_width) + data.origin_x
     coords_y = ((h.astype(float) + 0.5) * (-1.0 * data.pixel_height)) \
         + data.origin_y
     idx_x = image.world_to_image(coords_x, pixel_coords_x)
     idx_y = image.world_to_image(coords_y, pixel_coords_y)
 
-    true_idx_x = np.arange(data.width, dtype=int)
-    true_idx_y = np.arange(data.height, dtype=int)
+    true_idx_x = np.arange(data.width, dtype=IndexType)
+    true_idx_y = np.arange(data.height, dtype=IndexType)
 
     assert np.all(true_idx_x == idx_x)
     assert np.all(true_idx_y == idx_y)

@@ -329,7 +329,7 @@ def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
 
 def _array_pair_it(x: Iterable[Any]) -> np.ndarray:
     """Get the x and y coordinate arrays from the batch iterator."""
-    a = np.array(x, dtype=IndexType)[:, ::-1]
+    a = np.array(x)[:, ::-1]
     return a
 
 
