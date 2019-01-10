@@ -34,6 +34,7 @@ class ProcessTrainingArgs(NamedTuple):
     batchsize: int
     nworkers: int
 
+
 class ProcessQueryArgs(NamedTuple):
     name: str
     feature_path: str
@@ -45,7 +46,6 @@ class ProcessQueryArgs(NamedTuple):
     batchsize: int
     nworkers: int
     tag: str
-
 
 
 def _direct_read(array: tables.CArray,
@@ -115,6 +115,7 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     rowlist = sorted(list({k.y for k in patch_reads}))
 
     c_init = count()
+
     def _get(n: int, c: Iterator[int]=c_init) -> int:
         res = n - next(c)
         return res
@@ -195,7 +196,6 @@ def _process_query(indices: np.ndarray,
     return output
 
 
-
 class _TrainingDataProcessor(Worker):
 
     def __init__(self, feature_path: str, image_spec: ImageSpec,
@@ -224,8 +224,6 @@ class _QueryDataProcessor(Worker):
         self.image_spec = image_spec
         self.halfwidth = halfwidth
 
-
-
     def __call__(self, indices: np.ndarray) -> List[bytes]:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
@@ -233,7 +231,6 @@ class _QueryDataProcessor(Worker):
                                 self.halfwidth)
         strings = serialise(arrays)
         return strings
-
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:

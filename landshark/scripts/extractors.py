@@ -170,8 +170,8 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
     qargs = ProcessQueryArgs(name, features, strip_imspec,
-                            strip_idx, totalstrips, halfwidth, directory,
-                            points_per_batch, nworkers, tag)
+                             strip_idx, totalstrips, halfwidth, directory,
+                             points_per_batch, nworkers, tag)
 
     write_querydata(qargs)
     feature_metadata.save(directory)
