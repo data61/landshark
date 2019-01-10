@@ -344,8 +344,9 @@ def _indices_query(
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)
 
-    height_ind = range(image_height)[row_slice.start: row_slice.stop]
-    width_ind = range(image_width)[column_slice.start: column_slice.stop]
+    height_ind = np.arange(row_slice.start, row_slice.stop, dtype=IndexType)
+    width_ind = np.arange(column_slice.start, column_slice.stop,
+                          dtype=IndexType)
 
     coords_it = product(height_ind, width_ind)
     total_size = len(height_ind) * len(width_ind)
