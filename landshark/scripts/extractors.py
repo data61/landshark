@@ -7,7 +7,7 @@ from typing import NamedTuple, Tuple
 
 import click
 
-from landshark import errors
+from landshark import __version__, errors
 from landshark import metadata as meta
 from landshark.dataprocess import (ProcessQueryArgs, ProcessTrainingArgs,
                                    write_querydata, write_trainingdata)
@@ -29,6 +29,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")

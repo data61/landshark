@@ -9,7 +9,7 @@ import click
 import numpy as np
 import tables
 
-from landshark import errors
+from landshark import __version__, errors
 from landshark import metadata as meta
 from landshark.category import get_maps
 from landshark.featurewrite import (write_categorical, write_continuous,
@@ -36,6 +36,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
