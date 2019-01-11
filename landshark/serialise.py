@@ -74,11 +74,6 @@ def deserialise(row: str,
         y = tf.decode_raw(raw_features["y"], y_type)
         indices = tf.decode_raw(raw_features["indices"], tf.int32)
         coords = tf.decode_raw(raw_features["coords"], tf.float64)
-
-        nfeatures_con = len(metadata.features.continuous) \
-            if metadata.features.continuous else 0
-        nfeatures_cat = len(metadata.features.categorical) \
-            if metadata.features.categorical else 0
         ntargets = metadata.targets.D
 
         y.set_shape((None, ntargets))

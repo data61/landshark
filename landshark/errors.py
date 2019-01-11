@@ -21,7 +21,7 @@ def catch_and_exit(f: Callable) -> Callable:
         try:
             f(*args, **kwargs)
         except Error as e:
-            log.error(e.message)
+            log.error(str(e))
             sys.exit()
 
     return wrapped

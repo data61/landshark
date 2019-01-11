@@ -109,7 +109,6 @@ def traintest_entrypoint(targets: str,
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
 
-    n_train = len(target_src) - kfolds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
 
