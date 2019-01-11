@@ -10,8 +10,9 @@ from landshark.basetypes import (CategoricalType, ContinuousType,
 log = logging.getLogger(__name__)
 
 
-def to_masked(array: np.ndarray, missing_value: MissingType) \
-        -> np.ma.MaskedArray:
+def to_masked(array: np.ndarray,
+              missing_value: MissingType
+              ) -> np.ma.MaskedArray:
     """Create a masked array from array plus list of missing."""
     if missing_value is None:
         marray = np.ma.MaskedArray(data=array, mask=np.ma.nomask)
@@ -21,8 +22,12 @@ def to_masked(array: np.ndarray, missing_value: MissingType) \
     return marray
 
 
-def mb_to_points(batchMB: float, ndim_con: int, ndim_cat: int,
-                 ndim_coord: int=0, halfwidth: int=0) -> int:
+def mb_to_points(batchMB: float,
+                 ndim_con: int,
+                 ndim_cat: int,
+                 ndim_coord: int = 0,
+                 halfwidth: int = 0
+                 ) -> int:
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_con = np.dtype(ContinuousType).itemsize * ndim_con
@@ -35,8 +40,12 @@ def mb_to_points(batchMB: float, ndim_con: int, ndim_cat: int,
     return npoints
 
 
-def mb_to_rows(batchMB: float, row_width: int, ndim_con: int, ndim_cat: int,
-               halfwidth: int=0) -> int:
+def mb_to_rows(batchMB: float,
+               row_width: int,
+               ndim_con: int,
+               ndim_cat: int,
+               halfwidth: int = 0
+               ) -> int:
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_con = np.dtype(ContinuousType).itemsize * ndim_con

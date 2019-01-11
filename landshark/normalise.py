@@ -65,8 +65,11 @@ class StatCounter:
 
 class Normaliser(Worker):
 
-    def __init__(self, mean: np.ndarray, sd: np.ndarray,
-                 missing: Optional[ContinuousType]) -> None:
+    def __init__(self,
+                 mean: np.ndarray,
+                 sd: np.ndarray,
+                 missing: Optional[ContinuousType]
+                 ) -> None:
         self._mean = mean
         self._sd = sd
         self._missing = missing
@@ -78,8 +81,9 @@ class Normaliser(Worker):
         return xm.data
 
 
-def get_stats(src: ContinuousArraySource, batchrows: int) \
-        -> Tuple[np.ndarray, np.ndarray]:
+def get_stats(src: ContinuousArraySource,
+              batchrows: int
+              ) -> Tuple[np.ndarray, np.ndarray]:
     log.info("Computing continuous feature statistics")
     n_rows = src.shape[0]
     n_cols = src.shape[-1]

@@ -50,6 +50,7 @@ class ConCatNMismatch(Error):
         self.message = "Continuous and Categorical source mismatch with \
             {} and {} points respectively".format(N_con, N_cat)
 
+
 class PredictionShape(Error):
     """Prediction output is not 1D or 2D."""
 

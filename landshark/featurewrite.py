@@ -28,8 +28,7 @@ def _cat(it: Iterator[Iterator[T]]) -> List[T]:
     return result
 
 
-def write_feature_metadata(meta: FeatureSet,
-                   hfile: tables.File) -> None:
+def write_feature_metadata(meta: FeatureSet, hfile: tables.File) -> None:
     hfile.root._v_attrs.N = len(meta)
     hfile.root._v_attrs.halfwidth = meta.halfwidth
     write_imagespec(meta.image, hfile)
@@ -61,6 +60,7 @@ def write_target_metadata(meta: Target, hfile: tables.File) -> None:
     else:
         raise RuntimeError("Don't recognise type of target metadata")
 
+
 def read_target_metadata(path: str) -> Target:
     with tables.open_file(path, 'r') as hfile:
         if hasattr(hfile.root, "continuous_data"):
@@ -74,7 +74,8 @@ def read_target_metadata(path: str) -> Target:
 
 
 def _write_continuous_metadata(meta: ContinuousFeatureSet,
-                               hfile: tables.File) -> None:
+                               hfile: tables.File
+                               ) -> None:
     hfile.root.continuous_data.attrs.missing = meta.missing_value
     hfile.root.continuous_data.attrs.normalised = meta.normalised
     labels = [k for k in meta.columns.keys()]
@@ -101,7 +102,8 @@ def _read_continuous_metadata(hfile: tables.File) -> ContinuousFeatureSet:
 
 
 def _write_continuous_target_metadata(meta: ContinuousTarget,
-                                      hfile: tables.File) -> None:
+                                      hfile: tables.File
+                                      ) -> None:
     hfile.root.continuous_data.attrs.D = meta.D
     hfile.root.continuous_data.attrs.N = meta.N
     hfile.root.continuous_data.attrs.normalised = meta.normalised
@@ -124,7 +126,8 @@ def _read_continuous_target_metadata(hfile: tables.File) -> ContinuousTarget:
 
 
 def _write_categorical_metadata(meta: CategoricalFeatureSet,
-                                hfile: tables.File) -> None:
+                                hfile: tables.File
+                                ) -> None:
     hfile.root.categorical_data.attrs.missing = meta.missing_value
     labels = [k for k in meta.columns.keys()]
     nvalues = np.array([v.nvalues for v in meta.columns.values()])
@@ -149,8 +152,10 @@ def _read_categorical_metadata(hfile: tables.File) -> CategoricalFeatureSet:
                                  nvalues, mappings, counts)
     return meta
 
+
 def _write_categorical_target_metadata(meta: CategoricalTarget,
-                                       hfile: tables.File) -> None:
+                                       hfile: tables.File
+                                       ) -> None:
     hfile.root.categorical_data.attrs.D = meta.D
     hfile.root.categorical_data.attrs.N = meta.N
     _make_str_vlarray(hfile, "categorical_labels", meta.labels)
@@ -188,11 +193,11 @@ def read_imagespec(hfile: tables.File) -> ImageSpec:
 
 
 def write_continuous(source: ContinuousArraySource,
-                  hfile: tables.File,
-                  n_workers: int,
-                  batchrows: Optional[int]=None,
-                  stats: Optional[Tuple[np.ndarray, np.ndarray]]=None) \
-        -> None:
+                     hfile: tables.File,
+                     n_workers: int,
+                     batchrows: Optional[int]=None,
+                     stats: Optional[Tuple[np.ndarray, np.ndarray]]=None
+                     ) -> None:
     transform = Normaliser(*stats, source.missing) if stats else IdWorker()
     n_workers = n_workers if stats else 0
     _write_source(source, hfile, tables.Float32Atom(source.shape[-1]),
@@ -203,7 +208,8 @@ def write_categorical(source: CategoricalArraySource,
                       hfile: tables.File,
                       n_workers: int,
                       batchrows: Optional[int]=None,
-                      maps: Optional[np.ndarray]=None) -> None:
+                      maps: Optional[np.ndarray]=None
+                      ) -> None:
     transform = CategoryMapper(maps, source.missing) \
         if maps else IdWorker()
     n_workers = n_workers if maps else 0
@@ -217,7 +223,8 @@ def _write_source(src: ArraySource,
                   name: str,
                   transform: Worker,
                   n_workers: int,
-                  batchrows: Optional[int]=None) -> None:
+                  batchrows: Optional[int]=None
+                  ) -> None:
     front_shape = src.shape[0:-1]
     filters = tables.Filters(complevel=1, complib="blosc:lz4")
     array = hfile.create_carray(hfile.root, name=name,
@@ -239,7 +246,9 @@ def _write(source: ArraySource, array: tables.CArray,
 
 
 def write_coordinates(array_src: CoordinateArraySource,
-                      h5file: tables.File, batchsize: int) -> None:
+                      h5file: tables.File,
+                      batchsize: int
+                      ) -> None:
     with array_src:
         shape = array_src.shape[0:1]
         atom = tables.Float64Atom(shape=(array_src.shape[1],))
@@ -252,24 +261,30 @@ def write_coordinates(array_src: CoordinateArraySource,
             array[s.start:s.stop] = array_src(s)
 
 
-def _make_int_vlarray(h5file: tables.File, name: str,
-                      attribute: np.ndarray) -> None:
+def _make_int_vlarray(h5file: tables.File,
+                      name: str,
+                      attribute: np.ndarray
+                      ) -> None:
     vlarray = h5file.create_vlarray(h5file.root, name=name,
                                     atom=tables.Int32Atom(shape=()))
     for a in attribute:
         vlarray.append(a)
 
 
-def _make_float_vlarray(h5file: tables.File, name: str,
-                        attribute: np.ndarray) -> None:
+def _make_float_vlarray(h5file: tables.File,
+                        name: str,
+                        attribute: np.ndarray
+                        ) -> None:
     vlarray = h5file.create_vlarray(h5file.root, name=name,
                                     atom=tables.Float64Atom(shape=()))
     for a in attribute:
         vlarray.append(a)
 
 
-def _make_str_vlarray(h5file: tables.File, name: str,
-                      attribute: List[str]) -> None:
+def _make_str_vlarray(h5file: tables.File,
+                      name: str,
+                      attribute: List[str]
+                      ) -> None:
     vlarray = h5file.create_vlarray(h5file.root, name=name,
                                     atom=tables.VLStringAtom())
     for a in attribute:

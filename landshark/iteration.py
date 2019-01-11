@@ -10,8 +10,10 @@ from landshark.basetypes import FixedSlice
 T = TypeVar("T")
 
 
-def batch(it: Iterator[T], batchsize: int, total_size: int) \
-        -> Iterator[List[T]]:
+def batch(it: Iterator[T],
+          batchsize: int,
+          total_size: int
+          ) -> Iterator[List[T]]:
     while True:
         batch = list(itertools.islice(it, batchsize))
         if not batch:
@@ -31,8 +33,8 @@ def batch_slices(batchsize: int, total_size: int) -> Iterator[FixedSlice]:
         # pbar.update(stop - start)
 
 
-def with_slices(it: Iterator[np.ndarray]) -> \
-        Iterator[Tuple[FixedSlice, np.ndarray]]:
+def with_slices(it: Iterator[np.ndarray]
+                ) -> Iterator[Tuple[FixedSlice, np.ndarray]]:
     """Needs iterator over ndarrays."""
     start_idx = 0
     for d in it:

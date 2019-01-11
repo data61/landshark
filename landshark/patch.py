@@ -22,9 +22,12 @@ class PatchMaskRowRW(NamedTuple):
     yp: int
 
 
-def patches(x_coords: np.ndarray, y_coords: np.ndarray, halfwidth: int,
-            image_width: int, image_height: int) \
-        -> Tuple[List[PatchRowRW], List[PatchMaskRowRW]]:
+def patches(x_coords: np.ndarray,
+            y_coords: np.ndarray,
+            halfwidth: int,
+            image_width: int,
+            image_height: int
+            ) -> Tuple[List[PatchRowRW], List[PatchMaskRowRW]]:
     """
     Generate the Read and write ops for patches given a set of coords.
 
@@ -91,10 +94,15 @@ def patches(x_coords: np.ndarray, y_coords: np.ndarray, halfwidth: int,
     return patch_rws, mask_ws
 
 
-def _patch_reads(n: int, y_reads: np.ndarray, xmins: np.ndarray,
-                 xmaxs: np.ndarray, ymins: np.ndarray,
-                 patch_indices: np.ndarray, image_width: int,
-                 image_height: int) -> List[PatchRowRW]:
+def _patch_reads(n: int,
+                 y_reads: np.ndarray,
+                 xmins: np.ndarray,
+                 xmaxs: np.ndarray,
+                 ymins: np.ndarray,
+                 patch_indices: np.ndarray,
+                 image_width: int,
+                 image_height: int
+                 ) -> List[PatchRowRW]:
     """Compute the read and writes for the patches."""
     y_mask = np.logical_and(y_reads >= 0, y_reads < image_height)
 
@@ -115,10 +123,15 @@ def _patch_reads(n: int, y_reads: np.ndarray, xmins: np.ndarray,
     return patch_rw_list
 
 
-def _mask_patches(n: int, y_reads: np.ndarray, xmins: np.ndarray,
-                  xmaxs: np.ndarray, ymins: np.ndarray,
-                  patch_indices: np.ndarray, image_width: int,
-                  image_height: int) -> List[PatchMaskRowRW]:
+def _mask_patches(n: int,
+                  y_reads: np.ndarray,
+                  xmins: np.ndarray,
+                  xmaxs: np.ndarray,
+                  ymins: np.ndarray,
+                  patch_indices: np.ndarray,
+                  image_width: int,
+                  image_height: int
+                  ) -> List[PatchMaskRowRW]:
     """Compute the inverse writes for the mask for the patches."""
     # Inverse (mask) writes
     inv_y_mask = np.logical_or(y_reads < 0, y_reads >= image_height)

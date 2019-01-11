@@ -35,12 +35,17 @@ class QueryConfig(NamedTuple):
     use_gpu: bool
 
 
-def train_data(records: List[str], metadata: Training,
-               batch_size: int, epochs: int=1, shuffle_buffer: int=1000,
-               take: Optional[int]=None, random_seed: Optional[int]=None) \
-        -> Callable[[],tf.data.TFRecordDataset]:
+def train_data(records: List[str],
+               metadata: Training,
+               batch_size: int,
+               epochs: int = 1,
+               shuffle_buffer: int = 1000,
+               take: Optional[int]=None,
+               random_seed: Optional[int] = None
+               ) -> Callable[[], tf.data.TFRecordDataset]:
     """Train dataset feeder."""
     take = -1 if take is None else take
+
     def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
             .repeat(count=epochs) \
@@ -52,8 +57,10 @@ def train_data(records: List[str], metadata: Training,
     return f
 
 
-def test_data(records: List[str], metadata: Training,
-                      batch_size: int) -> Callable[[],tf.data.TFRecordDataset]:
+def test_data(records: List[str],
+              metadata: Training,
+              batch_size: int
+              ) -> Callable[[], tf.data.TFRecordDataset]:
     """Test and query dataset feeder."""
     def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
@@ -63,8 +70,10 @@ def test_data(records: List[str], metadata: Training,
     return f
 
 
-def predict_data(records: List[str], metadata: Training,
-                      batch_size: int) -> Callable[[],tf.data.TFRecordDataset]:
+def predict_data(records: List[str],
+                 metadata: Training,
+                 batch_size: int
+                 ) -> Callable[[], tf.data.TFRecordDataset]:
     """Test and query dataset feeder."""
     def f() -> tf.data.TFRecordDataset:
         dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
@@ -80,9 +89,9 @@ def train_test(records_train: List[str],
                directory: str,
                cf: Any,  # Module type
                params: TrainingConfig,
-               iterations: Optional[int]) -> None:
+               iterations: Optional[int]
+               ) -> None:
     """Model training and periodic hold-out testing."""
-
     saver = BestScoreSaver(directory)
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
@@ -123,9 +132,9 @@ def predict(checkpoint_dir: str,
             cf: Any,  # Module type
             metadata: Training,
             records: List[str],
-            params: QueryConfig) -> Generator:
+            params: QueryConfig
+            ) -> Generator:
     """Load a model and predict results for record inputs."""
-
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
     predict_fn = predict_data(records, metadata, params.batchsize)
@@ -156,9 +165,11 @@ def predict(checkpoint_dir: str,
 # Private module utility functions
 #
 
-def _model_wrapper(features: Dict[str, tf.Tensor], labels: tf.Tensor,
-                   mode: tf.estimator.ModeKeys, params: Dict[str, Any]) \
-        -> tf.estimator.EstimatorSpec:
+def _model_wrapper(features: Dict[str, tf.Tensor],
+                   labels: tf.Tensor,
+                   mode: tf.estimator.ModeKeys,
+                   params: Dict[str, Any]
+                   ) -> tf.estimator.EstimatorSpec:
     metadata = params["metadata"]
     model_fn = params["config"]
 
@@ -173,7 +184,6 @@ def _model_wrapper(features: Dict[str, tf.Tensor], labels: tf.Tensor,
                       features["indices"], features["coords"],
                       metadata, util_module)
     return result
-
 
 
 def _log_scores(scores: Dict[str, np.ndarray]) -> None:

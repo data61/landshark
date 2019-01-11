@@ -16,8 +16,12 @@ log = logging.getLogger(__name__)
 
 class BatchWriter:
 
-    def __init__(self, rs_file: rs.DatasetReader, width: int, height: int,
-                 dtype: np.dtype) -> None:
+    def __init__(self,
+                 rs_file: rs.DatasetReader,
+                 width: int,
+                 height: int,
+                 dtype: np.dtype
+                 ) -> None:
         self.f = rs_file
         self.width = width
         self.height = height
@@ -43,8 +47,11 @@ class BatchWriter:
         self.f.close()
 
 
-def _make_writer(directory: str, label: str, dtype: np.dtype,
-                 image_spec: ImageSpec) -> BatchWriter:
+def _make_writer(directory: str,
+                 label: str,
+                 dtype: np.dtype,
+                 image_spec: ImageSpec
+                 ) -> BatchWriter:
     crs = rs.crs.CRS(**image_spec.crs)
     params = {
         "driver": "GTiff",
@@ -65,7 +72,8 @@ def _make_writer(directory: str, label: str, dtype: np.dtype,
 def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
                    directory: str,
                    imspec: ImageSpec,
-                   tag: str="") -> None:
+                   tag: str = ""
+                   ) -> None:
 
     log.info("Initialising Geotiff writers")
     log.info("Image width: {} height: {}".format(imspec.width,

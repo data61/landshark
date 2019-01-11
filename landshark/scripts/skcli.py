@@ -49,15 +49,23 @@ def cli(ctx: click.Context, verbosity: str, batch_mb: float) -> int:
 @click.option("--random_seed", type=int, default=666,
               help="Random state supplied to sklearn for reproducibility")
 @click.pass_context
-def train(ctx: click.Context, data: str, config: str,
-          maxpoints: Optional[int], random_seed: int) -> None:
+def train(ctx: click.Context,
+          data: str,
+          config: str,
+          maxpoints: Optional[int],
+          random_seed: int
+          ) -> None:
     """Train a model specified by an sklearn input configuration."""
     catching_f = errors.catch_and_exit(train_entrypoint)
     catching_f(data, config, maxpoints, random_seed, ctx.obj.batchMB)
 
 
-def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
-                     random_seed: int, batchMB: float) -> None:
+def train_entrypoint(data: str,
+                     config: str,
+                     maxpoints: Optional[int],
+                     random_seed: int,
+                     batchMB: float
+                     ) -> None:
     """Entry point for sklearn model training."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
@@ -83,15 +91,21 @@ def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
 @click.option("--data", type=click.Path(exists=True), required=True,
               help="Path to the query data directory")
 @click.pass_context
-def predict(ctx: click.Context, config: str, checkpoint: str,
-            data: str) -> None:
+def predict(ctx: click.Context,
+            config: str,
+            checkpoint: str,
+            data: str
+            ) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
     catching_f(config, checkpoint, data, ctx.obj.batchMB)
 
 
-def predict_entrypoint(config: str, checkpoint: str,
-                       data: str, batchMB: float) -> None:
+def predict_entrypoint(config: str,
+                       checkpoint: str,
+                       data: str,
+                       batchMB: float
+                       ) -> None:
     """Entry point for prediction with sklearn."""
     train_metadata, query_metadata, query_records, strip, nstrips, _ = \
         setup_query(config, data, checkpoint)

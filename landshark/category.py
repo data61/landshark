@@ -126,8 +126,10 @@ class CategoryMapper(Worker):
         that it gets mapped to 0 (helpful for doing extra-category imputing).
     """
 
-    def __init__(self, mappings: List[np.ndarray],
-                 missing_value: Optional[int]) -> None:
+    def __init__(self,
+                 mappings: List[np.ndarray],
+                 missing_value: Optional[int]
+                 ) -> None:
         """Initialise the worker object."""
         for m in mappings:
             is_sorted = np.all(m[:-1] <= m[1:])

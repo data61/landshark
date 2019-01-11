@@ -59,9 +59,15 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
 @click.option("--checkpoint", type=click.Path(exists=True), default=None,
               help="Optional directory containing model checkpoints.")
 @click.pass_context
-def train(ctx: click.Context, data: str, config: str, epochs: int,
-          batchsize: int, test_batchsize: int,
-          iterations: Optional[int], checkpoint: Optional[str]) -> None:
+def train(ctx: click.Context,
+          data: str,
+          config: str,
+          epochs: int,
+          batchsize: int,
+          test_batchsize: int,
+          iterations: Optional[int],
+          checkpoint: Optional[str]
+          ) -> None:
     """Train a model specified by a config file."""
     log.info("Ignoring batch-mb option, using specified or default batchsize")
     catching_f = errors.catch_and_exit(train_entrypoint)
@@ -69,9 +75,15 @@ def train(ctx: click.Context, data: str, config: str, epochs: int,
                iterations, ctx.obj.gpu, checkpoint)
 
 
-def train_entrypoint(data: str, config: str, epochs: int, batchsize: int,
-                     test_batchsize: int, iterations: Optional[int],
-                     gpu: bool, checkpoint_dir: Optional[str]) -> None:
+def train_entrypoint(data: str,
+                     config: str,
+                     epochs: int,
+                     batchsize: int,
+                     test_batchsize: int,
+                     iterations: Optional[int],
+                     gpu: bool,
+                     checkpoint_dir: Optional[str]
+                     ) -> None:
     """Entry point for training function."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
@@ -96,7 +108,8 @@ def predict(
         ctx: click.Context,
         config: str,
         checkpoint: str,
-        data: str) -> None:
+        data: str
+        ) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
     catching_f(config, checkpoint, data, ctx.obj.batchMB, ctx.obj.gpu)
@@ -110,7 +123,8 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
         if feature_metadata.continuous else 0
     ndim_cat = len(feature_metadata.categorical.columns) \
         if feature_metadata.categorical else 0
-    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
+    points_per_batch = mb_to_points(
+        batchMB, ndim_con, ndim_cat,
         halfwidth=train_metadata.features.halfwidth)
     params = QueryConfig(points_per_batch, gpu)
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,

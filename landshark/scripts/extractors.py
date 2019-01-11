@@ -38,8 +38,11 @@ class CliArgs(NamedTuple):
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
 @click.pass_context
-def cli(ctx: click.Context, verbosity: str,
-        batch_mb: float, nworkers: int) -> int:
+def cli(ctx: click.Context,
+        verbosity: str,
+        batch_mb: float,
+        nworkers: int
+        ) -> int:
     """Extract features and targets for training, testing and prediction."""
     ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
@@ -62,19 +65,31 @@ def cli(ctx: click.Context, verbosity: str,
               help="half width of patch size. Patch side length is "
               "2 x halfwidth + 1")
 @click.pass_context
-def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
-              random_seed: int, name: str,
-              features: str, halfwidth: int) -> None:
+def traintest(ctx: click.Context,
+              targets: str,
+              split: Tuple[int, ...],
+              random_seed: int,
+              name: str,
+              features: str,
+              halfwidth: int
+              ) -> None:
     """Extract training and testing data to train and validate a model."""
     fold, nfolds = split
     catching_f = errors.catch_and_exit(traintest_entrypoint)
-    catching_f(targets, fold, nfolds, random_seed,name, halfwidth,
+    catching_f(targets, fold, nfolds, random_seed, name, halfwidth,
                ctx.obj.nworkers, features, ctx.obj.batchMB)
 
 
-def traintest_entrypoint(targets: str, testfold: int, folds: int,
-                         random_seed: int, name: str, halfwidth: int,
-                         nworkers: int, features: str, batchMB: float) -> None:
+def traintest_entrypoint(targets: str,
+                         testfold: int,
+                         folds: int,
+                         random_seed: int,
+                         name: str,
+                         halfwidth: int,
+                         nworkers: int,
+                         features: str,
+                         batchMB: float
+                         ) -> None:
     """Get training data."""
     feature_metadata = read_feature_metadata(features)
     feature_metadata.halfwidth = halfwidth
@@ -130,17 +145,25 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
               help="half width of patch size. Patch side length is "
               "2 x halfwidth + 1")
 @click.pass_context
-def query(ctx: click.Context, strip: Tuple[int, int], name: str,
-          features: str, halfwidth: int) -> None:
+def query(ctx: click.Context,
+          strip: Tuple[int, int],
+          name: str,
+          features: str,
+          halfwidth: int
+          ) -> None:
     """Extract query data for making prediction images."""
     catching_f = errors.catch_and_exit(query_entrypoint)
     catching_f(features, ctx.obj.batchMB, ctx.obj.nworkers,
                halfwidth, strip, name)
 
 
-def query_entrypoint(features: str, batchMB: float, nworkers: int,
-                     halfwidth: int, strip: Tuple[int, int],
-                     name: str) -> int:
+def query_entrypoint(features: str,
+                     batchMB: float,
+                     nworkers: int,
+                     halfwidth: int,
+                     strip: Tuple[int, int],
+                     name: str
+                     ) -> int:
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 

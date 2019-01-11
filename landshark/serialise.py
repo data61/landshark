@@ -35,6 +35,7 @@ class DataArrays(NamedTuple):
 # Module functions
 #
 
+
 def serialise(x: DataArrays) -> List[bytes]:
     """Serialise data to tf.records."""
     x_con = repeat(np.ma.MaskedArray(data=[], mask=[])) \
@@ -53,8 +54,11 @@ def serialise(x: DataArrays) -> List[bytes]:
         string_list.append(example.SerializeToString())
     return string_list
 
-def deserialise(row: str, metadata: Training, ignore_y: bool=False) \
-        -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
+
+def deserialise(row: str,
+                metadata: Training,
+                ignore_y: bool=False
+                ) -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)
     npatch_side = 2 * metadata.features.halfwidth + 1
@@ -88,16 +92,18 @@ def deserialise(row: str, metadata: Training, ignore_y: bool=False) \
             feat_dict["con"] = _unpack(x_con,
                                        metadata.features.continuous.columns,
                                        npatch_side)
-            feat_dict["con_mask"] = _unpack(x_con_mask,
-                                       metadata.features.continuous.columns,
-                                       npatch_side)
+            feat_dict["con_mask"] = _unpack(
+                x_con_mask,
+                metadata.features.continuous.columns,
+                npatch_side)
         if metadata.features.categorical:
             feat_dict["cat"] = _unpack(x_cat,
                                        metadata.features.categorical.columns,
                                        npatch_side)
-            feat_dict["cat_mask"] = _unpack(x_cat_mask,
-                                       metadata.features.categorical.columns,
-                                       npatch_side)
+            feat_dict["cat_mask"] = _unpack(
+                x_cat_mask,
+                metadata.features.categorical.columns,
+                npatch_side)
 
     result = feat_dict if ignore_y else (feat_dict, y)
     return result
@@ -113,13 +119,14 @@ def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
     d = {}
     for k, v in columns.items():
         stop = start + v.D
-        d[k] = x_all[...,start:stop]
+        d[k] = x_all[..., start:stop]
         start = stop
     return d
 
 #
 # Private module utilities
 #
+
 
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     """Create an ndarray feature stored as bytes."""
@@ -129,8 +136,12 @@ def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     return feature
 
 
-def _make_features(x_con: np.ma.MaskedArray, x_cat: np.ma.MaskedArray,
-                   y: np.ndarray, idx: np.ndarray, coords: np.ndarray) -> dict:
+def _make_features(x_con: np.ma.MaskedArray,
+                   x_cat: np.ma.MaskedArray,
+                   y: np.ndarray,
+                   idx: np.ndarray,
+                   coords: np.ndarray
+                   ) -> dict:
     """Do stuff."""
     fdict = {
         "x_cat": _ndarray_feature(x_cat.data),

@@ -12,16 +12,23 @@ log = logging.getLogger(__name__)
 FILESIZE_MB = 100
 
 
-def query(data: Iterator[List[bytes]], n_total: int,
-          output_directory: str, tag: str) -> None:
+def query(data: Iterator[List[bytes]],
+          n_total: int,
+          output_directory: str,
+          tag: str
+          ) -> None:
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
         writer.add(d)
     writer.close()
 
 
-def training(data: Iterator[List[bytes]], n_total: int, output_directory: str,
-             testfold: int, folds: Iterator[np.ndarray]) -> None:
+def training(data: Iterator[List[bytes]],
+             n_total: int,
+             output_directory: str,
+             testfold: int,
+             folds: Iterator[np.ndarray]
+             ) -> None:
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
         os.makedirs(test_directory)
@@ -80,8 +87,10 @@ class _MultiFileWriter:
             raise RuntimeError("Cannot close a writer that isnt open")
 
 
-def _split_on_mask(data: List[bytes], folds: np.ndarray, testfold: int) \
-        -> Tuple[List[bytes], List[bytes]]:
+def _split_on_mask(data: List[bytes],
+                   folds: np.ndarray,
+                   testfold: int
+                   ) -> Tuple[List[bytes], List[bytes]]:
     mask = folds != testfold
     nmask = ~mask
     train_batch = [data[i] for i, m in enumerate(mask) if m]

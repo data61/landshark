@@ -175,8 +175,11 @@ class ArraySource(Sized, Reader):
         """
         self._open = True
 
-    def __exit__(self, ex_type: type, ex_val: Exception,
-                 ex_tb: TracebackType) -> None:
+    def __exit__(self,
+                 ex_type: type,
+                 ex_val: Exception,
+                 ex_tb: TracebackType
+                 ) -> None:
         """
         Exit the context.
 
