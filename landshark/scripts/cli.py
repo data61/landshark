@@ -5,6 +5,7 @@ from typing import NamedTuple, Optional
 
 import click
 
+from landshark import __version__
 from landshark import errors
 from landshark.model import QueryConfig, TrainingConfig
 from landshark.model import predict as predict_fn
@@ -26,6 +27,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("--gpu/--no-gpu", default=False,
               help="Have tensorflow use the GPU")
 @click.option("--batch-mb", type=float, default=10,

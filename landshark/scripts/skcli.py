@@ -7,6 +7,7 @@ from typing import NamedTuple, Optional
 
 import click
 
+from landshark import __version__
 from landshark import errors, skmodel
 from landshark.scripts.logger import configure_logging
 from landshark.tfread import load_model, setup_query, setup_training
@@ -23,6 +24,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("--batch-mb", type=float, default=100,
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
