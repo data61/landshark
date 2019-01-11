@@ -195,8 +195,8 @@ def read_imagespec(hfile: tables.File) -> ImageSpec:
 def write_continuous(source: ContinuousArraySource,
                      hfile: tables.File,
                      n_workers: int,
-                     batchrows: Optional[int]=None,
-                     stats: Optional[Tuple[np.ndarray, np.ndarray]]=None
+                     batchrows: Optional[int] = None,
+                     stats: Optional[Tuple[np.ndarray, np.ndarray]] = None
                      ) -> None:
     transform = Normaliser(*stats, source.missing) if stats else IdWorker()
     n_workers = n_workers if stats else 0
@@ -207,8 +207,8 @@ def write_continuous(source: ContinuousArraySource,
 def write_categorical(source: CategoricalArraySource,
                       hfile: tables.File,
                       n_workers: int,
-                      batchrows: Optional[int]=None,
-                      maps: Optional[np.ndarray]=None
+                      batchrows: Optional[int] = None,
+                      maps: Optional[np.ndarray] = None
                       ) -> None:
     transform = CategoryMapper(maps, source.missing) \
         if maps else IdWorker()
@@ -223,7 +223,7 @@ def _write_source(src: ArraySource,
                   name: str,
                   transform: Worker,
                   n_workers: int,
-                  batchrows: Optional[int]=None
+                  batchrows: Optional[int] = None
                   ) -> None:
     front_shape = src.shape[0:-1]
     filters = tables.Filters(complevel=1, complib="blosc:lz4")

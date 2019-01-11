@@ -40,7 +40,7 @@ def train_data(records: List[str],
                batch_size: int,
                epochs: int = 1,
                shuffle_buffer: int = 1000,
-               take: Optional[int]=None,
+               take: Optional[int] = None,
                random_seed: Optional[int] = None
                ) -> Callable[[], tf.data.TFRecordDataset]:
     """Train dataset feeder."""

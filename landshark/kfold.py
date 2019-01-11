@@ -26,7 +26,7 @@ def _batch_randn(start: int,
 
 class KFolds:
 
-    def __init__(self, N: int, K: int=10, seed: int=666) -> None:
+    def __init__(self, N: int, K: int = 10, seed: int = 666) -> None:
         self.K = K
         self.N = N
         self.seed = seed

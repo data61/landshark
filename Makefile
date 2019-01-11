@@ -11,6 +11,7 @@ help:
 	@echo "typecheck-xml - check types with mypy with xml output"
 	@echo "test-xml - run tests and check coverage with xml output"
 	@echo "lint-xml - check style with flake8 with xml output"
+	@echo "isort - reorder imports with isort"
 
 
 clean: clean-build clean-pyc

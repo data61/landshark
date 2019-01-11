@@ -22,8 +22,9 @@ class H5ArraySource(ArraySource):
         self.metadata = read_target_metadata(path)
         with tables.open_file(self._path, "r") as hfile:
             carray = hfile.get_node("/" + self._array_name)
-            self._shape = tuple(list(carray.shape) +
-                                [carray.atom.dtype.shape[0]])
+            self._shape = tuple(
+                list(carray.shape) + [carray.atom.dtype.shape[0]]
+            )
             self._missing = carray.attrs.missing
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base

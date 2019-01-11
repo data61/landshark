@@ -117,7 +117,7 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
 
     c_init = count()
 
-    def _get(n: int, c: Iterator[int]=c_init) -> int:
+    def _get(n: int, c: Iterator[int] = c_init) -> int:
         res = n - next(c)
         return res
 

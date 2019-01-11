@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-import versioneer
 from setuptools import find_packages, setup
+
+import versioneer
 
 readme = open("README.md").read()
 
@@ -46,8 +47,8 @@ setup(
             "pytest>=3.1.3",
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
-            'flake8-bugbear==18.2.0',
-            'flake8-builtins==1.4.1',
+            "flake8-bugbear==18.2.0",
+            "flake8-builtins==1.4.1",
             "pytest-cov>=2.5.1",
             "flake8-comprehensions>=1.4.1",
             "flake8-docstrings>=1.1.0",
@@ -63,7 +64,7 @@ setup(
         "Operating System :: POSIX",
         "Natural Language :: English",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",

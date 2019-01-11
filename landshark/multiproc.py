@@ -30,7 +30,7 @@ class _Task(Process):
                  in_queue: Queue,
                  out_queue: Queue,
                  shutdown: Any,
-                 blocktime: float=0.1
+                 blocktime: float = 0.1
                  ) -> None:
         self.in_queue = in_queue
         self.out_queue = out_queue

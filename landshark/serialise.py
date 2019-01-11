@@ -57,7 +57,7 @@ def serialise(x: DataArrays) -> List[bytes]:
 
 def deserialise(row: str,
                 metadata: Training,
-                ignore_y: bool=False
+                ignore_y: bool = False
                 ) -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)

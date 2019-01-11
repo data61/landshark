@@ -116,7 +116,8 @@ class _ImageStackSource(ArraySource):
                 marray.data[marray.mask] = self._missing
             n_missing = np.sum(marray.mask)
             if n_missing > 0:
-                log.info(f"Tif slice contains {n_missing} missing pixels")
+                log.info(("Tif slice contains {} "
+                          "missing pixels").format(n_missing))
             data = marray.data
             data = np.moveaxis(data, 0, -1)
             out_array[..., start_band:stop_band] = data
@@ -137,7 +138,7 @@ class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
 def _match(f: Callable[[Any], Any],
            images: List[DatasetReader],
            name: str,
-           anyof: bool=False
+           anyof: bool = False
            ) -> Any:
     """Return specified property of images if they match."""
     property_list = [f(k) for k in images]
