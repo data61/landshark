@@ -6,7 +6,7 @@ from typing import List, Tuple, NamedTuple, Optional, Union, Dict
 import numpy as np
 import tensorflow as tf
 
-from landshark.basetypes import ContinuousType, CategoricalType
+from landshark.basetypes import CategoricalType
 from landshark.metadata import Training, Feature
 
 #

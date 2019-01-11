@@ -12,10 +12,9 @@ from tqdm import tqdm
 
 from landshark.metadata import Training
 from landshark.model import train_data, test_data, predict_data
-from landshark.serialise import deserialise
+
 
 log = logging.getLogger(__name__)
-
 
 
 # TODO simplify now I'm no longer using the recursive dict structure
@@ -64,6 +63,7 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
         x_full.pop("cat_mask")
 
     return x_full, y_full
+
 
 def _get_data(records_train: List[str], records_test: List[str],
               metadata: Training, npoints: Optional[int],

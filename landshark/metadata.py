@@ -3,12 +3,13 @@
 from collections import OrderedDict
 import os.path
 import pickle
-from typing import Any, Dict, List, NamedTuple, Optional, Union, cast
+from typing import Any, Dict, List, NamedTuple, Optional, Union
 
 import numpy as np
 
 from landshark.basetypes import CategoricalType, ContinuousType
 from landshark.image import ImageSpec
+
 
 class PickleObj:
 

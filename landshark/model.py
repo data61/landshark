@@ -1,20 +1,13 @@
 """Train/test with tfrecords."""
 
-from copy import deepcopy
-import json
 import logging
-import os.path
-from glob import glob
-import shutil
+
 import signal
 from itertools import count
-from typing import (Any, Dict, Generator, Iterable, List, NamedTuple, Optional,
-                    Tuple, Union, Callable)
+from typing import (Any, Dict, Generator, List, NamedTuple, Optional, Callable)
 
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import (accuracy_score, confusion_matrix, log_loss,
-                             r2_score)
 from tqdm import tqdm
 
 from landshark.metadata import Training

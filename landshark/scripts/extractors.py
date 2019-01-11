@@ -3,7 +3,7 @@
 import logging
 import os
 from multiprocessing import cpu_count
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Tuple
 
 import click
 

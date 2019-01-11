@@ -10,7 +10,7 @@ import click
 from landshark import __version__
 from landshark import errors, skmodel
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import load_model, setup_query, setup_training
+from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
 
@@ -102,7 +102,7 @@ def predict_entrypoint(config: str, checkpoint: str,
         if train_metadata.features.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
                                     train_metadata.features.halfwidth)
-    # load_model(config)
+
     y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
                                 points_per_batch)
     write_geotiffs(y_dash_it, checkpoint, train_metadata.features.image,

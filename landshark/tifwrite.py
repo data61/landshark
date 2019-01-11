@@ -2,13 +2,12 @@
 
 import logging
 import os.path
-from typing import Dict, Iterator, List, Optional, cast
+from typing import Dict, Iterator
 
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.basetypes import (CategoricalType, NumericalType, ContinuousType)
 from landshark.image import ImageSpec
 from landshark.errors import PredictionShape
 
