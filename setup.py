@@ -2,13 +2,14 @@
 
 from setuptools import find_packages, setup
 
-__version__ = None
-exec(open("landshark/__version__.py").read())
+import versioneer
+
 readme = open("README.md").read()
 
 setup(
     name="landshark",
-    version=__version__,
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description="Large-scale spatial inference with Tensorflow",
     long_description=readme,
     author="Data61",
