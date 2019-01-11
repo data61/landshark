@@ -13,7 +13,7 @@ setup(
     long_description=readme,
     author="Data61",
     author_email="lachlan.mccalman@data61.csiro.au",
-    url="https://github.com/determinant-io/landshark",
+    url="https://bitbucket.csiro.au/projects/DGEO/repos/landshark/browse",
     packages=find_packages(),
     package_dir={"landshark": "landshark"},
     include_package_data=True,
