@@ -7,8 +7,7 @@ from typing import NamedTuple, Optional
 
 import click
 
-from landshark import __version__
-from landshark import errors, skmodel
+from landshark import __version__, errors, skmodel
 from landshark.scripts.logger import configure_logging
 from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs

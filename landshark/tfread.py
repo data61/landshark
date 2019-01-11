@@ -7,7 +7,7 @@ from glob import glob
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import List, Tuple
 
-from landshark.metadata import Training, FeatureSet
+from landshark.metadata import FeatureSet, Training
 
 log = logging.getLogger(__name__)
 

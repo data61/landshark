@@ -1,19 +1,18 @@
 """Train/test with tfrecords."""
 
 import logging
-
 import signal
 from itertools import count
-from typing import (Any, Dict, Generator, List, NamedTuple, Optional, Callable)
+from typing import Any, Callable, Dict, Generator, List, NamedTuple, Optional
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from landshark.metadata import Training
-from landshark.serialise import deserialise
-from landshark.saver import BestScoreSaver
 from landshark import config as util_module
+from landshark.metadata import Training
+from landshark.saver import BestScoreSaver
+from landshark.serialise import deserialise
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)

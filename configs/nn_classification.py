@@ -2,6 +2,7 @@
 import tensorflow as tf
 from tensorflow.estimator import ModeKeys
 
+
 def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
           image_indices, coordinates, metadata, utils):
     """

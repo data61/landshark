@@ -1,13 +1,13 @@
 """Serialise and Deserialise to and from tf records."""
 
 from itertools import repeat
-from typing import List, Tuple, NamedTuple, Optional, Union, Dict
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import CategoricalType
-from landshark.metadata import Training, Feature
+from landshark.metadata import Feature, Training
 
 #
 # Module constants and types

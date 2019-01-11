@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-from setuptools import find_packages, setup
-
 import versioneer
+from setuptools import find_packages, setup
 
 readme = open("README.md").read()
 

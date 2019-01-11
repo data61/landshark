@@ -4,15 +4,14 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Iterator, List, Optional, Tuple, Dict, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 from landshark.metadata import Training
-from landshark.model import train_data, test_data, predict_data
-
+from landshark.model import predict_data, test_data, train_data
 
 log = logging.getLogger(__name__)
 

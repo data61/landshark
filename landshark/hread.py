@@ -8,8 +8,8 @@ import tables
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
                                  ContinuousArraySource)
+from landshark.featurewrite import read_feature_metadata, read_target_metadata
 
-from landshark.featurewrite import read_target_metadata, read_feature_metadata
 
 class H5ArraySource(ArraySource):
     """Note these are only used for targets! see the target specific metadata

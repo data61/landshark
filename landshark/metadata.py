@@ -1,8 +1,8 @@
 """Metadata."""
 
-from collections import OrderedDict
 import os.path
 import pickle
+from collections import OrderedDict
 from typing import Any, Dict, List, NamedTuple, Optional, Union
 
 import numpy as np

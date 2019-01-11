@@ -8,8 +8,8 @@ import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
 
-from landshark.image import ImageSpec
 from landshark.errors import PredictionShape
+from landshark.image import ImageSpec
 
 log = logging.getLogger(__name__)
 

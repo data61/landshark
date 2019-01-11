@@ -12,16 +12,15 @@ import tables
 from landshark import errors
 from landshark import metadata as meta
 from landshark.category import get_maps
-from landshark.featurewrite import (write_categorical,
-                                    write_coordinates,
-                                    write_continuous,
-                                    write_feature_metadata,
+from landshark.featurewrite import (write_categorical, write_continuous,
+                                    write_coordinates, write_feature_metadata,
                                     write_target_metadata)
 from landshark.fileio import tifnames
 from landshark.normalise import get_stats
 from landshark.scripts.logger import configure_logging
 from landshark.shpread import (CategoricalShpArraySource,
-                               CoordinateShpArraySource, ContinuousShpArraySource)
+                               ContinuousShpArraySource,
+                               CoordinateShpArraySource)
 from landshark.tifread import (CategoricalStackSource, ContinuousStackSource,
                                shared_image_spec)
 from landshark.util import mb_to_points, mb_to_rows

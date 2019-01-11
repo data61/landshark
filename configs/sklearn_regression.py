@@ -1,11 +1,11 @@
 """Model config file."""
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import OneHotEncoder
 
 NTREES = 100
 

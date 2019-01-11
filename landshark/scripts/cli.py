@@ -5,16 +5,15 @@ from typing import NamedTuple, Optional
 
 import click
 
-from landshark import __version__
-from landshark import errors
+from landshark import __version__, errors
 from landshark.model import QueryConfig, TrainingConfig
 from landshark.model import predict as predict_fn
 from landshark.model import train_test
+from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
 from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
-from landshark.saver import overwrite_model_dir
 
 log = logging.getLogger(__name__)
 

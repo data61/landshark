@@ -49,3 +49,5 @@ integration-xml:
 test-xml:
 	py.test --junit-xml=test_output/pytest/results.xml --cov=./landshark --cov-report=html:test_output/coverage --cache-clear --cov-fail-under=15 tests landshark
 
+isort:
+	isort --recursive .

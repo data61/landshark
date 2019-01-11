@@ -49,5 +49,3 @@ def categorical_embedded_input(d: Dict[str, tf.Tensor],
         for k, v in ncat_dict.items()]
     inputs_cat = tf.feature_column.input_layer(d, columns_cat)
     return inputs_cat
-
-

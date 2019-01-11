@@ -9,8 +9,8 @@ import numpy as np
 import shapefile
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 CategoricalType, CoordinateArraySource,
-                                 ContinuousArraySource, ContinuousType)
+                                 CategoricalType, ContinuousArraySource,
+                                 ContinuousType, CoordinateArraySource)
 
 log = logging.getLogger(__name__)
 

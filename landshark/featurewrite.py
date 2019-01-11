@@ -6,14 +6,14 @@ import numpy as np
 import tables
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 CoordinateArraySource, IdWorker,
-                                 ContinuousArraySource, Worker)
+                                 ContinuousArraySource, CoordinateArraySource,
+                                 IdWorker, Worker)
 from landshark.category import CategoryMapper
 from landshark.image import ImageSpec
 from landshark.iteration import batch_slices, with_slices
-from landshark.metadata import (CategoricalFeatureSet, FeatureSet,
+from landshark.metadata import (CategoricalFeatureSet, CategoricalTarget,
                                 ContinuousFeatureSet, ContinuousTarget,
-                                CategoricalTarget, Target)
+                                FeatureSet, Target)
 from landshark.multiproc import task_list
 from landshark.normalise import Normaliser
 

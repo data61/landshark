@@ -7,17 +7,16 @@ from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 import numpy as np
 import tables
 
-from landshark import patch
-from landshark.basetypes import ArraySource, FixedSlice, Worker, IdReader
+from landshark import patch, tfwrite
+from landshark.basetypes import ArraySource, FixedSlice, IdReader, Worker
 from landshark.hread import H5Features
-from landshark.image import ImageSpec, world_to_image, image_to_world, \
-    indices_strip
-from landshark.kfold import KFolds
-from landshark.patch import PatchMaskRowRW, PatchRowRW
-from landshark.serialise import serialise, DataArrays
+from landshark.image import (ImageSpec, image_to_world, indices_strip,
+                             world_to_image)
 from landshark.iteration import batch_slices
+from landshark.kfold import KFolds
 from landshark.multiproc import task_list
-from landshark import tfwrite
+from landshark.patch import PatchMaskRowRW, PatchRowRW
+from landshark.serialise import DataArrays, serialise
 
 log = logging.getLogger(__name__)
 

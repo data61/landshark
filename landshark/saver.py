@@ -1,12 +1,11 @@
-import os
-from copy import deepcopy
-import shutil
-from glob import glob
-import logging
-
 import json
-
+import logging
+import os
+import shutil
+from copy import deepcopy
+from glob import glob
 from typing import Dict
+
 import numpy as np
 
 from landshark import metadata
@@ -98,4 +97,3 @@ class BestScoreSaver:
                 log.info("Found model with new best {} score: overwriting".
                          format(s))
                 self._write_score(scores, score_path, global_step)
-

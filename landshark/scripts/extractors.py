@@ -7,12 +7,11 @@ from typing import NamedTuple, Tuple
 
 import click
 
-from landshark import metadata as meta
 from landshark import errors
-from landshark.dataprocess import write_querydata, write_trainingdata, \
-    ProcessTrainingArgs, ProcessQueryArgs
-from landshark.featurewrite import (read_feature_metadata,
-                                    read_target_metadata)
+from landshark import metadata as meta
+from landshark.dataprocess import (ProcessQueryArgs, ProcessTrainingArgs,
+                                   write_querydata, write_trainingdata)
+from landshark.featurewrite import read_feature_metadata, read_target_metadata
 from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
