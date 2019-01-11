@@ -1,18 +1,18 @@
 """Model config file."""
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import OneHotEncoder
 
 NTREES = 100
 
 
 class SKModel:
     def __init__(self, metadata, random_seed) -> None:
-        self.ord_imp = SimpleImputer(strategy="mean",
+        self.con_imp = SimpleImputer(strategy="mean",
                                verbose=0, copy=True)
         self.cat_imp = SimpleImputer(missing_values=-1,
                                strategy="most_frequent",
@@ -45,7 +45,7 @@ class SKModel:
             X_con = np.ma.concatenate(list(X_con.values()), axis=1)
             X_con = X_con.reshape((X_con.shape[0], -1))
             X_con.data[X_con.mask] = np.nan
-            X_imputed = self.ord_imp.fit_transform(X_con.data)
+            X_imputed = self.con_imp.fit_transform(X_con.data)
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         self.est.fit(X, Y)
@@ -71,7 +71,7 @@ class SKModel:
             X_con = np.ma.concatenate(list(X_con.values()), axis=1)
             X_con = X_con.reshape((X_con.shape[0], -1))
             X_con.data[X_con.mask] = np.nan
-            X_imputed = self.ord_imp.transform(X_con)
+            X_imputed = self.con_imp.transform(X_con)
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         Ey = self.est.predict(X)

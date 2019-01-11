@@ -6,8 +6,12 @@ import numpy as np
 BATCH_SIZE = 10000
 
 
-def _batch_randn(start: int, stop: int, size: int,
-                 batch_size: int, seed: int) -> Iterator[np.ndarray]:
+def _batch_randn(start: int,
+                 stop: int,
+                 size: int,
+                 batch_size: int,
+                 seed: int
+                 ) -> Iterator[np.ndarray]:
     rnd = np.random.RandomState(seed)
     total_n = 0
     while total_n < size:
@@ -22,7 +26,7 @@ def _batch_randn(start: int, stop: int, size: int,
 
 class KFolds:
 
-    def __init__(self, N: int, K: int=10, seed: int=666) -> None:
+    def __init__(self, N: int, K: int = 10, seed: int = 666) -> None:
         self.K = K
         self.N = N
         self.seed = seed

@@ -27,8 +27,10 @@ class BoundingBox:
 
     """
 
-    def __init__(self, x_pixel_coords: np.ndarray,
-                 y_pixel_coords: np.ndarray) -> None:
+    def __init__(self,
+                 x_pixel_coords: np.ndarray,
+                 y_pixel_coords: np.ndarray
+                 ) -> None:
         """Construct the bounding box."""
         assert x_pixel_coords.ndim == 1
         assert y_pixel_coords.ndim == 1
@@ -89,8 +91,11 @@ class ImageSpec:
 
     """
 
-    def __init__(self, x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray, crs: Dict[str, str]) -> None:
+    def __init__(self,
+                 x_coordinates: np.ndarray,
+                 y_coordinates: np.ndarray,
+                 crs: Dict[str, str]
+                 ) -> None:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
@@ -117,7 +122,8 @@ class ImageSpec:
 
 def pixel_coordinates(width: int,
                       height: int,
-                      affine: Affine) -> Tuple[np.ndarray, np.ndarray]:
+                      affine: Affine
+                      ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Create the pixel to coordinate map.
 
@@ -159,7 +165,8 @@ def pixel_coordinates(width: int,
 
 
 def image_to_world(indices: np.ndarray,
-                   pixel_coordinate_array: np.ndarray) -> np.ndarray:
+                   pixel_coordinate_array: np.ndarray
+                   ) -> np.ndarray:
     """
     Map image coordinates (pixel indices) to world coordinates.
 
@@ -195,7 +202,8 @@ def image_to_world(indices: np.ndarray,
 
 
 def world_to_image(points: np.ndarray,
-                   pixel_coordinate_array: np.ndarray) -> np.ndarray:
+                   pixel_coordinate_array: np.ndarray
+                   ) -> np.ndarray:
     """
     Map world coordinates to pixel indices.
 
@@ -242,8 +250,10 @@ def world_to_image(points: np.ndarray,
     return idx
 
 
-def strip_image_spec(strip: int, nstrips: int,
-                     image_spec: ImageSpec) -> ImageSpec:
+def strip_image_spec(strip: int,
+                     nstrips: int,
+                     image_spec: ImageSpec
+                     ) -> ImageSpec:
     """
     Create an imagespec for an indexed strip of a larger image.
 
@@ -278,9 +288,11 @@ def strip_image_spec(strip: int, nstrips: int,
     return new_spec
 
 
-def indices_strip(image_spec: ImageSpec, strip: int, nstrips: int,
-                  batchsize: int) \
-        -> Tuple[Iterable[np.ndarray], int]:
+def indices_strip(image_spec: ImageSpec,
+                  strip: int,
+                  nstrips: int,
+                  batchsize: int
+                  ) -> Tuple[Iterable[np.ndarray], int]:
     """
     Create an iterator over each row of a strip.
 
@@ -329,23 +341,23 @@ def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
 
 def _array_pair_it(x: Iterable[Any]) -> np.ndarray:
     """Get the x and y coordinate arrays from the batch iterator."""
-    a = np.array(x, dtype=IndexType)[:, ::-1]
+    a = np.array(x)[:, ::-1]
     return a
 
 
-def _indices_query(
-    image_width: int,
-    image_height: int,
-    batchsize: int,
-    column_slice: Optional[FixedSlice]=None,
-    row_slice: Optional[FixedSlice]=None
-        ) -> Iterable[np.ndarray]:
+def _indices_query(image_width: int,
+                   image_height: int,
+                   batchsize: int,
+                   column_slice: Optional[FixedSlice] = None,
+                   row_slice: Optional[FixedSlice] = None
+                   ) -> Iterable[np.ndarray]:
     """Create a generator of batches of coordinates from an image."""
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)
 
-    height_ind = range(image_height)[row_slice.start: row_slice.stop]
-    width_ind = range(image_width)[column_slice.start: column_slice.stop]
+    height_ind = np.arange(row_slice.start, row_slice.stop, dtype=IndexType)
+    width_ind = np.arange(column_slice.start, column_slice.stop,
+                          dtype=IndexType)
 
     coords_it = product(height_ind, width_ind)
     total_size = len(height_ind) * len(width_ind)

@@ -21,7 +21,7 @@ def catch_and_exit(f: Callable) -> Callable:
         try:
             f(*args, **kwargs)
         except Error as e:
-            log.error(e.message)
+            log.error(str(e))
             sys.exit()
 
     return wrapped
@@ -49,6 +49,7 @@ class ConCatNMismatch(Error):
         """Construct the object."""
         self.message = "Continuous and Categorical source mismatch with \
             {} and {} points respectively".format(N_con, N_cat)
+
 
 class PredictionShape(Error):
     """Prediction output is not 1D or 2D."""

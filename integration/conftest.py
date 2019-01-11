@@ -1,10 +1,12 @@
 """Configuration for test suite."""
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", category=ImportWarning)
 import os
+import warnings
 
 import pytest
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=ImportWarning)
+
 
 @pytest.fixture(scope="module")
 def data_loc(request):

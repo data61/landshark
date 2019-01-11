@@ -3,16 +3,15 @@
 import logging
 import os
 from multiprocessing import cpu_count
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Tuple
 
 import click
 
+from landshark import __version__, errors
 from landshark import metadata as meta
-from landshark import errors
-from landshark.dataprocess import write_querydata, write_trainingdata, \
-    ProcessTrainingArgs, ProcessQueryArgs
-from landshark.featurewrite import (read_feature_metadata,
-                                    read_target_metadata)
+from landshark.dataprocess import (ProcessQueryArgs, ProcessTrainingArgs,
+                                   write_querydata, write_trainingdata)
+from landshark.featurewrite import read_feature_metadata, read_target_metadata
 from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
@@ -30,6 +29,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
@@ -39,8 +39,11 @@ class CliArgs(NamedTuple):
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
 @click.pass_context
-def cli(ctx: click.Context, verbosity: str,
-        batch_mb: float, nworkers: int) -> int:
+def cli(ctx: click.Context,
+        verbosity: str,
+        batch_mb: float,
+        nworkers: int
+        ) -> int:
     """Extract features and targets for training, testing and prediction."""
     ctx.obj = CliArgs(nworkers, batch_mb)
     configure_logging(verbosity)
@@ -63,19 +66,31 @@ def cli(ctx: click.Context, verbosity: str,
               help="half width of patch size. Patch side length is "
               "2 x halfwidth + 1")
 @click.pass_context
-def traintest(ctx: click.Context, targets: str, split: Tuple[int, ...],
-              random_seed: int, name: str,
-              features: str, halfwidth: int) -> None:
+def traintest(ctx: click.Context,
+              targets: str,
+              split: Tuple[int, ...],
+              random_seed: int,
+              name: str,
+              features: str,
+              halfwidth: int
+              ) -> None:
     """Extract training and testing data to train and validate a model."""
     fold, nfolds = split
     catching_f = errors.catch_and_exit(traintest_entrypoint)
-    catching_f(targets, fold, nfolds, random_seed,name, halfwidth,
+    catching_f(targets, fold, nfolds, random_seed, name, halfwidth,
                ctx.obj.nworkers, features, ctx.obj.batchMB)
 
 
-def traintest_entrypoint(targets: str, testfold: int, folds: int,
-                         random_seed: int, name: str, halfwidth: int,
-                         nworkers: int, features: str, batchMB: float) -> None:
+def traintest_entrypoint(targets: str,
+                         testfold: int,
+                         folds: int,
+                         random_seed: int,
+                         name: str,
+                         halfwidth: int,
+                         nworkers: int,
+                         features: str,
+                         batchMB: float
+                         ) -> None:
     """Get training data."""
     feature_metadata = read_feature_metadata(features)
     feature_metadata.halfwidth = halfwidth
@@ -95,7 +110,6 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
     n_rows = len(target_src)
     kfolds = KFolds(n_rows, folds, random_seed)
 
-    n_train = len(target_src) - kfolds.counts[testfold]
     directory = os.path.join(os.getcwd(), "traintest_{}_fold{}of{}".format(
         name, testfold, folds))
 
@@ -131,17 +145,25 @@ def traintest_entrypoint(targets: str, testfold: int, folds: int,
               help="half width of patch size. Patch side length is "
               "2 x halfwidth + 1")
 @click.pass_context
-def query(ctx: click.Context, strip: Tuple[int, int], name: str,
-          features: str, halfwidth: int) -> None:
+def query(ctx: click.Context,
+          strip: Tuple[int, int],
+          name: str,
+          features: str,
+          halfwidth: int
+          ) -> None:
     """Extract query data for making prediction images."""
     catching_f = errors.catch_and_exit(query_entrypoint)
     catching_f(features, ctx.obj.batchMB, ctx.obj.nworkers,
                halfwidth, strip, name)
 
 
-def query_entrypoint(features: str, batchMB: float, nworkers: int,
-                     halfwidth: int, strip: Tuple[int, int],
-                     name: str) -> int:
+def query_entrypoint(features: str,
+                     batchMB: float,
+                     nworkers: int,
+                     halfwidth: int,
+                     strip: Tuple[int, int],
+                     name: str
+                     ) -> int:
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 
@@ -170,8 +192,8 @@ def query_entrypoint(features: str, batchMB: float, nworkers: int,
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
     qargs = ProcessQueryArgs(name, features, strip_imspec,
-                            strip_idx, totalstrips, halfwidth, directory,
-                            points_per_batch, nworkers, tag)
+                             strip_idx, totalstrips, halfwidth, directory,
+                             points_per_batch, nworkers, tag)
 
     write_querydata(qargs)
     feature_metadata.save(directory)

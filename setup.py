@@ -2,18 +2,19 @@
 
 from setuptools import find_packages, setup
 
-__version__ = None
-exec(open("landshark/__version__.py").read())
+import versioneer
+
 readme = open("README.md").read()
 
 setup(
     name="landshark",
-    version=__version__,
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description="Large-scale spatial inference with Tensorflow",
     long_description=readme,
     author="Data61",
     author_email="lachlan.mccalman@data61.csiro.au",
-    url="https://github.com/determinant-io/landshark",
+    url="https://bitbucket.csiro.au/projects/DGEO/repos/landshark/browse",
     packages=find_packages(),
     package_dir={"landshark": "landshark"},
     include_package_data=True,
@@ -46,8 +47,8 @@ setup(
             "pytest>=3.1.3",
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
-            'flake8-bugbear==18.2.0',
-            'flake8-builtins==1.4.1',
+            "flake8-bugbear==18.2.0",
+            "flake8-builtins==1.4.1",
             "pytest-cov>=2.5.1",
             "flake8-comprehensions>=1.4.1",
             "flake8-docstrings>=1.1.0",
@@ -63,7 +64,7 @@ setup(
         "Operating System :: POSIX",
         "Natural Language :: English",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",

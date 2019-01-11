@@ -8,7 +8,7 @@ from landshark.basetypes import CategoricalArraySource, CategoricalType
 def test_unique_values():
     x = np.array([[1, 2, 2], [1, 2, 3],
                  [1, 1, 2], [1, 1, 1]], dtype=CategoricalType)
-    unique_vals, counts = category.unique_values(x)
+    unique_vals, counts = category._unique_values(x)
     true_vals = [np.array([1]), np.array([1, 2]), np.array([1, 2, 3])]
     true_counts = [np.array([4]), np.array([2, 2]), np.array([1, 2, 1])]
 

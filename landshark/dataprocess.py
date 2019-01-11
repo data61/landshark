@@ -7,17 +7,16 @@ from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 import numpy as np
 import tables
 
-from landshark import patch
-from landshark.basetypes import ArraySource, FixedSlice, Worker, IdReader
+from landshark import patch, tfwrite
+from landshark.basetypes import ArraySource, FixedSlice, IdReader, Worker
 from landshark.hread import H5Features
-from landshark.image import ImageSpec, world_to_image, image_to_world, \
-    indices_strip
-from landshark.kfold import KFolds
-from landshark.patch import PatchMaskRowRW, PatchRowRW
-from landshark.serialise import serialise, DataArrays
+from landshark.image import (ImageSpec, image_to_world, indices_strip,
+                             world_to_image)
 from landshark.iteration import batch_slices
+from landshark.kfold import KFolds
 from landshark.multiproc import task_list
-from landshark import tfwrite
+from landshark.patch import PatchMaskRowRW, PatchRowRW
+from landshark.serialise import DataArrays, serialise
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ class ProcessTrainingArgs(NamedTuple):
     batchsize: int
     nworkers: int
 
+
 class ProcessQueryArgs(NamedTuple):
     name: str
     feature_path: str
@@ -47,12 +47,12 @@ class ProcessQueryArgs(NamedTuple):
     tag: str
 
 
-
 def _direct_read(array: tables.CArray,
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int) -> np.ma.MaskedArray:
+                 patchwidth: int
+                 ) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
@@ -80,7 +80,8 @@ def _cached_read(row_dict: Dict[int, np.ndarray],
                  patch_reads: List[PatchRowRW],
                  mask_reads: List[PatchMaskRowRW],
                  npatches: int,
-                 patchwidth: int) -> np.ma.MaskedArray:
+                 patchwidth: int
+                 ) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
@@ -115,7 +116,8 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     rowlist = sorted(list({k.y for k in patch_reads}))
 
     c_init = count()
-    def _get(n: int, c: Iterator[int]=c_init) -> int:
+
+    def _get(n: int, c: Iterator[int] = c_init) -> int:
         res = n - next(c)
         return res
 
@@ -123,8 +125,9 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     return slices
 
 
-def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
-        -> Dict[int, np.ndarray]:
+def _get_rows(slices: List[FixedSlice],
+              array: tables.CArray
+              ) -> Dict[int, np.ndarray]:
     # TODO make faster
     data_slices = [array[s.start:s.stop] for s in slices]
     data = {}
@@ -137,7 +140,9 @@ def _get_rows(slices: List[FixedSlice], array: tables.CArray) \
 def _process_training(coords: np.ndarray,
                       targets: np.ndarray,
                       feature_source: H5Features,
-                      image_spec: ImageSpec, halfwidth: int) -> DataArrays:
+                      image_spec: ImageSpec,
+                      halfwidth: int
+                      ) -> DataArrays:
     coords_x, coords_y = coords.T
     indices_x = world_to_image(coords_x, image_spec.x_coordinates)
     indices_y = world_to_image(coords_y, image_spec.y_coordinates)
@@ -164,7 +169,8 @@ def _process_training(coords: np.ndarray,
 def _process_query(indices: np.ndarray,
                    feature_source: H5Features,
                    image_spec: ImageSpec,
-                   halfwidth: int) -> DataArrays:
+                   halfwidth: int
+                   ) -> DataArrays:
     indices_x, indices_y = indices.T
     coords_x = image_to_world(indices_x, image_spec.x_coordinates)
     coords_y = image_to_world(indices_y, image_spec.y_coordinates)
@@ -195,11 +201,13 @@ def _process_query(indices: np.ndarray,
     return output
 
 
-
 class _TrainingDataProcessor(Worker):
 
-    def __init__(self, feature_path: str, image_spec: ImageSpec,
-                 halfwidth: int) -> None:
+    def __init__(self,
+                 feature_path: str,
+                 image_spec: ImageSpec,
+                 halfwidth: int
+                 ) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec
@@ -217,14 +225,15 @@ class _TrainingDataProcessor(Worker):
 
 class _QueryDataProcessor(Worker):
 
-    def __init__(self, feature_path: str, image_spec: ImageSpec,
-                 halfwidth: int) -> None:
+    def __init__(self,
+                 feature_path: str,
+                 image_spec: ImageSpec,
+                 halfwidth: int
+                 ) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec
         self.halfwidth = halfwidth
-
-
 
     def __call__(self, indices: np.ndarray) -> List[bytes]:
         if not self.feature_source:
@@ -233,7 +242,6 @@ class _QueryDataProcessor(Worker):
                                 self.halfwidth)
         strings = serialise(arrays)
         return strings
-
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:

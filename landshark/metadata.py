@@ -1,14 +1,15 @@
 """Metadata."""
 
-from collections import OrderedDict
 import os.path
 import pickle
-from typing import Any, Dict, List, NamedTuple, Optional, Union, cast
+from collections import OrderedDict
+from typing import Any, Dict, List, NamedTuple, Optional, Union
 
 import numpy as np
 
 from landshark.basetypes import CategoricalType, ContinuousType
 from landshark.image import ImageSpec
+
 
 class PickleObj:
 
@@ -37,6 +38,7 @@ class CategoricalFeature(NamedTuple):
     mapping: np.ndarray
     counts: np.ndarray
 
+
 class ContinuousFeature(NamedTuple):
     D: int
     mean: np.ndarray
@@ -44,6 +46,7 @@ class ContinuousFeature(NamedTuple):
 
 
 Feature = Union[CategoricalFeature, ContinuousFeature]
+
 
 class ContinuousFeatureSet:
 
@@ -56,12 +59,12 @@ class ContinuousFeatureSet:
             means = [None] * D
             sds = [None] * D
 
-
         self._missing = missing
         # hard-code that each feature has 1 band for now
-        self._columns = OrderedDict(
-            [(l, ContinuousFeature(1, np.array([m]), np.array([v])))
-            for l, m, v in zip(labels, means, sds)])
+        self._columns = OrderedDict([
+            (l, ContinuousFeature(1, np.array([m]), np.array([v])))
+            for l, m, v in zip(labels, means, sds)
+        ])
         self._n = len(self._columns)
 
     @property
@@ -83,9 +86,10 @@ class CategoricalFeatureSet:
                  counts: np.ndarray) -> None:
         self._missing = missing
         # hard-code that each feature has 1 band for now
-        self._columns = OrderedDict(
-            [(l, CategoricalFeature(n, 1, m, c))
-            for l, n, m, c in zip(labels, nvalues, mappings, counts)])
+        self._columns = OrderedDict([
+            (l, CategoricalFeature(n, 1, m, c))
+            for l, n, m, c in zip(labels, nvalues, mappings, counts)
+        ])
         self._n = len(self._columns)
 
     @property
@@ -131,6 +135,7 @@ class CategoricalTarget(PickleObj):
         self.mappings = mappings
         self.counts = counts
         self.labels = labels
+
 
 class ContinuousTarget(PickleObj):
 

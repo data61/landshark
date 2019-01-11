@@ -22,7 +22,7 @@ def configure_logging(verbosity: str) -> None:
 class ElapsedFormatter(logging.Formatter):
     """Format logging message to include elapsed time."""
 
-    def format(self, record: logging.LogRecord) -> str:
+    def format(self, record: logging.LogRecord) -> str:  # noqa: A003
         """Format incoming message."""
         lvl = record.levelname
         name = record.name

@@ -4,25 +4,24 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Iterator, List, Optional, Tuple, Dict, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 from landshark.metadata import Training
-from landshark.model import train_data, test_data, predict_data
-from landshark.serialise import deserialise
+from landshark.model import predict_data, test_data, train_data
 
 log = logging.getLogger(__name__)
-
 
 
 # TODO simplify now I'm no longer using the recursive dict structure
 
 
 def _make_mask(x: Dict[str, np.ndarray],
-               xm: Dict[str, np.ndarray]) -> Dict[str, np.ma.MaskedArray]:
+               xm: Dict[str, np.ndarray]
+               ) -> Dict[str, np.ma.MaskedArray]:
     assert x.keys() == xm.keys()
     d = {k: np.ma.MaskedArray(data=x[k], mask=xm[k]) for k in x.keys()}
     return d
@@ -41,8 +40,10 @@ def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
     return out_dict
 
 
-def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
-        -> Tuple[dict, np.ndarray]:
+def _extract(xt: Dict[str, tf.Tensor],
+             yt: tf.Tensor,
+             sess: tf.Session
+             ) -> Tuple[dict, np.ndarray]:
 
     x_list = []
     y_list = []
@@ -65,14 +66,18 @@ def _extract(xt: Dict[str, tf.Tensor], yt: tf.Tensor, sess: tf.Session) \
 
     return x_full, y_full
 
-def _get_data(records_train: List[str], records_test: List[str],
-              metadata: Training, npoints: Optional[int],
-              batch_size: int,
-              random_seed: int) -> Tuple[Dict[str, np.ndarray], np.ndarray,
-                                         Dict[str, np.ndarray], np.ndarray]:
 
-    train_dataset = train_data(records_train, metadata, batch_size,
-                      epochs=1, take=npoints, random_seed=random_seed)()
+def _get_data(records_train: List[str],
+              records_test: List[str],
+              metadata: Training,
+              npoints: Optional[int],
+              batch_size: int,
+              random_seed: int
+              ) -> Tuple[Dict[str, np.ndarray], np.ndarray,
+                         Dict[str, np.ndarray], np.ndarray]:
+
+    train_dataset = train_data(records_train, metadata, batch_size, epochs=1,
+                               take=npoints, random_seed=random_seed)()
     X_tensor, Y_tensor = train_dataset.make_one_shot_iterator().get_next()
     test_dataset = test_data(records_test, metadata, batch_size)()
     Xt_tensor, Yt_tensor = test_dataset.make_one_shot_iterator().get_next()
@@ -83,9 +88,10 @@ def _get_data(records_train: List[str], records_test: List[str],
     return X, Y, Xt, Yt
 
 
-def _query_it(records_query: List[str], batch_size: int,
-              metadata: Training) \
-        -> Iterator[Dict[str, np.ndarray]]:
+def _query_it(records_query: List[str],
+              batch_size: int,
+              metadata: Training
+              ) -> Iterator[Dict[str, np.ndarray]]:
 
     total_size = metadata.features.image.height * metadata.features.image.width
     dataset = predict_data(records_query, metadata, batch_size)()
@@ -115,10 +121,16 @@ def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
     coords = x["coords"]
     return x_con, x_cat, indices, coords
 
-def train_test(config_module: str, records_train: List[str],
-               records_test: List[str], metadata: Training,
-               model_dir: str, maxpoints: Optional[int], batchsize: int,
-               random_seed: int) -> None:
+
+def train_test(config_module: str,
+               records_train: List[str],
+               records_test: List[str],
+               metadata: Training,
+               model_dir: str,
+               maxpoints: Optional[int],
+               batchsize: int,
+               random_seed: int
+               ) -> None:
 
     log.info("Extracting and subsetting training data")
     data_tuple = _get_data(records_train, records_test, metadata, maxpoints,
@@ -148,9 +160,11 @@ def train_test(config_module: str, records_train: List[str],
         json.dump(scores, f)
 
 
-def predict(modeldir: str, metadata: Training,
-            query_records: List[str], batch_size: int) \
-        -> Iterator[Dict[str, np.ndarray]]:
+def predict(modeldir: str,
+            metadata: Training,
+            query_records: List[str],
+            batch_size: int
+            ) -> Iterator[Dict[str, np.ndarray]]:
 
     model_path = os.path.join(modeldir, "skmodel.pickle")
     with open(model_path, "rb") as f:

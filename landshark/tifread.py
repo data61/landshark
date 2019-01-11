@@ -31,7 +31,8 @@ class Band(NamedTuple):
 
 
 def shared_image_spec(path_list: List[str],
-                      ignore_crs: bool=False) -> ImageSpec:
+                      ignore_crs: bool = False
+                      ) -> ImageSpec:
     """Get the (hopefully matching) image spec from a list of images."""
     with ExitStack() as stack:
         all_images = [stack.enter_context(rasterio.open(k, "r"))
@@ -115,7 +116,8 @@ class _ImageStackSource(ArraySource):
                 marray.data[marray.mask] = self._missing
             n_missing = np.sum(marray.mask)
             if n_missing > 0:
-                log.info("Tif slice contains {} missing pixels".format(n_missing))
+                log.info(("Tif slice contains {} "
+                          "missing pixels").format(n_missing))
             data = marray.data
             data = np.moveaxis(data, 0, -1)
             out_array[..., start_band:stop_band] = data
@@ -136,7 +138,8 @@ class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
 def _match(f: Callable[[Any], Any],
            images: List[DatasetReader],
            name: str,
-           anyof: bool=False) -> Any:
+           anyof: bool = False
+           ) -> Any:
     """Return specified property of images if they match."""
     property_list = [f(k) for k in images]
     if len(images) == 1:
@@ -151,7 +154,8 @@ def _match(f: Callable[[Any], Any],
 
 
 def _match_transforms(transforms: List[Affine],
-                      images: List[DatasetReader]) -> Affine:
+                      images: List[DatasetReader]
+                      ) -> Affine:
     t0 = transforms[0]
     for t in transforms[1:]:
         if not t0.almost_equals(t):
@@ -161,7 +165,8 @@ def _match_transforms(transforms: List[Affine],
 
 def _fatal_mismatch(property_list: List[Any],
                     images: List[DatasetReader],
-                    name: str) -> NoReturn:
+                    name: str
+                    ) -> NoReturn:
     """Print a fatal log with helpful table of property mismatch."""
     assert len(property_list) == len(images)
 

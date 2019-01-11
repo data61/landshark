@@ -12,10 +12,10 @@ def test_fixedslice():
 
 
 def test_featurevalues(mocker):
-    ord_src = mocker.Mock()
+    con_src = mocker.Mock()
     cat_src = mocker.Mock()
-    x = basetypes.FeatureValues(ord_src, cat_src)
-    assert x.ordinal is ord_src
+    x = basetypes.FeatureValues(con_src, cat_src)
+    assert x.continuous is con_src
     assert x.categorical is cat_src
 
 
@@ -42,5 +42,5 @@ def test_array_source():
     assert s.missing is missing
     assert s.native == 1
     assert s.shape == x.shape
-    assert basetypes.OrdinalArraySource._dtype == basetypes.OrdinalType
+    assert basetypes.ContinuousArraySource._dtype == basetypes.ContinuousType
     assert basetypes.CoordinateArraySource._dtype == basetypes.CoordinateType

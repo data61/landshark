@@ -7,7 +7,7 @@ from glob import glob
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import List, Tuple
 
-from landshark.metadata import Training, FeatureSet
+from landshark.metadata import FeatureSet, Training
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +29,9 @@ def load_model(config_file: str) -> str:
     return module_name
 
 
-def setup_training(config: str, directory: str) -> \
-        Tuple[List[str], List[str], Training, str, str]:
+def setup_training(config: str,
+                   directory: str
+                   ) -> Tuple[List[str], List[str], Training, str, str]:
     # Get the data
     test_dir = os.path.join(directory, "testing")
     training_records = glob(os.path.join(directory, "*.tfrecord"))
@@ -55,8 +56,10 @@ def setup_training(config: str, directory: str) -> \
     return training_records, testing_records, metadata, model_dir, module_name
 
 
-def setup_query(config: str, querydir: str, checkpoint: str) \
-        -> Tuple[Training, FeatureSet, List[str], int, int, str]:
+def setup_query(config: str,
+                querydir: str,
+                checkpoint: str
+                ) -> Tuple[Training, FeatureSet, List[str], int, int, str]:
     strip_list = querydir.split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])

@@ -8,9 +8,8 @@ import tables
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
                                  ContinuousArraySource)
-from landshark.category import CategoryInfo
-from landshark.image import ImageSpec
-from landshark.featurewrite import read_target_metadata, read_feature_metadata
+from landshark.featurewrite import read_feature_metadata, read_target_metadata
+
 
 class H5ArraySource(ArraySource):
     """Note these are only used for targets! see the target specific metadata
@@ -23,8 +22,9 @@ class H5ArraySource(ArraySource):
         self.metadata = read_target_metadata(path)
         with tables.open_file(self._path, "r") as hfile:
             carray = hfile.get_node("/" + self._array_name)
-            self._shape = tuple(list(carray.shape) +
-                                [carray.atom.dtype.shape[0]])
+            self._shape = tuple(
+                list(carray.shape) + [carray.atom.dtype.shape[0]]
+            )
             self._missing = carray.attrs.missing
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
@@ -36,8 +36,11 @@ class H5ArraySource(ArraySource):
             self._coords = self._hfile.root.coordinates
         super().__enter__()
 
-    def __exit__(self, ex_type: type, ex_val: Exception,
-                 ex_tb: TracebackType) -> None:
+    def __exit__(self,
+                 ex_type: type,
+                 ex_val: Exception,
+                 ex_tb: TracebackType
+                 ) -> None:
         self._hfile.close()
         del(self._carray)
         if hasattr(self, "_coords"):
@@ -45,8 +48,10 @@ class H5ArraySource(ArraySource):
         del(self._hfile)
         super().__exit__(ex_type, ex_val, ex_tb)
 
-    def _arrayslice(self, start: int, end: int) -> \
-            Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def _arrayslice(self,
+                    start: int,
+                    end: int
+                    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
 
         # TODO: Note this is bad because I'm changing the return type.
 
@@ -78,9 +83,11 @@ class H5Features:
         self._hfile = tables.open_file(h5file, "r")
         if hasattr(self._hfile.root, "continuous_data"):
             self.continuous = self._hfile.root.continuous_data
+            assert self.metadata.continuous is not None
             self.continuous.missing = self.metadata.continuous.missing_value
         if hasattr(self._hfile.root, "categorical_data"):
             self.categorical = self._hfile.root.categorical_data
+            assert self.metadata.categorical is not None
             self.categorical.missing = self.metadata.categorical.missing_value
         if self.continuous:
             self._n = len(self.continuous)

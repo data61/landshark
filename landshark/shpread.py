@@ -9,8 +9,8 @@ import numpy as np
 import shapefile
 
 from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 CategoricalType, CoordinateArraySource,
-                                 ContinuousArraySource, ContinuousType)
+                                 CategoricalType, ContinuousArraySource,
+                                 ContinuousType, CoordinateArraySource)
 
 log = logging.getLogger(__name__)
 
@@ -56,8 +56,11 @@ def _get_dtype(labels: List[str], all_labels: List[str],
 
 
 class _AbstractShpArraySource(ArraySource):
-    def __init__(self, filename: str, labels: List[str],
-                 random_seed: int) -> None:
+    def __init__(self,
+                 filename: str,
+                 labels: List[str],
+                 random_seed: int
+                 ) -> None:
         self._sf = shapefile.Reader(filename)
         all_fields, all_dtypes = _get_recinfo(self._sf)
         self._columns = labels
@@ -80,8 +83,7 @@ class _AbstractShpArraySource(ArraySource):
         return array
 
 
-class ContinuousShpArraySource(_AbstractShpArraySource,
-                            ContinuousArraySource):
+class ContinuousShpArraySource(_AbstractShpArraySource, ContinuousArraySource):
     pass
 
 

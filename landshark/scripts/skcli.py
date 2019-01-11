@@ -7,9 +7,9 @@ from typing import NamedTuple, Optional
 
 import click
 
-from landshark import errors, skmodel
+from landshark import __version__, errors, skmodel
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import load_model, setup_query, setup_training
+from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
 
@@ -23,6 +23,7 @@ class CliArgs(NamedTuple):
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("--batch-mb", type=float, default=100,
               help="Approximate size in megabytes of data read per "
               "worker per iteration")
@@ -48,15 +49,23 @@ def cli(ctx: click.Context, verbosity: str, batch_mb: float) -> int:
 @click.option("--random_seed", type=int, default=666,
               help="Random state supplied to sklearn for reproducibility")
 @click.pass_context
-def train(ctx: click.Context, data: str, config: str,
-          maxpoints: Optional[int], random_seed: int) -> None:
+def train(ctx: click.Context,
+          data: str,
+          config: str,
+          maxpoints: Optional[int],
+          random_seed: int
+          ) -> None:
     """Train a model specified by an sklearn input configuration."""
     catching_f = errors.catch_and_exit(train_entrypoint)
     catching_f(data, config, maxpoints, random_seed, ctx.obj.batchMB)
 
 
-def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
-                     random_seed: int, batchMB: float) -> None:
+def train_entrypoint(data: str,
+                     config: str,
+                     maxpoints: Optional[int],
+                     random_seed: int,
+                     batchMB: float
+                     ) -> None:
     """Entry point for sklearn model training."""
     training_records, testing_records, metadata, model_dir, cf = \
         setup_training(config, data)
@@ -82,15 +91,21 @@ def train_entrypoint(data: str, config: str, maxpoints: Optional[int],
 @click.option("--data", type=click.Path(exists=True), required=True,
               help="Path to the query data directory")
 @click.pass_context
-def predict(ctx: click.Context, config: str, checkpoint: str,
-            data: str) -> None:
+def predict(ctx: click.Context,
+            config: str,
+            checkpoint: str,
+            data: str
+            ) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
     catching_f(config, checkpoint, data, ctx.obj.batchMB)
 
 
-def predict_entrypoint(config: str, checkpoint: str,
-                       data: str, batchMB: float) -> None:
+def predict_entrypoint(config: str,
+                       checkpoint: str,
+                       data: str,
+                       batchMB: float
+                       ) -> None:
     """Entry point for prediction with sklearn."""
     train_metadata, query_metadata, query_records, strip, nstrips, _ = \
         setup_query(config, data, checkpoint)
@@ -100,7 +115,7 @@ def predict_entrypoint(config: str, checkpoint: str,
         if train_metadata.features.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
                                     train_metadata.features.halfwidth)
-    # load_model(config)
+
     y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
                                 points_per_batch)
     write_geotiffs(y_dash_it, checkpoint, train_metadata.features.image,
