@@ -150,8 +150,9 @@ def predict(checkpoint_dir: str,
         params={"metadata": metadata, "config": cf.model}
     )
     it = estimator.predict(predict_fn, yield_single_examples=False)
-    total_size = (metadata.features.image.height *
-                  metadata.features.image.width) // params.batchsize
+    height = metadata.features.image.height
+    width = metadata.features.image.width
+    total_size = (height * width) // params.batchsize
     with tqdm(total=total_size) as pbar:
         while True:
             try:

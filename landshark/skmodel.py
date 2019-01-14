@@ -105,7 +105,7 @@ def _query_it(records_query: List[str],
                         X["con"] = _make_mask(X["con"], X["con_mask"])
                     if "cat" in X:
                         X["cat"] = _make_mask(X["cat"], X["cat_mask"])
-                    n = X['indices'].shape[0]
+                    n = X["indices"].shape[0]
                     pbar.update(n)
                     yield X
                 except tf.errors.OutOfRangeError:

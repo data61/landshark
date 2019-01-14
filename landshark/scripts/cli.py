@@ -1,4 +1,5 @@
 """Main landshark commands."""
+
 import logging
 import sys
 from typing import NamedTuple, Optional

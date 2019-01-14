@@ -1,13 +1,11 @@
 """Tests for the whole pipeline."""
+
 import os
 import shutil
 import subprocess
-import traceback
 from glob import glob
 
 import pytest
-
-from landshark.scripts import cli, extractors, importers, skcli
 
 # these data are tiny so we need a really
 # small batch size to emulate normal use
@@ -31,13 +29,16 @@ target_files = {"regression": {"target": "Na_ppm_i_1",
 def whichfeatures(request):
     return request.param
 
+
 @pytest.fixture(params=["regression", "classification"])
 def whichproblem(request):
     return request.param
 
+
 @pytest.fixture(params=[0, 2])
 def number_of_cpus(request):
     return request.param
+
 
 @pytest.fixture(params=[0, 1])
 def half_width(request):
@@ -87,7 +88,6 @@ def extract_training_data(target_file, target_name, ncpus):
     trainingdata_folder = "traintest_sirsam_fold1of10"
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
-
 
 
 def extract_query_data(feature_file, ncpus):

@@ -70,6 +70,7 @@ def test_patch_44():
                             [-1, -1, -1]], dtype=int)
     assert np.all(true_answer == p_data)
 
+
 def test_patch_44_mask():
     """Check that patches are correctly created from points in 00 corner."""
     halfwidth = 1
@@ -92,7 +93,7 @@ def test_patch_44_mask():
 
 
 def test_patch_02():
-    """Check patch code in x edge"""
+    """Check patch code in x edge."""
     halfwidth = 1
     im_width = 5
     im_height = 5
@@ -158,7 +159,7 @@ def test_patch_20():
     assert np.all(true_answer == p_data)
 
 
-def test_patch_02_mask():
+def test_patch_20_mask():
     """Check that patches are correctly created from points in 00 corner."""
     halfwidth = 1
     im_width = 5

@@ -1,4 +1,5 @@
 """Importing routines for tif data."""
+
 import logging
 from typing import Iterator, List, Optional, Tuple, TypeVar
 
@@ -39,7 +40,7 @@ def write_feature_metadata(meta: FeatureSet, hfile: tables.File) -> None:
 
 
 def read_feature_metadata(path: str) -> FeatureSet:
-    with tables.open_file(path, 'r') as hfile:
+    with tables.open_file(path, "r") as hfile:
         N = hfile.root._v_attrs.N
         halfwidth = hfile.root._v_attrs.halfwidth
         image_spec = read_imagespec(hfile)
@@ -62,7 +63,7 @@ def write_target_metadata(meta: Target, hfile: tables.File) -> None:
 
 
 def read_target_metadata(path: str) -> Target:
-    with tables.open_file(path, 'r') as hfile:
+    with tables.open_file(path, "r") as hfile:
         if hasattr(hfile.root, "continuous_data"):
             continuous = _read_continuous_target_metadata(hfile)
             return continuous
@@ -210,8 +211,7 @@ def write_categorical(source: CategoricalArraySource,
                       batchrows: Optional[int] = None,
                       maps: Optional[np.ndarray] = None
                       ) -> None:
-    transform = CategoryMapper(maps, source.missing) \
-        if maps else IdWorker()
+    transform = CategoryMapper(maps, source.missing) if maps else IdWorker()
     n_workers = n_workers if maps else 0
     _write_source(source, hfile, tables.Int32Atom(source.shape[-1]),
                   "categorical_data", transform, n_workers, batchrows)

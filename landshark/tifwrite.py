@@ -63,7 +63,7 @@ def _make_writer(directory: str,
         "transform": image_spec.affine
     }
     fname = os.path.join(directory, label + ".tif")
-    f = rs.open(fname, 'w', **params)
+    f = rs.open(fname, "w", **params)
     writer = BatchWriter(f, width=image_spec.width, height=image_spec.height,
                          dtype=dtype)
     return writer

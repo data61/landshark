@@ -1,4 +1,5 @@
 """Generic classification config file."""
+
 import tensorflow as tf
 from tensorflow.estimator import ModeKeys
 
@@ -83,13 +84,12 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
         # note this demo assumes each column is 1D (hence the zero index into
         # nvalues)
-        nvalues = {k : v.nvalues[0] + 1
+        nvalues = {k: v.nvalues[0] + 1
                    for k, v in metadata.features.categorical.columns.items()}
         embedding_dims = {k: 3 for k in X_cat.keys()}
         inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
-                                                    embedding_dims)
+                                                      embedding_dims)
         inputs_list.append(inputs_cat)
-
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
@@ -105,7 +105,7 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
     # Compute predictions.
     if mode == ModeKeys.PREDICT:
-        predictions = {'predictions_{}'.format(
+        predictions = {"predictions_{}".format(
             metadata.targets.labels[0]): predicted_classes}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
@@ -113,11 +113,11 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
     Y = Y[:, 0]
     ll_f = tf.distributions.Categorical(logits=phi)
     loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
-    tf.summary.scalar('loss', loss)
+    tf.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
     acc = tf.metrics.accuracy(labels=Y, predictions=predicted_classes)
-    metrics = {'accuracy': acc}
+    metrics = {"accuracy": acc}
 
     if mode == ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(

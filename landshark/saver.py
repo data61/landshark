@@ -63,7 +63,7 @@ class BestScoreSaver:
         score_file = os.path.join(score_path, "model_best.json")
         overwrite = True
         if os.path.exists(score_file):
-            with open(score_file, 'r') as f:
+            with open(score_file, "r") as f:
                 best_scores = json.load(f)
             if best_scores[s] > score:
                 overwrite = False
@@ -75,7 +75,7 @@ class BestScoreSaver:
                      global_step: int
                      ) -> None:
         score_file = os.path.join(score_path, "model_best.json")
-        with open(score_file, 'w') as f:
+        with open(score_file, "w") as f:
             json.dump(scores, f)
         checkpoint_files = glob(os.path.join(self.directory,
                                 "model.ckpt-{}*".format(global_step)))

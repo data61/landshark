@@ -79,13 +79,12 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
         # note this demo assumes each column is 1D (hence the zero index into
         # nvalues)
-        nvalues = {k : v.nvalues[0] + 1 for k, v in
-                metadata.features.categorical.columns.items()}
+        nvalues = {k: v.nvalues[0] + 1 for k, v in
+                   metadata.features.categorical.columns.items()}
         embedding_dims = {k: 3 for k in X_cat.keys()}
         inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
                                                       embedding_dims)
         inputs_list.append(inputs_cat)
-
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
@@ -97,19 +96,19 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
     # Compute predictions.
     if mode == ModeKeys.PREDICT:
-        predictions = {'predictions_{}'.format(l): phi[:, i]
+        predictions = {"predictions_{}".format(l): phi[:, i]
                        for i, l in enumerate(metadata.targets.labels)}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
     ll_f = tf.distributions.Normal(loc=phi, scale=1.0)
     loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
-    tf.summary.scalar('loss', loss)
+    tf.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
     mse = tf.metrics.mean_squared_error(labels=Y,
                                         predictions=phi)
-    metrics = {'mse': mse}
+    metrics = {"mse": mse}
 
     if mode == ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(

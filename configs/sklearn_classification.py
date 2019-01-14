@@ -1,5 +1,6 @@
 """Model config file."""
-from typing import Dict, Optional, Tuple
+
+from typing import Dict
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -12,16 +13,17 @@ NTREES = 100
 
 class SKModel:
     def __init__(self, metadata, random_seed) -> None:
-        self.con_imp = SimpleImputer(strategy="mean",
-                               verbose=0, copy=True)
+        self.con_imp = SimpleImputer(strategy="mean", verbose=0, copy=True)
         self.cat_imp = SimpleImputer(missing_values=-1,
-                               strategy="most_frequent",
-                               verbose=0, copy=True)
+                                     strategy="most_frequent",
+                                     verbose=0, copy=True)
         psize = (2 * metadata.features.halfwidth + 1)**2
         self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
-            n_values = np.array([k.nvalues.flatten()[0] for k in \
-                        metadata.features.categorical.columns.values()])
+            n_values = np.array([
+                k.nvalues.flatten()[0] for k in
+                metadata.features.categorical.columns.values()
+            ])
             self.enc = OneHotEncoder(categories=[range(k) for k in n_values],
                                      dtype=np.float32, sparse=False)
 
@@ -56,7 +58,6 @@ class SKModel:
         acc = accuracy_score(Y, predictions["predictions_" + self.label])
         return {"accuracy": acc}
 
-
     def predict(self, X_con, X_cat, indices, coords) \
             -> Dict[str, np.ndarray]:
         X_list = []
@@ -75,5 +76,5 @@ class SKModel:
             X_list.append(X_imputed)
         X = np.concatenate(X_list, axis=1)
         Ey = self.est.predict(X)
-        predictions = {'predictions_' + self.label: Ey}
+        predictions = {"predictions_" + self.label: Ey}
         return predictions
