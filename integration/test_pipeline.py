@@ -11,18 +11,32 @@ import pytest
 # small batch size to emulate normal use
 BATCH_MB = 0.001
 
-model_files = {"regression": {"landshark": "nn_regression.py",
-                              "skshark": "sklearn_regression.py"},
-               "classification": {"landshark": "nn_classification.py",
-                                  "skshark": "sklearn_classification.py"}}
+model_files = {
+    "regression": {
+        "landshark": "nn_regression.py",
+        "skshark": "sklearn_regression.py"
+    },
+    "classification": {
+        "landshark": "nn_classification.py",
+        "skshark": "sklearn_classification.py"
+    }
+}
 
-training_args = {"landshark": ["--epochs", "200", "--iterations", "5"],
-                 "skshark": []}
+training_args = {
+    "landshark": ["--epochs", "200", "--iterations", "5"],
+    "skshark": []
+}
 
-target_files = {"regression": {"target": "Na_ppm_i_1",
-                               "args": ["--dtype", "continuous"]},
-                "classification": {"target": "SAMPLETYPE",
-                                   "args": ["--dtype", "categorical"]}}
+target_files = {
+    "regression": {
+        "target": "Na_ppm_i_1",
+        "args": ["--dtype", "continuous"]
+    },
+    "classification": {
+        "target": "SAMPLETYPE",
+        "args": ["--dtype", "categorical"]
+    }
+}
 
 
 @pytest.fixture(params=["continuous-only", "categorical-only", "both"])
@@ -57,69 +71,75 @@ def _run(cmd):
     assert proc.returncode == 0
 
 
-def import_tifs(cat_dir, con_dir, feature_string, ncpus):
+def import_tifs(runner, cat_dir, con_dir, feature_string, ncpus):
     tif_import_args = ["--categorical", cat_dir, "--continuous", con_dir,
                        "--ignore-crs"]
     if feature_string == "continuous-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
         tif_import_args = tif_import_args[:2] + ["--ignore-crs"]
-    _run(["landshark-import", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-          "tifs", "--name", "sirsam"] + tif_import_args)
+    runner.run(["landshark-import", "--nworkers", ncpus,
+                "--batch-mb", BATCH_MB, "tifs", "--name", "sirsam"
+                ] + tif_import_args)
     feature_file = "features_sirsam.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
 
 
-def import_targets(target_dir, target_name, target_flags, ncpus):
+def import_targets(runner, target_dir, target_name, target_flags, ncpus):
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(["landshark-import", "--batch-mb", BATCH_MB, "targets",
-          "--shapefile", target_file, "--name", target_name] +
-         target_flags + ["--record", target_name])
+    runner.run(["landshark-import", "--batch-mb", BATCH_MB, "targets",
+                "--shapefile", target_file, "--name", target_name,
+                "--record", target_name] + target_flags)
     target_file = "targets_{}.hdf5".format(target_name)
     assert os.path.isfile(target_file)
     return target_file
 
 
-def extract_training_data(target_file, target_name, ncpus):
-    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb",
-          BATCH_MB, "traintest", "--features", "features_sirsam.hdf5",
-          "--split", 1, 10, "--targets", target_file, "--name", "sirsam"])
+def extract_training_data(runner, target_file, target_name, ncpus):
+    runner.run([
+        "landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+        "traintest", "--features", "features_sirsam.hdf5", "--split", 1, 10,
+        "--targets", target_file, "--name", "sirsam"
+    ])
     trainingdata_folder = "traintest_sirsam_fold1of10"
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
 
 
-def extract_query_data(feature_file, ncpus):
-    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-          "query", "--features", feature_file, "--strip", 5, 10,
-          "--name", "sirsam"])
+def extract_query_data(runner, feature_file, ncpus):
+    runner.run([
+        "landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+        "query", "--features", feature_file, "--strip", 5, 10,
+        "--name", "sirsam"
+    ])
     querydata_folder = "query_sirsam_strip5of10"
     assert os.path.isdir(querydata_folder)
     return querydata_folder
 
 
-def train(cmd, model_dir, model_filename, trainingdata_folder, training_args):
-    _run([cmd] + ["train"] + training_args +
-         ["--data", trainingdata_folder, "--config", model_filename])
+def train(runner, cmd, model_dir, model_filename, trainingdata_folder,
+          training_args):
+    runner.run([cmd, "train", "--data", trainingdata_folder,
+                "--config", model_filename] + training_args)
     trained_model_dir = "{}_model_1of10".format(
         os.path.basename(model_filename).split(".py")[0])
     assert os.path.isdir(trained_model_dir)
     return trained_model_dir
 
 
-def predict(cmd, model_filename, trained_model_dir,
+def predict(runner, cmd, model_filename, trained_model_dir,
             querydata_folder, target_name):
-    _run([cmd] + ["--batch-mb", BATCH_MB, "predict",
-                  "--config", model_filename,
-                  "--checkpoint", trained_model_dir,
-                  "--data", querydata_folder])
+    runner.run([cmd] + ["--batch-mb", BATCH_MB, "predict",
+                        "--config", model_filename,
+                        "--checkpoint", trained_model_dir,
+                        "--data", querydata_folder])
     image_filename = "predictions_{}_5of10.tif".format(target_name)
     image_path = os.path.join(trained_model_dir, image_filename)
     assert os.path.isfile(image_path)
 
 
-def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
+def test_full_pipeline(runner, tmpdir, data_loc, whichfeatures, whichproblem,
                        whichalgo, number_of_cpus, half_width):
     con_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     os.chdir(os.path.abspath(tmpdir))
@@ -137,19 +157,20 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
 
     # need to make isolated filesystem
     print("Importing tifs...")
-    feature_file = import_tifs(cat_dir, con_dir, whichfeatures, ncpus)
+    feature_file = import_tifs(runner, cat_dir, con_dir, whichfeatures, ncpus)
     print("Importing targets...")
-    target_file = import_targets(target_dir, target_name, target_flags, ncpus)
+    target_file = import_targets(runner, target_dir, target_name, target_flags,
+                                 ncpus)
     print("Extracting training data...")
-    trainingdata_folder = extract_training_data(target_file,
+    trainingdata_folder = extract_training_data(runner, target_file,
                                                 target_name, ncpus)
     print("Extracting query data...")
-    querydata_folder = extract_query_data(feature_file, ncpus)
+    querydata_folder = extract_query_data(runner, feature_file, ncpus)
     print("Training...")
-    trained_model_dir = train(whichalgo, model_dir, model_path,
+    trained_model_dir = train(runner, whichalgo, model_dir, model_path,
                               trainingdata_folder, train_args)
     print("Predicting...")
-    predict(whichalgo, model_path, trained_model_dir,
+    predict(runner, whichalgo, model_path, trained_model_dir,
             querydata_folder, target_name)
     print("Cleaning up...")
 

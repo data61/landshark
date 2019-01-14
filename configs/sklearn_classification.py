@@ -51,14 +51,14 @@ class SKModel:
         X = np.concatenate(X_list, axis=1)
         self.est.fit(X, Y)
 
-    def test(self, Y: np.array, predictions: Dict[str, np.array]) \
-            -> Dict[str, np.ndarray]:
+    def test(self, Y: np.array,
+             predictions: Dict[str, np.array]
+             ) -> Dict[str, np.ndarray]:
         Y = Y[:, 0]
         acc = accuracy_score(Y, predictions["predictions_" + self.label])
         return {"accuracy": acc}
 
-    def predict(self, X_con, X_cat, indices, coords) \
-            -> Dict[str, np.ndarray]:
+    def predict(self, X_con, X_cat, indices, coords) -> Dict[str, np.ndarray]:
         X_list = []
         if X_cat is not None:
             X_cat = np.ma.concatenate(list(X_cat.values()), axis=1)
