@@ -73,18 +73,17 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
         inputs_list.append(inputs_con)
 
     if X_cat:
-
         # impute as an extra category
-        extra_cat = {k: metadata.features.columns[k].mappings.shape[0]
-                     for k in X_cat}
+        extra_cat = {
+            k: metadata.features.categorical.columns[k].mapping.shape[0]
+            for k in X_cat
+        }
         X_cat = {k: utils.value_impute(
             X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
             for k in X_cat}
         X_cat = {k: utils.flatten_patch(v) for k, v in X_cat.items()}
 
-        # note this demo assumes each column is 1D (hence the zero index into
-        # nvalues)
-        nvalues = {k: v.nvalues[0] + 1
+        nvalues = {k: v.nvalues + 1
                    for k, v in metadata.features.categorical.columns.items()}
         embedding_dims = {k: 3 for k in X_cat.keys()}
         inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
@@ -120,8 +119,8 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
     metrics = {"accuracy": acc}
 
     if mode == ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(
-            mode, loss=loss, eval_metric_ops=metrics)
+        return tf.estimator.EstimatorSpec(mode, loss=loss,
+                                          eval_metric_ops=metrics)
 
     # For training, use Adam to learn
     assert mode == ModeKeys.TRAIN
