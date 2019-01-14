@@ -17,7 +17,6 @@ class SKModel:
         self.cat_imp = SimpleImputer(missing_values=-1,
                                      strategy="most_frequent",
                                      verbose=0, copy=True)
-        psize = (2 * metadata.features.halfwidth + 1)**2
         self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
             n_values = np.array([

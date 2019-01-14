@@ -38,7 +38,7 @@ setup(
         "mypy_extensions>=0.3.0",
         "lru-dict>=1.1.6",
         "tqdm>=4.19.6",
-        "scikit-learn>=0.19.1",
+        "scikit-learn>=0.20.0",
         "tensorflow>=1.7"
     ],
     extras_require={
