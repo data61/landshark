@@ -1,9 +1,11 @@
 """Configuration for test suite."""
+
 import os
 import warnings
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 from click.testing import CliRunner, Result
 
 from landshark.scripts import cli, extractors, importers, skcli
@@ -13,8 +15,8 @@ warnings.filterwarnings("ignore", category=ImportWarning)
 
 
 @pytest.fixture(scope="module")
-def data_loc(request):
-    """Return the directory of the currently running test script"""
+def data_loc(request: FixtureRequest) -> Tuple[str, str, str, str, str]:
+    """Return the directory of the currently running test script."""
     test_dir = request.fspath.join("..")
     data_dir = os.path.join(test_dir, "data")
     target_dir = os.path.join(data_dir, "targets")
@@ -46,7 +48,7 @@ class LandsharkCliRunner(CliRunner):
         """Execute CLI command using click CliRunner and assert success."""
         assert len(cmd) > 1
         cmd_str = [str(k) for k in cmd]
-        print("Runinng command: {}".format(" ".join(cmd_str)))
+        print("Running command: {}".format(" ".join(cmd_str)))
         fn = self.cli_fns[cmd_str[0]]
         args = cmd_str[1:]
         result = self.invoke(fn, args)
@@ -55,6 +57,6 @@ class LandsharkCliRunner(CliRunner):
 
 
 @pytest.fixture(scope="module")
-def runner():
+def runner() -> LandsharkCliRunner:
     """CLI runner."""
     return LandsharkCliRunner()

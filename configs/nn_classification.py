@@ -1,11 +1,24 @@
 """Generic classification config file."""
 
+from typing import Dict, Optional, cast
+
 import tensorflow as tf
 from tensorflow.estimator import ModeKeys
 
+from landshark import config as utils
+from landshark.metadata import CategoricalTarget, Training
 
-def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
-          image_indices, coordinates, metadata, utils):
+
+def model(mode: ModeKeys,
+          X_con: Optional[Dict[str, tf.Tensor]],
+          X_con_mask: Optional[Dict[str, tf.Tensor]],
+          X_cat: Optional[Dict[str, tf.Tensor]],
+          X_cat_mask: Optional[Dict[str, tf.Tensor]],
+          Y: tf.Tensor,
+          image_indices: tf.Tensor,
+          coordinates: tf.Tensor,
+          metadata: Training,
+          ) -> tf.estimator.EstimatorSpec:
     """
     Describe the specification of a Tensorflow custom estimator model.
 
@@ -16,7 +29,7 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
 
     Parameters
     ----------
-    mode : tf.estimator.ModeSpec
+    mode : tf.estimator.ModeKeys
         One of TRAIN, TEST or EVAL, describing in which context this code
         is being run by the estimator.
     coordinates : tf.Tensor
@@ -37,30 +50,27 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
         A (?, k) tensor giving the k targets for the prediction.
     image_indices : tf.Tensor
         A (?, 2) the image coordinates of features
-    params : dict
-        Extra params given by the estimator.
+    coordinates : tf.Tensor
+        A (?, 2) the world coordinates (x, y) of features
     metadata : Metadata
         The metadata object has comprehensive information about the features
         and targets useful for model building (for example, the number of
         possible values for each categorical column). For more details
         check the landshark documentation.
-    utils : module
-        A module of useful functions for doing things like imputing missing
-        data and embedding categorical features. For more details see the
-        landshark documentation.
 
     Returns
     -------
-    tf.EstimatorSpec
+    tf.estimator.EstimatorSpec
         An EstimatorSpec object describing the model. For details check
         the Tensorflow custom estimator howto.
 
     """
     # Single-task classification
-    nvalues_target = metadata.targets.nvalues[0]
+    nvalues_target = cast(CategoricalTarget, metadata.targets).nvalues[0]
 
     inputs_list = []
     if X_con:
+        assert X_con_mask
         # let's 0-impute continuous columns
         X_con = {k: utils.value_impute(X_con[k], X_con_mask[k],
                                        tf.constant(0.0)) for k in X_con}
@@ -73,6 +83,7 @@ def model(mode, X_con, X_con_mask, X_cat, X_cat_mask, Y,
         inputs_list.append(inputs_con)
 
     if X_cat:
+        assert X_cat_mask and metadata.features.categorical
         # impute as an extra category
         extra_cat = {
             k: metadata.features.categorical.columns[k].mapping.shape[0]

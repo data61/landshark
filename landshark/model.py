@@ -9,7 +9,6 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from landshark import config as util_module
 from landshark.metadata import Training
 from landshark.saver import BestScoreSaver
 from landshark.serialise import deserialise
@@ -182,8 +181,7 @@ def _model_wrapper(features: Dict[str, tf.Tensor],
         cat = features["cat"]
         cat_mask = features["cat_mask"]
     result = model_fn(mode, con, con_mask, cat, cat_mask, labels,
-                      features["indices"], features["coords"],
-                      metadata, util_module)
+                      features["indices"], features["coords"], metadata)
     return result
 
 

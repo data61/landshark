@@ -2,10 +2,11 @@
 
 import os
 import shutil
-import subprocess
 from glob import glob
+from typing import Any
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 
 # these data are tiny so we need a really
 # small batch size to emulate normal use
@@ -40,35 +41,28 @@ target_files = {
 
 
 @pytest.fixture(params=["continuous-only", "categorical-only", "both"])
-def whichfeatures(request):
+def whichfeatures(request: FixtureRequest) -> Any:
     return request.param
 
 
 @pytest.fixture(params=["regression", "classification"])
-def whichproblem(request):
+def whichproblem(request: FixtureRequest) -> Any:
     return request.param
 
 
 @pytest.fixture(params=[0, 2])
-def number_of_cpus(request):
+def number_of_cpus(request: FixtureRequest) -> Any:
     return request.param
 
 
 @pytest.fixture(params=[0, 1])
-def half_width(request):
+def half_width(request: FixtureRequest) -> Any:
     return request.param
 
 
 @pytest.fixture(params=["landshark", "skshark"])
-def whichalgo(request):
+def whichalgo(request: FixtureRequest) -> Any:
     return request.param
-
-
-def _run(cmd):
-    cmd_str = [str(k) for k in cmd]
-    print("Runinng command: {}".format(cmd_str))
-    proc = subprocess.run(cmd_str, stdout=subprocess.PIPE)
-    assert proc.returncode == 0
 
 
 def import_tifs(runner, cat_dir, con_dir, feature_string, ncpus):
