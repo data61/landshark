@@ -30,7 +30,6 @@ setup(
         "numpy>=1.13.3,<1.16",  # pytables<=3.4.4 has a problem with numpy==1.16
         "scipy>=0.19",
         "click>=6.7",
-        "pygdal>=2.0.1",
         "rasterio>=1.0.2",
         "tables>=3.4.2",
         "pyshp>=1.2.12",
