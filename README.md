@@ -34,12 +34,12 @@ mainly for validation purposes).
 
  The following will need to be installed before installing Landshark:
 
- - Python 3.5+
+ - Python 3.6+
  - GDAL 2.0.1+
  - Tensorflow 1.6+
 
-Note that if tensorflow isn't found during Landshark installation, 
-pip will install the pre-compiled version which has horrible performance. 
+Note that if tensorflow isn't found during Landshark installation,
+pip will install the pre-compiled version which has horrible performance.
 Make sure you compile tensorflow yourself!
 
 ### Installing Landshark
@@ -77,7 +77,7 @@ The basic steps in using Landshark are:
 
 1. Import geotiffs and a target shapefile with `landshark-import`,
 2. Extract training/testing and query data with `landshark-extract`,
-3. Train a model and predict with the `landshark` command, 
+3. Train a model and predict with the `landshark` command,
    or `skshark` for scikit-learn models.
 
 ## Data Prerequisites
@@ -104,7 +104,7 @@ requirements for data input:
 ## Usage Example
 
 We have say a dozen `.tif` covariates stored between our `./con_images` and
-`./cat_images` folder. We have a target shapefile in our `./targets` folder. 
+`./cat_images` folder. We have a target shapefile in our `./targets` folder.
 We're going to use the `landshark-import` command to get our data into a format
 useable by landshark.
 
@@ -116,7 +116,7 @@ We start by creating a tiff stack called "murray".
 $ landshark-import tifs --continuous con_images/ --categorical cat_images --name murray
 ```
 
-The result of this command will be a file in the current directory called 
+The result of this command will be a file in the current directory called
 `features_murray.hdf5`. Similarly, we import some "Sodium" targets from
 a shapefile. Note we can import as many records as we like using multiple
 `--record` flags:
@@ -131,7 +131,7 @@ From this command, landshark will output `targets_sodium.hdf5`.
 ### 2. Extract Train/test and Query Data
 
 Let's try putting together a regression problem from the data we just imported.
-We're going to use the `landshark-extract` command  for this. 
+We're going to use the `landshark-extract` command  for this.
 Starting with a train/test set, we use the 'traintest' sub-command:
 
 ```bash
@@ -192,7 +192,7 @@ There are two global options for all these commands:
 
 Option | Argument | Description
 | --- | --- | --- |
-`-v,--verbosity` | `DEBUG\|INFO\|WARNING\|ERROR` | Level of logging
+`-v,--verbosity` | `DEBUG|INFO|WARNING|ERROR` | Level of logging
 `--help` | | Print command help including option descriptions
 
 
@@ -251,7 +251,7 @@ Flag | Argument | Description
 `--name` | `STRING` | A name describing the target set being constructed.
 `--shapefile` | `SHAPEFILE` | The shapefile from which to extract. Use the actual `.shp` file here.
 `--record` | `STRING` | A record to extract for each point as a target. This argument can be given multiple times to extract multiple records.
-`--dtype` | `[continuous\|categorical]` | The type of target, either continuous for regression or categorical for classification.
+`--dtype` | `[continuous|categorical]` | The type of target, either continuous for regression or categorical for classification.
 
 Optional Arguments:
 
@@ -303,7 +303,7 @@ Optional Arguments:
 
 Option | Argument | Default | Description
 | --- | --- | --- | --- |
-`--strip` | `INT>0` `INT>0` | 1 1 | The horizontal strip of the image to extract.  The second argument is the number of horizontal strips to divide the image, the first argument is the index (from 1) of those strips. For example, `--strip 3 5` is the 3rd strip of 5. 
+`--strip` | `INT>0` `INT>0` | 1 1 | The horizontal strip of the image to extract.  The second argument is the number of horizontal strips to divide the image, the first argument is the index (from 1) of those strips. For example, `--strip 3 5` is the 3rd strip of 5.
 `--halfwith` | `INT>=0` | 0 | The size of the patch to extract around each target, such that 0 is no patch, 1 is a 3x3 patch, 2 is 5x5 etc...
 
 
@@ -394,7 +394,7 @@ Therefore, if we need to do more than a couple of reads from that big geotiff
 stack, it saves a lot of time to first re-order all that data to
 'band-interleaved by pixel'. We could do this back to geotiff, but HDF5 is
 convenient and allows us to store some extra data (and reading is higher
-performance too). 
+performance too).
 
 
 ### Configuration as Code
@@ -420,8 +420,3 @@ often come across are custom likelihood functions in Bayesian algorithms.
 
 
 ### skshark
-
-
-
-
-
