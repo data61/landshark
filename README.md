@@ -192,7 +192,7 @@ There are two global options for all these commands:
 
 Option | Argument | Description
 | --- | --- | --- |
-`-v,--verbosity` | `DEBUG|INFO|WARNING|ERROR` | Level of logging
+`-v,--verbosity` | `DEBUG\|INFO\|WARNING\|ERROR` | Level of logging
 `--help` | | Print command help including option descriptions
 
 
@@ -251,7 +251,7 @@ Flag | Argument | Description
 `--name` | `STRING` | A name describing the target set being constructed.
 `--shapefile` | `SHAPEFILE` | The shapefile from which to extract. Use the actual `.shp` file here.
 `--record` | `STRING` | A record to extract for each point as a target. This argument can be given multiple times to extract multiple records.
-`--dtype` | `[continuous|categorical]` | The type of target, either continuous for regression or categorical for classification.
+`--dtype` | `[continuous\|categorical]` | The type of target, either continuous for regression or categorical for classification.
 
 Optional Arguments:
 
