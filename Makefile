@@ -42,10 +42,10 @@ test:
 	py.test --cov=./landshark --cache-clear tests landshark
 
 integration:
-	py.test --cache-clear integration
+	py.test -v --cache-clear integration
 
 integration-xml:
-	py.test --junit-xml=test_output/integration/results.xml  --cache-clear integration
+	py.test -v --junit-xml=test_output/integration/results.xml  --cache-clear integration
 
 test-xml:
 	py.test --junit-xml=test_output/pytest/results.xml --cov=./landshark --cov-report=html:test_output/coverage --cache-clear --cov-fail-under=15 tests landshark
