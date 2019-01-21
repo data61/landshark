@@ -164,6 +164,7 @@ def query_entrypoint(features: str,
                      strip: Tuple[int, int],
                      name: str
                      ) -> int:
+    """Entrypoint for extracting query data."""
     strip_idx, totalstrips = strip
     assert strip_idx > 0 and strip_idx <= totalstrips
 

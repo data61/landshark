@@ -1,7 +1,7 @@
 """Importing routines for tif data."""
 
 import logging
-from typing import Iterator, List, Optional, Tuple, TypeVar
+from typing import List, Optional, Tuple, TypeVar
 
 import numpy as np
 import tables
@@ -22,11 +22,6 @@ log = logging.getLogger(__name__)
 
 
 T = TypeVar("T")
-
-
-def _cat(it: Iterator[Iterator[T]]) -> List[T]:
-    result = [i for k in it for i in k]
-    return result
 
 
 def write_feature_metadata(meta: FeatureSet, hfile: tables.File) -> None:

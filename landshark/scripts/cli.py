@@ -118,6 +118,7 @@ def predict(
 
 def predict_entrypoint(config: str, checkpoint: str, data: str,
                        batchMB: float, gpu: bool) -> None:
+    """Entrypoint for predict function."""
     train_metadata, feature_metadata, query_records, strip, nstrips, cf = \
         setup_query(config, data, checkpoint)
     ndim_con = len(feature_metadata.continuous.columns) \

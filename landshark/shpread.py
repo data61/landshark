@@ -29,8 +29,7 @@ def _extract_type(python_type: type, field_length: int) -> np.dtype:
     return result
 
 
-def _get_recinfo(shp: shapefile.Reader) \
-        -> Tuple[List[str], List[np.dtype]]:
+def _get_recinfo(shp: shapefile.Reader) -> Tuple[List[str], List[np.dtype]]:
     field_list = shp.fields[1:]
     labels, type_strings, nbytes, decimals = zip(*field_list)
     record0 = shp.record(0)

@@ -10,10 +10,8 @@ from landshark.basetypes import FixedSlice
 T = TypeVar("T")
 
 
-def batch(it: Iterator[T],
-          batchsize: int,
-          total_size: int
-          ) -> Iterator[List[T]]:
+def batch(it: Iterator[T], batchsize: int) -> Iterator[List[T]]:
+    """Group iterator into batches."""
     while True:
         batch = list(itertools.islice(it, batchsize))
         if not batch:
@@ -22,20 +20,19 @@ def batch(it: Iterator[T],
 
 
 def batch_slices(batchsize: int, total_size: int) -> Iterator[FixedSlice]:
+    """Group range indices into slices of a given batchsize."""
     n = total_size // batchsize
     ret = [(i * batchsize, (i + 1) * batchsize) for i in range(n)]
     if total_size % batchsize != 0:
         ret.append((n * batchsize, total_size))
 
-    # with tqdm(total=total_size) as pbar:
     for start, stop in ret:
         yield FixedSlice(start, stop)
-        # pbar.update(stop - start)
 
 
 def with_slices(it: Iterator[np.ndarray]
                 ) -> Iterator[Tuple[FixedSlice, np.ndarray]]:
-    """Needs iterator over ndarrays."""
+    """Add slice into vstacked array to each sub array in `it`."""
     start_idx = 0
     for d in it:
         end_idx = start_idx + d.shape[0]

@@ -98,8 +98,8 @@ def tifs_entrypoint(nworkers: int,
     """Entrypoint for tifs without click cruft."""
     out_filename = os.path.join(os.getcwd(), "features_{}.hdf5".format(name))
 
-    con_filenames = tifnames(list(continuous))
-    cat_filenames = tifnames(list(categorical))
+    con_filenames = tifnames(continuous)
+    cat_filenames = tifnames(categorical)
     log.info("Found {} continuous TIF files".format(len(con_filenames)))
     log.info("Found {} categorical TIF files".format(len(cat_filenames)))
     has_con = len(con_filenames) > 0

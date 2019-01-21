@@ -39,7 +39,7 @@ lint-xml:
 	py.test --junit-xml=test_output/flake8/results.xml --flake8 ./landshark -p no:regtest --cache-clear
 
 test:
-	py.test --cov=./landshark --cache-clear tests landshark
+	py.test --cov=./landshark --cov-report term-missing --cache-clear tests landshark
 
 integration:
 	py.test -v --cache-clear integration

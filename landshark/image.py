@@ -360,7 +360,6 @@ def _indices_query(image_width: int,
                           dtype=IndexType)
 
     coords_it = product(height_ind, width_ind)
-    total_size = len(height_ind) * len(width_ind)
-    batch_it = iteration.batch(coords_it, batchsize, total_size)
+    batch_it = iteration.batch(coords_it, batchsize)
     array_it = map(_array_pair_it, batch_it)
     return array_it
