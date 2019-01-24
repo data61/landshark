@@ -187,7 +187,9 @@ def _model_wrapper(features: Dict[str, tf.Tensor],
 
 def _log_scores(scores: Dict[str, np.ndarray]) -> None:
     """Log testing scores."""
-    logmsg = "Evaluation scores: "
-    for k, v in scores.items():
-        logmsg += "{} = {}, ".format(k, v)
+    scores_str = ", ".join(
+        [f"{k}={v:.4f}" for k, v in scores.items() if k != "global_step"]
+    )
+    step_str = f"global_step={scores['global_step']}"
+    logmsg = f"Evaluation scores ({step_str}): {scores_str}"
     log.info(logmsg)
