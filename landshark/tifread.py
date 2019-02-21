@@ -116,8 +116,8 @@ class _ImageStackSource(ArraySource):
                 marray.data[marray.mask] = self._missing
             n_missing = np.sum(marray.mask)
             if n_missing > 0:
-                log.info(("Tif slice contains {} "
-                          "missing pixels").format(n_missing))
+                log.debug(("Tif slice contains {} "
+                           "missing pixels").format(n_missing))
             data = marray.data
             data = np.moveaxis(data, 0, -1)
             out_array[..., start_band:stop_band] = data
