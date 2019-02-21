@@ -92,6 +92,11 @@ def _split_on_mask(data: List[bytes],
                    testfold: int
                    ) -> Tuple[List[bytes], List[bytes]]:
     mask = folds != testfold
+
+    # in the case of one fold/no testing data
+    if np.amax(folds) == 1:
+        return data, data
+
     nmask = ~mask
     train_batch = [data[i] for i, m in enumerate(mask) if m]
     test_batch = [data[i] for i, m in enumerate(nmask) if m]
