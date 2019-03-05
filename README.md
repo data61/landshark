@@ -2,6 +2,7 @@
 
 Large-scale spatial inference with Tensorflow.
 
+[![CircleCI](https://circleci.com/gh/data61/landshark.svg?style=svg)](https://circleci.com/gh/data61/landshark)
 
 ## Introduction
 
