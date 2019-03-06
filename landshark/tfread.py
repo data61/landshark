@@ -32,7 +32,7 @@ def _load_config(module_name: str, path: str) -> None:
     cf = module_from_spec(modspec)
     if not modspec.loader:
         raise RuntimeError("Could not load configuration module")
-    modspec.loader.exec_module(cf)
+    modspec.loader.exec_module(cf)  # type: ignore
     # needed for pickling??
     sys.modules[module_name] = cf
 
