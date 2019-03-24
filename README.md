@@ -93,7 +93,7 @@ requirements for data input:
 4. The projection of the targets is the same as that of the geotiffs
 4. All target points are inside the bounding box of the geotiffs
 5. The covariate images are also those used for prediction (i.e, the prediction
-   image will come out with the same resultion and bounding box as the
+   image will come out with the same resolution and bounding box as the
    covariate images)
 6. Geotiffs may have multiple bands, and different geotiffs may have different
    datatypes (eg uint8, float32), but within a single geotiff all bands must
@@ -107,7 +107,7 @@ requirements for data input:
 We have say a dozen `.tif` covariates stored between our `./con_images` and
 `./cat_images` folder. We have a target shapefile in our `./targets` folder.
 We're going to use the `landshark-import` command to get our data into a format
-useable by landshark.
+usable by landshark.
 
 ### 1. Import the data
 
@@ -159,11 +159,11 @@ for details on this.
 
 ### 3. Train a Model
 We're finally ready to actually train a model. We've set up our model as per
-the documentation, in a file called `dnn.py`. There are a couple of model file
+the documentation, in a file called `nn_regression.py`. There are a couple of model file
 examples in the `config_files` folder in this repo.
 
 ```bash
-$ landshark train --config dnn.py --data traintest_myproblem_fold1of10
+$ landshark train --config /path/to/configs/nn_regression.py --data traintest_myproblem_fold1of10
 ```
 This will start the training off, first creating a folder to store the model
 checkpoints called `model_dnn`
@@ -172,7 +172,7 @@ checkpoints called `model_dnn`
 Because we've already extracted the query data, this is as simple as
 
 ```bash
-$ landshark predict --config dnn.py --checkpoint model_dnn --data query_myproblem_strip1of1
+$ landshark predict --config /path/to/configs/nn_regression.py --checkpoint model_dnn --data query_myproblem_strip1of1
 ```
 The prediction images will be saved to the model folder.
 
