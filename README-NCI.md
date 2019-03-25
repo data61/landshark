@@ -50,7 +50,7 @@ $ pip3 install  --user virtualenv virtualenvwrapper
 ```bash
 $ source ~/.profile
 # or 
-$ source ~/.profile
+$ source ~/.bashrc
 ```
 
 ## Installation
@@ -68,7 +68,7 @@ $ workon landshark
 3. Clone the `landshark` repo into your home directory:
 ```bash
 $ cd ~
-$ git clone https://github.com/basaks/landshark.git
+$ git clone git@github.com:data61/landshark.git
 ```
 
 4. Install `landshark`:
