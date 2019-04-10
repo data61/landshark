@@ -103,11 +103,13 @@ def _read_continuous_metadata(hfile: tables.File) -> ContinuousFeatureSet:
     missing_value = hfile.root.continuous_data.attrs.missing
     normalised = hfile.root.continuous_data.attrs.normalised
     labels = [k.decode() for k in hfile.root.continuous_labels.read()]
-    means, sds = None, None
+    stats = None
     if normalised:
-        means = hfile.root.continuous_means.read()
-        sds = hfile.root.continuous_sds.read()
-    meta = ContinuousFeatureSet(labels, missing_value, means, sds)
+        stats = (
+            hfile.root.continuous_means.read(),
+            hfile.root.continuous_sds.read()
+        )
+    meta = ContinuousFeatureSet(labels, missing_value, stats)
     return meta
 
 

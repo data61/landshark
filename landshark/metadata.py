@@ -17,7 +17,7 @@
 import os.path
 import pickle
 from collections import OrderedDict
-from typing import Any, Dict, List, NamedTuple, Optional, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 
@@ -65,13 +65,16 @@ Feature = Union[CategoricalFeature, ContinuousFeature]
 class ContinuousFeatureSet:
 
     def __init__(self, labels: List[str], missing: ContinuousType,
-                 means: np.ndarray, sds: np.ndarray) -> None:
+                 stats: Optional[Tuple[np.ndarray, np.ndarray]]) -> None:
 
         D = len(labels)
-        self.normalised = means is not None
-        if not self.normalised:
+        if stats is None:
+            self.normalised = False
             means = [None] * D
             sds = [None] * D
+        else:
+            self.normalised = True
+            means, sds = stats
 
         self._missing = missing
         # hard-code that each feature has 1 band for now

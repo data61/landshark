@@ -138,7 +138,7 @@ def tifs_entrypoint(nworkers: int,
             stats = None
             if normalise:
                 stats = get_stats(con_source, con_rows_per_batch)
-                mean, sd = stats
+                sd = stats[1]
                 if any(sd == 0.0):
                     raise errors.ZeroDeviation(sd, con_source.columns)
                 log.info("Writing normalised continuous data to output file")
@@ -146,8 +146,7 @@ def tifs_entrypoint(nworkers: int,
                 log.info("Writing unnormalised continuous data to output file")
             con_meta = meta.ContinuousFeatureSet(labels=con_source.columns,
                                                  missing=con_source.missing,
-                                                 means=mean,
-                                                 sds=sd)
+                                                 stats=stats)
             write_continuous(con_source, outfile, nworkers, con_rows_per_batch,
                              stats)
 
