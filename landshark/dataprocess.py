@@ -54,6 +54,7 @@ class ProcessQueryArgs(NamedTuple):
     image_spec: ImageSpec
     strip_idx: int
     total_strips: int
+    strip_spec: ImageSpec
     halfwidth: int
     directory: str
     batchsize: int
@@ -281,7 +282,7 @@ def write_querydata(args: ProcessQueryArgs) -> None:
     reader_src = IdReader()
     it, n_total = indices_strip(args.image_spec, args.strip_idx,
                                 args.total_strips, args.batchsize)
-    worker = _QueryDataProcessor(args.feature_path, args.image_spec,
+    worker = _QueryDataProcessor(args.feature_path, args.strip_spec,
                                  args.halfwidth)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, worker, args.nworkers)
