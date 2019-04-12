@@ -17,13 +17,13 @@
 from typing import Dict, Optional
 
 import tensorflow as tf
-from tensorflow.estimator import ModeKeys
+from tensorflow import estimator
 
 from landshark import config as utils
 from landshark.metadata import Training
 
 
-def model(mode: ModeKeys,
+def model(mode: estimator.ModeKeys,
           X_con: Optional[Dict[str, tf.Tensor]],
           X_con_mask: Optional[Dict[str, tf.Tensor]],
           X_cat: Optional[Dict[str, tf.Tensor]],
@@ -121,7 +121,7 @@ def model(mode: ModeKeys,
     phi = tf.layers.dense(l2, units=metadata.targets.D, activation=None)
 
     # Compute predictions.
-    if mode == ModeKeys.PREDICT:
+    if mode == estimator.ModeKeys.PREDICT:
         predictions = {"predictions_{}".format(l): phi[:, i]
                        for i, l in enumerate(metadata.targets.labels)}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
@@ -135,12 +135,12 @@ def model(mode: ModeKeys,
     mse = tf.metrics.mean_squared_error(labels=Y, predictions=phi)
     metrics = {"mse": mse}
 
-    if mode == ModeKeys.EVAL:
+    if mode == estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode, loss=loss,
                                           eval_metric_ops=metrics)
 
     # For training, use Adam to learn
-    assert mode == ModeKeys.TRAIN
+    assert mode == estimator.ModeKeys.TRAIN
     optimizer = tf.train.AdamOptimizer()
     train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
