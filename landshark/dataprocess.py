@@ -54,6 +54,7 @@ class ProcessQueryArgs(NamedTuple):
     image_spec: ImageSpec
     strip_idx: int
     total_strips: int
+    strip_spec: ImageSpec
     halfwidth: int
     directory: str
     batchsize: int

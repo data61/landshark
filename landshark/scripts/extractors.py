@@ -203,14 +203,14 @@ def query_entrypoint(features: str,
 
     strip_imspec = strip_image_spec(strip_idx, totalstrips,
                                     feature_metadata.image)
-    feature_metadata.image = strip_imspec
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
-    qargs = ProcessQueryArgs(name, features, strip_imspec,
-                             strip_idx, totalstrips, halfwidth, directory,
-                             points_per_batch, nworkers, tag)
+    qargs = ProcessQueryArgs(name, features, feature_metadata.image,
+                             strip_idx, totalstrips, strip_imspec, halfwidth,
+                             directory, points_per_batch, nworkers, tag)
 
     write_querydata(qargs)
+    feature_metadata.image = strip_imspec
     feature_metadata.save(directory)
     log.info("Query import complete")
     return 0

@@ -132,7 +132,7 @@ def predict_entrypoint(config: str,
 
     y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
                                 points_per_batch)
-    write_geotiffs(y_dash_it, checkpoint, train_metadata.features.image,
+    write_geotiffs(y_dash_it, checkpoint, query_metadata.image,
                    tag="{}of{}".format(strip, nstrips))
 
 
