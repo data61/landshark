@@ -18,45 +18,15 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterator, List, Optional
 
 import numpy as np
-import tensorflow as tf
 from tqdm import tqdm
 
-from landshark.tfread import get_traintest_data, _make_mask, _split
 from landshark.metadata import Training
-from landshark.model import predict_data
+from landshark.tfread import query_data_it, xy_record_data
 
 log = logging.getLogger(__name__)
-
-
-# TODO simplify now I'm no longer using the recursive dict structure
-
-
-def _query_it(records_query: List[str],
-              batch_size: int,
-              metadata: Training
-              ) -> Iterator[Dict[str, np.ndarray]]:
-
-    total_size = metadata.features.image.height * metadata.features.image.width
-    dataset = predict_data(records_query, metadata, batch_size)()
-    X_tensor = dataset.make_one_shot_iterator().get_next()
-    with tqdm(total=total_size) as pbar:
-        with tf.Session() as sess:
-            while True:
-                try:
-                    X = sess.run(X_tensor)
-                    if "con" in X:
-                        X["con"] = _make_mask(X["con"], X["con_mask"])
-                    if "cat" in X:
-                        X["cat"] = _make_mask(X["cat"], X["cat_mask"])
-                    n = X["indices"].shape[0]
-                    pbar.update(n)
-                    yield X
-                except tf.errors.OutOfRangeError:
-                    break
-            return
 
 
 def train_test(config_module: str,
@@ -68,14 +38,22 @@ def train_test(config_module: str,
                batchsize: int,
                random_seed: int
                ) -> None:
-
+    """Train and test an sklean model."""
     log.info("Extracting and subsetting training data")
-    x, y, x_test, y_test = get_traintest_data(
-        records_train, records_test, metadata, maxpoints, batchsize,
-        random_seed
+    npoints = maxpoints if maxpoints is not None else -1
+    x_con, x_cat, indices, coords, y = xy_record_data(
+        records=records_train,
+        metadata=metadata,
+        batchsize=batchsize,
+        npoints=npoints,
+        random_seed=random_seed,
     )
-    x_con, x_cat, indices, coords = _split(x)
-    xt_con, xt_cat, indicest, coordst = _split(x_test)
+    xt_con, xt_cat, indicest, coordst, y_test = xy_record_data(
+        records=records_test,
+        metadata=metadata,
+        batchsize=batchsize,
+        shuffle=False,
+    )
 
     userconfig = __import__(config_module)
 
@@ -103,12 +81,15 @@ def predict(modeldir: str,
             query_records: List[str],
             batch_size: int
             ) -> Iterator[Dict[str, np.ndarray]]:
-
+    """Run predictions on query data in batches using sklearn model."""
     model_path = os.path.join(modeldir, "skmodel.pickle")
     with open(model_path, "rb") as f:
         model = pickle.load(f)
 
-    for xi in _query_it(query_records, batch_size, metadata):
-        x_con, x_cat, indices, coords = _split(xi)
-        res = model.predict(x_con, x_cat, indices, coords)
-        yield res
+    total_size = metadata.features.image.height * metadata.features.image.width
+    with tqdm(total=total_size) as pbar:
+        for xi in query_data_it(query_records, batch_size, metadata.features):
+            x_con, x_cat, indices, coords = xi
+            res = model.predict(*xi)
+            pbar.update(indices.shape[0])
+            yield res

@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import CategoricalType
-from landshark.metadata import Feature, Training
+from landshark.metadata import Feature, FeatureSet, Target
 
 #
 # Module constants and types
@@ -69,15 +69,14 @@ def serialise(x: DataArrays) -> List[bytes]:
     return string_list
 
 
-def deserialise(row: str,
-                metadata: Training,
-                ignore_y: bool = False
-                ) -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
+def deserialise(
+    row: str,
+    features: FeatureSet,
+    targets: Optional[Target] = None,
+) -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
     raw_features = tf.parse_example(row, features=_FDICT)
-    npatch_side = 2 * metadata.features.halfwidth + 1
-    categorical = metadata.targets.dtype == CategoricalType
-    y_type = tf.int32 if categorical else tf.float32
+    npatch_side = 2 * features.halfwidth + 1
     with tf.name_scope("Inputs"):
         x_con = tf.decode_raw(raw_features["x_con"], tf.float32)
         x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
@@ -85,36 +84,42 @@ def deserialise(row: str,
         x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
         x_con_mask = tf.cast(x_con_mask, tf.bool)
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], y_type)
         indices = tf.decode_raw(raw_features["indices"], tf.int32)
         coords = tf.decode_raw(raw_features["coords"], tf.float64)
-        ntargets = metadata.targets.D
-
-        y.set_shape((None, ntargets))
         indices.set_shape((None, 2))
         coords.set_shape((None, 2))
 
         feat_dict = {"indices": indices,
                      "coords": coords}
 
-        if metadata.features.continuous:
+        if features.continuous:
             feat_dict["con"] = _unpack(x_con,
-                                       metadata.features.continuous.columns,
+                                       features.continuous.columns,
                                        npatch_side)
             feat_dict["con_mask"] = _unpack(
                 x_con_mask,
-                metadata.features.continuous.columns,
+                features.continuous.columns,
                 npatch_side)
-        if metadata.features.categorical:
+
+        if features.categorical:
             feat_dict["cat"] = _unpack(x_cat,
-                                       metadata.features.categorical.columns,
+                                       features.categorical.columns,
                                        npatch_side)
             feat_dict["cat_mask"] = _unpack(
                 x_cat_mask,
-                metadata.features.categorical.columns,
+                features.categorical.columns,
                 npatch_side)
 
-    result = feat_dict if ignore_y else (feat_dict, y)
+        if targets is not None:
+            categorical = targets.dtype == CategoricalType
+            y_type = tf.int32 if categorical else tf.float32
+            y = tf.decode_raw(raw_features["y"], y_type)
+            ntargets = targets.D
+            y.set_shape((None, ntargets))
+        else:
+            y = None
+
+    result = feat_dict if targets is None else (feat_dict, y)
     return result
 
 

@@ -15,17 +15,20 @@
 # limitations under the License.
 
 import logging
+import os
 import signal
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from itertools import count
-from typing import Any, Callable, Dict, Generator, List, NamedTuple, Optional
+from typing import Any, Dict, Generator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from landshark.metadata import Training
+from landshark.metadata import FeatureSet, Training
 from landshark.saver import BestScoreSaver
-from landshark.serialise import deserialise
+from landshark.tfread import dataset_fn, get_query_meta, get_training_meta
 
 log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -48,52 +51,44 @@ class QueryConfig(NamedTuple):
     use_gpu: bool
 
 
-def train_data(records: List[str],
-               metadata: Training,
-               batch_size: int,
-               epochs: int = 1,
-               shuffle_buffer: int = 1000,
-               take: Optional[int] = None,
-               random_seed: Optional[int] = None
-               ) -> Callable[[], tf.data.TFRecordDataset]:
-    """Train dataset feeder."""
-    take = -1 if take is None else take
-
-    def f() -> tf.data.TFRecordDataset:
-        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .repeat(count=epochs) \
-            .shuffle(buffer_size=shuffle_buffer, seed=random_seed) \
-            .take(take) \
-            .batch(batch_size) \
-            .map(lambda x: deserialise(x, metadata))
-        return dataset
-    return f
+def _load_config(module_name: str, path: str) -> None:
+    # Load the model
+    modspec = spec_from_file_location(module_name, path)
+    cf = module_from_spec(modspec)
+    if not modspec.loader:
+        raise RuntimeError("Could not load configuration module")
+    modspec.loader.exec_module(cf)  # type: ignore
+    # needed for pickling??
+    sys.modules[module_name] = cf
 
 
-def test_data(records: List[str],
-              metadata: Training,
-              batch_size: int
-              ) -> Callable[[], tf.data.TFRecordDataset]:
-    """Test and query dataset feeder."""
-    def f() -> tf.data.TFRecordDataset:
-        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .batch(batch_size) \
-            .map(lambda x: deserialise(x, metadata))
-        return dataset
-    return f
+def load_model(config_file: str) -> str:
+    module_name = "userconfig"
+    _load_config(module_name, config_file)
+    return module_name
 
 
-def predict_data(records: List[str],
-                 metadata: Training,
-                 batch_size: int
-                 ) -> Callable[[], tf.data.TFRecordDataset]:
-    """Test and query dataset feeder."""
-    def f() -> tf.data.TFRecordDataset:
-        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .batch(batch_size) \
-            .map(lambda x: deserialise(x, metadata, ignore_y=True))
-        return dataset
-    return f
+def setup_training(
+    config: str,
+    directory: str
+) -> Tuple[Training, List[str], List[str], str, str]:
+    """Get metadata and records needed to train model."""
+    metadata, training_records, testing_records = get_training_meta(directory)
+
+    # Write the metadata
+    name = os.path.basename(config).rsplit(".")[0] + \
+        "_model_{}of{}".format(metadata.testfold, metadata.nfolds)
+    model_dir = os.path.join(os.getcwd(), name)
+    try:
+        os.makedirs(model_dir)
+    except FileExistsError:
+        pass
+    metadata.save(model_dir)
+
+    # Load the model
+    module_name = load_model(config)
+
+    return metadata, training_records, testing_records, model_dir, module_name
 
 
 def train_test(records_train: List[str],
@@ -109,9 +104,10 @@ def train_test(records_train: List[str],
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
 
-    train_fn = train_data(records_train, metadata, params.batchsize,
-                          params.epochs)
-    test_fn = test_data(records_test, metadata, params.test_batchsize)
+    train_fn = dataset_fn(records_train, params.batchsize, metadata.features,
+                          metadata.targets, params.epochs, shuffle=True)
+    test_fn = dataset_fn(records_test, params.test_batchsize,
+                         metadata.features, metadata.targets)
 
     run_config = tf.estimator.RunConfig(
         # tf_random_seed=params.seed,
@@ -141,6 +137,18 @@ def train_test(records_train: List[str],
             break
 
 
+def setup_query(
+    config: str,
+    querydir: str,
+    checkpoint: str,
+) -> Tuple[Training, FeatureSet, List[str], int, int, str]:
+    """Get metadata and records needed to make predictions."""
+    query_meta, query_records, strip, nstrip = get_query_meta(querydir)
+    train_meta = Training.load(checkpoint)
+    module_name = load_model(config)
+    return train_meta, query_meta, query_records, strip, nstrip, module_name
+
+
 def predict(checkpoint_dir: str,
             cf: Any,  # Module type
             metadata: Training,
@@ -150,7 +158,7 @@ def predict(checkpoint_dir: str,
     """Load a model and predict results for record inputs."""
     sess_config = tf.ConfigProto(device_count={"GPU": int(params.use_gpu)},
                                  gpu_options={"allow_growth": True})
-    predict_fn = predict_data(records, metadata, params.batchsize)
+    predict_fn = dataset_fn(records, params.batchsize, metadata.features)
     run_config = tf.estimator.RunConfig(
         # tf_random_seed=params.seed,
         model_dir=checkpoint_dir,

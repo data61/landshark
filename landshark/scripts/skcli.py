@@ -22,8 +22,8 @@ from typing import NamedTuple, Optional
 import click
 
 from landshark import __version__, errors, skmodel
+from landshark.model import setup_query, setup_training
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
 
@@ -81,7 +81,7 @@ def train_entrypoint(data: str,
                      batchMB: float
                      ) -> None:
     """Entry point for sklearn model training."""
-    training_records, testing_records, metadata, model_dir, cf = \
+    metadata, training_records, testing_records, model_dir, cf = \
         setup_training(config, data)
 
     ndims_con = len(metadata.features.continuous) \

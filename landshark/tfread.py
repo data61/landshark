@@ -18,84 +18,63 @@ import logging
 import os
 import sys
 from glob import glob
-from importlib.util import module_from_spec, spec_from_file_location
-from typing import List, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 
-from landshark.model import test_data, train_data
-from landshark.metadata import FeatureSet, Training
+from landshark.metadata import FeatureSet, Target, Training
+from landshark.serialise import deserialise
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
 
-def _load_config(module_name: str, path: str) -> None:
-    # Load the model
-    modspec = spec_from_file_location(module_name, path)
-    cf = module_from_spec(modspec)
-    if not modspec.loader:
-        raise RuntimeError("Could not load configuration module")
-    modspec.loader.exec_module(cf)  # type: ignore
-    # needed for pickling??
-    sys.modules[module_name] = cf
+def dataset_fn(
+    records: List[str],
+    batchsize: int,
+    features: FeatureSet,
+    targets: Optional[Target] = None,
+    epochs: int = 1,
+    take: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
+    random_seed: Optional[int] = None
+) -> Callable[[], tf.data.TFRecordDataset]:
+    """Dataset feeder."""
+    def f() -> tf.data.TFRecordDataset:
+        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
+            .repeat(count=epochs)
+        if shuffle:
+            dataset = dataset.shuffle(
+                buffer_size=shuffle_buffer, seed=random_seed
+            )
+        dataset = dataset.take(take) \
+            .batch(batchsize) \
+            .map(lambda x: deserialise(x, features, targets))
+        return dataset
+    return f
 
 
-def load_model(config_file: str) -> str:
-    module_name = "userconfig"
-    _load_config(module_name, config_file)
-    return module_name
-
-
-def get_training_meta(directory: str) -> Tuple[List[str], List[str], Training]:
-    """Read training metadata and record filenames from dir."""
+def get_training_meta(directory: str) -> Tuple[Training, List[str], List[str]]:
+    """Read train/test metadata and record filenames from dir."""
     test_dir = os.path.join(directory, "testing")
     training_records = glob(os.path.join(directory, "*.tfrecord"))
     testing_records = glob(os.path.join(test_dir, "*.tfrecord"))
     metadata = Training.load(directory)
-    return training_records, testing_records, metadata
+    return metadata, training_records, testing_records
 
 
-def setup_training(config: str,
-                   directory: str
-                   ) -> Tuple[List[str], List[str], Training, str, str]:
-    # Get the metadata
-    training_records, testing_records, metadata = get_training_meta(directory)
-
-    # Write the metadata
-    name = os.path.basename(config).rsplit(".")[0] + \
-        "_model_{}of{}".format(metadata.testfold, metadata.nfolds)
-    model_dir = os.path.join(os.getcwd(), name)
-    try:
-        os.makedirs(model_dir)
-    except FileExistsError:
-        pass
-    metadata.save(model_dir)
-
-    # Load the model
-    module_name = load_model(config)
-
-    return training_records, testing_records, metadata, model_dir, module_name
-
-
-def setup_query(config: str,
-                querydir: str,
-                checkpoint: str
-                ) -> Tuple[Training, FeatureSet, List[str], int, int, str]:
-    strip_list = querydir.split("strip")[-1].split("of")
+def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
+    """Read query metadata and record filenames from dir."""
+    strip_list = query_dir.split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])
     nstrip = int(strip_list[1])
-
-    query_metadata = FeatureSet.load(querydir)
-    training_metadata = Training.load(checkpoint)
-    query_records = glob(os.path.join(querydir, "*.tfrecord"))
+    query_metadata = FeatureSet.load(query_dir)
+    query_records = glob(os.path.join(query_dir, "*.tfrecord"))
     query_records.sort()
-
-    # Load the model
-    module_name = load_model(config)
-    return (training_metadata, query_metadata, query_records,
-            strip, nstrip, module_name)
+    return query_metadata, query_records, strip, nstrip
 
 
 def get_strips(records: List[str]) -> Tuple[int, int]:
@@ -159,6 +138,7 @@ def _extract(xt: Dict[str, tf.Tensor],
 
     return x_full, y_full
 
+
 def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
                                               np.ndarray, np.ndarray]:
     x_con = x["con"] if "con" in x else None
@@ -168,40 +148,107 @@ def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
     return x_con, x_cat, indices, coords
 
 
-def get_traintest_data(
-    records_train: List[str],
-    records_test: List[str],
-    metadata: Training,
-    npoints: Optional[int],
-    batch_size: int,
-    random_seed: int
-) -> Tuple[Dict[str, np.ndarray], np.ndarray,
-           Dict[str, np.ndarray], np.ndarray]:
-
-    train_dataset = train_data(records_train, metadata, batch_size, epochs=1,
-                               take=npoints, random_seed=random_seed)()
-    X_tensor, Y_tensor = train_dataset.make_one_shot_iterator().get_next()
-    test_dataset = test_data(records_test, metadata, batch_size)()
-    Xt_tensor, Yt_tensor = test_dataset.make_one_shot_iterator().get_next()
-
+def extract_split_xy(
+    dataset: tf.data.TFRecordDataset,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract (X, Y) data from tensor dataset and split."""
+    X_tensor, Y_tensor = dataset.make_one_shot_iterator().get_next()
     with tf.Session() as sess:
         X, Y = _extract(X_tensor, Y_tensor, sess)
-        Xt, Yt = _extract(Xt_tensor, Yt_tensor, sess)
-    return X, Y, Xt, Yt
+    x_con, x_cat, indices, coords = _split(X)
+    return x_con, x_cat, indices, coords, Y
+
+
+def xy_record_data(
+    records: List[str],
+    metadata: Training,
+    batchsize: int = 1000,
+    npoints: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
+    random_seed: Optional[int] = None,
+) -> np.ndarray:
+    """Read train/test record."""
+    train_dataset = dataset_fn(
+        records=records,
+        batchsize=batchsize,
+        features=metadata.features,
+        targets=metadata.targets,
+        epochs=1,
+        take=npoints,
+        shuffle=shuffle,
+        shuffle_buffer=shuffle_buffer,
+        random_seed=random_seed
+    )()
+    xy_data_tuple = extract_split_xy(train_dataset)
+    return xy_data_tuple
+
+
+# TODO simplify now I'm no longer using the recursive dict structure
+
+def query_data_it(
+    records_query: List[str],
+    batch_size: int,
+    features: FeatureSet
+) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+
+    dataset = dataset_fn(records_query, batch_size, features)()
+    X_tensor = dataset.make_one_shot_iterator().get_next()
+    with tf.Session() as sess:
+        while True:
+            try:
+                X = sess.run(X_tensor)
+                if "con" in X:
+                    X["con"] = _make_mask(X["con"], X["con_mask"])
+                if "cat" in X:
+                    X["cat"] = _make_mask(X["cat"], X["cat_mask"])
+                yield _split(X)
+            except tf.errors.OutOfRangeError:
+                break
+        return
 
 
 def read_train_record(
     directory: str,
-    maxpoints: int,
-    random_seed: int = 220,
-    batchsize: int = 1000,
+    npoints: int = -1,
+    random_seed: Optional[int] = None,
 ) -> np.ndarray:
-    training_records, testing_records, metadata = get_training_meta(directory)
-    x, y, x_test, y_test = get_traintest_data(
-        training_records, testing_records, metadata, maxpoints, batchsize,
-        random_seed
+    """Read train record."""
+    metadata, train_records, _ = get_training_meta(directory)
+    train_data_tuple = xy_record_data(
+        records=train_records,
+        metadata=metadata,
+        npoints=npoints,
+        shuffle=(random_seed is not None),
+        random_seed=random_seed
     )
+    return train_data_tuple
 
-    x_con, x_cat, indices, coords = _split(x)
-    xt_con, xt_cat, indicest, coordst = _split(x_test)
-    return x_con, x_cat, indices, coords, xt_con, xt_cat, indicest, coordst
+
+def read_test_record(
+    directory: str,
+    npoints: int = -1,
+    random_seed: Optional[int] = None,
+) -> np.ndarray:
+    """Read test record."""
+    metadata, _, test_records = get_training_meta(directory)
+    test_data_tuple = xy_record_data(
+        records=test_records,
+        metadata=metadata,
+        npoints=npoints,
+        shuffle=(random_seed is not None),
+        random_seed=random_seed
+    )
+    return test_data_tuple
+
+
+def read_query_record(
+    query_dir: str, batch_mb: float,
+) -> Iterator[np.ndarray]:
+    features, query_records, strip, nstrip = get_query_meta(query_dir)
+    ndims_con = len(features.continuous) if features.continuous else 0
+    ndims_cat = len(features.categorical) if features.categorical else 0
+    points_per_batch = mb_to_points(
+        batch_mb, ndims_con, ndims_cat, features.halfwidth
+    )
+    yield from query_data_it(query_records, points_per_batch, features)

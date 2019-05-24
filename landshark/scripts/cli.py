@@ -23,10 +23,9 @@ import click
 from landshark import __version__, errors
 from landshark.model import QueryConfig, TrainingConfig
 from landshark.model import predict as predict_fn
-from landshark.model import train_test
+from landshark.model import setup_query, setup_training, train_test
 from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
 from landshark.util import mb_to_points
 
@@ -100,7 +99,7 @@ def train_entrypoint(data: str,
                      checkpoint_dir: Optional[str]
                      ) -> None:
     """Entry point for training function."""
-    training_records, testing_records, metadata, model_dir, cf = \
+    metadata, training_records, testing_records, model_dir, cf = \
         setup_training(config, data)
     if checkpoint_dir:
         overwrite_model_dir(model_dir, checkpoint_dir)
