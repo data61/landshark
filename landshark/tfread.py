@@ -151,23 +151,34 @@ def xy_record_data(
         batchsize=batchsize,
         features=metadata.features,
         targets=metadata.targets,
-        epochs=1,
         take=npoints,
         shuffle=shuffle,
         shuffle_buffer=shuffle_buffer,
-        random_seed=random_seed
+        random_seed=random_seed,
     )()
     xy_data_tuple = extract_split_xy(train_dataset)
     return xy_data_tuple
 
 
 def query_data_it(
-    records_query: List[str],
-    batch_size: int,
-    features: FeatureSet
+    records: List[str],
+    features: FeatureSet,
+    batchsize: int,
+    npoints: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
+    random_seed: Optional[int] = None,
 ) -> Iterator[XData]:
     """Exctract query data from tfrecord in batches."""
-    dataset = dataset_fn(records_query, batch_size, features)()
+    dataset = dataset_fn(
+        records=records,
+        batchsize=batchsize,
+        features=features,
+        take=npoints,
+        shuffle=shuffle,
+        shuffle_buffer=shuffle_buffer,
+        random_seed=random_seed,
+    )()
     X_tensor = dataset.make_one_shot_iterator().get_next()
     with tf.Session() as sess:
         while True:
@@ -187,6 +198,8 @@ def query_data_it(
 def read_train_record(
     directory: str,
     npoints: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
     random_seed: Optional[int] = None,
 ) -> XYData:
     """Read train record."""
@@ -195,8 +208,9 @@ def read_train_record(
         records=train_records,
         metadata=metadata,
         npoints=npoints,
-        shuffle=(random_seed is not None),
-        random_seed=random_seed
+        shuffle=shuffle,
+        shuffle_buffer=shuffle_buffer,
+        random_seed=random_seed,
     )
     return train_data_tuple
 
@@ -204,6 +218,8 @@ def read_train_record(
 def read_test_record(
     directory: str,
     npoints: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
     random_seed: Optional[int] = None,
 ) -> XYData:
     """Read test record."""
@@ -212,20 +228,34 @@ def read_test_record(
         records=test_records,
         metadata=metadata,
         npoints=npoints,
-        shuffle=(random_seed is not None),
-        random_seed=random_seed
+        shuffle=shuffle,
+        shuffle_buffer=shuffle_buffer,
+        random_seed=random_seed,
     )
     return test_data_tuple
 
 
 def read_query_record(
-    query_dir: str, batch_mb: float,
+    query_dir: str,
+    batch_mb: float,
+    npoints: int = -1,
+    shuffle: bool = False,
+    shuffle_buffer: int = 1000,
+    random_seed: Optional[int] = None,
 ) -> Iterator[XData]:
     """Read query data in batches."""
-    features, query_records, strip, nstrip = get_query_meta(query_dir)
+    features, records, strip, nstrip = get_query_meta(query_dir)
     ndims_con = len(features.continuous) if features.continuous else 0
     ndims_cat = len(features.categorical) if features.categorical else 0
     points_per_batch = mb_to_points(
         batch_mb, ndims_con, ndims_cat, features.halfwidth
     )
-    yield from query_data_it(query_records, points_per_batch, features)
+    yield from query_data_it(
+        records=records,
+        features=features,
+        batchsize=points_per_batch,
+        npoints=npoints,
+        shuffle=shuffle,
+        shuffle_buffer=shuffle_buffer,
+        random_seed=random_seed,
+    )

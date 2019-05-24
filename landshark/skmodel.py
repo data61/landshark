@@ -79,7 +79,7 @@ def train_test(config_module: str,
 def predict(modeldir: str,
             metadata: Training,
             query_records: List[str],
-            batch_size: int
+            batchsize: int
             ) -> Iterator[Dict[str, np.ndarray]]:
     """Run predictions on query data in batches using sklearn model."""
     model_path = os.path.join(modeldir, "skmodel.pickle")
@@ -88,7 +88,7 @@ def predict(modeldir: str,
 
     total_size = metadata.features.image.height * metadata.features.image.width
     with tqdm(total=total_size) as pbar:
-        for xi in query_data_it(query_records, batch_size, metadata.features):
+        for xi in query_data_it(query_records, metadata.features, batchsize):
             x_con, x_cat, indices, coords = xi
             res = model.predict(*xi)
             pbar.update(indices.shape[0])
