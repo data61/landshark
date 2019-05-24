@@ -16,7 +16,6 @@
 
 import logging
 import os
-import sys
 from glob import glob
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -80,15 +79,32 @@ def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
 def _make_mask(x: Dict[str, np.ndarray],
                xm: Dict[str, np.ndarray]
                ) -> Dict[str, np.ma.MaskedArray]:
+    """Combine arrays and masks to MaskedArray's"""
     assert x.keys() == xm.keys()
     d = {k: np.ma.MaskedArray(data=x[k], mask=xm[k]) for k in x.keys()}
     return d
 
 
-T = Union[np.ndarray, Dict[str, np.ndarray]]
+TData = Dict[str, Union[np.ndarray, Dict[str, np.ndarray]]]
+
+XData = Tuple[Optional[Dict[str, np.ma.MaskedArray]],
+              Optional[Dict[str, np.ma.MaskedArray]],
+              np.ndarray, np.ndarray]
+
+XYData = Tuple[Optional[Dict[str, np.ma.MaskedArray]],
+               Optional[Dict[str, np.ma.MaskedArray]],
+               np.ndarray, np.ndarray, Dict[str, np.ndarray]]
 
 
-def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
+def _split(X: TData) -> XData:
+    """Split dict into elements."""
+    Xcon = _make_mask(X["con"], X["con_mask"]) if "con" in X else None
+    Xcat = _make_mask(X["cat"], X["cat_mask"]) if "cat" in X else None
+    return Xcon, Xcat, X["indices"], X["coords"]
+
+
+def _concat_dict(xlist: List[TData]) -> TData:
+    """Join dicts of arrays together."""
     out_dict = {}
     for k, v in xlist[0].items():
         if isinstance(v, np.ndarray):
@@ -98,50 +114,25 @@ def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
     return out_dict
 
 
-def _extract(xt: Dict[str, tf.Tensor],
-             yt: tf.Tensor,
-             sess: tf.Session
-             ) -> Tuple[dict, np.ndarray]:
+def extract_split_xy(dataset: tf.data.TFRecordDataset) -> XYData:
+    """Extract (X, Y) data from tensor dataset and split."""
+    X_tensor, Y_tensor = dataset.make_one_shot_iterator().get_next()
 
     x_list = []
     y_list = []
-    try:
-        while True:
-            x, y = sess.run([xt, yt])
-            x_list.append(x)
-            y_list.append(y)
-    except tf.errors.OutOfRangeError:
-        pass
-
-    y_full = np.concatenate(y_list, axis=0)
-    x_full = _concat_dict(x_list)
-    if "con" in x_full:
-        x_full["con"] = _make_mask(x_full["con"], x_full["con_mask"])
-        x_full.pop("con_mask")
-    if "cat" in x_full:
-        x_full["cat"] = _make_mask(x_full["cat"], x_full["cat_mask"])
-        x_full.pop("cat_mask")
-
-    return x_full, y_full
-
-
-def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
-                                              np.ndarray, np.ndarray]:
-    x_con = x["con"] if "con" in x else None
-    x_cat = x["cat"] if "cat" in x else None
-    indices = x["indices"]
-    coords = x["coords"]
-    return x_con, x_cat, indices, coords
-
-
-def extract_split_xy(
-    dataset: tf.data.TFRecordDataset,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Extract (X, Y) data from tensor dataset and split."""
-    X_tensor, Y_tensor = dataset.make_one_shot_iterator().get_next()
     with tf.Session() as sess:
-        X, Y = _extract(X_tensor, Y_tensor, sess)
+        try:
+            while True:
+                x, y = sess.run([X_tensor, Y_tensor])
+                x_list.append(x)
+                y_list.append(y)
+        except tf.errors.OutOfRangeError:
+            pass
+
+    Y = np.concatenate(y_list, axis=0)
+    X = _concat_dict(x_list)
     x_con, x_cat, indices, coords = _split(X)
+
     return x_con, x_cat, indices, coords, Y
 
 
@@ -153,7 +144,7 @@ def xy_record_data(
     shuffle: bool = False,
     shuffle_buffer: int = 1000,
     random_seed: Optional[int] = None,
-) -> np.ndarray:
+) -> XYData:
     """Read train/test record."""
     train_dataset = dataset_fn(
         records=records,
@@ -170,35 +161,34 @@ def xy_record_data(
     return xy_data_tuple
 
 
-# TODO simplify now I'm no longer using the recursive dict structure
-
 def query_data_it(
     records_query: List[str],
     batch_size: int,
     features: FeatureSet
-) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
-
+) -> Iterator[XData]:
+    """Exctract query data from tfrecord in batches."""
     dataset = dataset_fn(records_query, batch_size, features)()
     X_tensor = dataset.make_one_shot_iterator().get_next()
     with tf.Session() as sess:
         while True:
             try:
                 X = sess.run(X_tensor)
-                if "con" in X:
-                    X["con"] = _make_mask(X["con"], X["con_mask"])
-                if "cat" in X:
-                    X["cat"] = _make_mask(X["cat"], X["cat_mask"])
                 yield _split(X)
             except tf.errors.OutOfRangeError:
                 break
         return
 
 
+#
+# functions for inspecting tfrecord data directly
+#
+
+
 def read_train_record(
     directory: str,
     npoints: int = -1,
     random_seed: Optional[int] = None,
-) -> np.ndarray:
+) -> XYData:
     """Read train record."""
     metadata, train_records, _ = get_training_meta(directory)
     train_data_tuple = xy_record_data(
@@ -215,7 +205,7 @@ def read_test_record(
     directory: str,
     npoints: int = -1,
     random_seed: Optional[int] = None,
-) -> np.ndarray:
+) -> XYData:
     """Read test record."""
     metadata, _, test_records = get_training_meta(directory)
     test_data_tuple = xy_record_data(
@@ -230,7 +220,8 @@ def read_test_record(
 
 def read_query_record(
     query_dir: str, batch_mb: float,
-) -> Iterator[np.ndarray]:
+) -> Iterator[XData]:
+    """Read query data in batches."""
     features, query_records, strip, nstrip = get_query_meta(query_dir)
     ndims_con = len(features.continuous) if features.continuous else 0
     ndims_cat = len(features.categorical) if features.categorical else 0
