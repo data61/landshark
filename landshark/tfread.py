@@ -77,20 +77,6 @@ def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
     return query_metadata, query_records, strip, nstrip
 
 
-def get_strips(records: List[str]) -> Tuple[int, int]:
-    def f(k: str) -> Tuple[int, int]:
-        r = os.path.basename(k).rsplit(".", maxsplit=3)[1]
-        nums = r.split("of")
-        tups = (int(nums[0]), int(nums[1]))
-        return tups
-    strip_set = {f(k) for k in records}
-    if len(strip_set) > 1:
-        log.error("TFRecord files can only be from a single strip.")
-        sys.exit()
-    strip = strip_set.pop()
-    return strip
-
-
 def _make_mask(x: Dict[str, np.ndarray],
                xm: Dict[str, np.ndarray]
                ) -> Dict[str, np.ma.MaskedArray]:
