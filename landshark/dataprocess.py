@@ -15,22 +15,24 @@
 # limitations under the License.
 
 import logging
-from itertools import count, groupby
-from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
+from itertools import count, groupby, islice
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import tables
 
 from landshark import patch, tfwrite
 from landshark.basetypes import ArraySource, FixedSlice, IdReader, Worker
+from landshark.featurewrite import read_feature_metadata
 from landshark.hread import H5Features
 from landshark.image import (ImageSpec, image_to_world, indices_strip,
-                             world_to_image)
+                             random_indices, world_to_image)
 from landshark.iteration import batch_slices
 from landshark.kfold import KFolds
 from landshark.multiproc import task_list
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import DataArrays, serialise
+from landshark.util import mb_to_points
 
 log = logging.getLogger(__name__)
 
@@ -228,14 +230,13 @@ class _TrainingDataProcessor(Worker):
         self.image_spec = image_spec
         self.halfwidth = halfwidth
 
-    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> List[bytes]:
+    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> DataArrays:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         targets, coords = values
         arrays = _process_training(coords, targets, self.feature_source,
                                    self.image_spec, self.halfwidth)
-        strings = serialise(arrays)
-        return strings
+        return arrays
 
 
 class _QueryDataProcessor(Worker):
@@ -250,11 +251,23 @@ class _QueryDataProcessor(Worker):
         self.image_spec = image_spec
         self.halfwidth = halfwidth
 
-    def __call__(self, indices: np.ndarray) -> List[bytes]:
+    def __call__(self, indices: np.ndarray) -> DataArrays:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         arrays = _process_query(indices, self.feature_source, self.image_spec,
                                 self.halfwidth)
+        return arrays
+
+
+class Serialised(Worker):
+    """Serialise worker output."""
+
+    def __init__(self, w: Worker) -> None:
+        self.worker = w
+
+    def __call__(self, x: Any) -> List[bytes]:
+        """Wrap worker function and serialise output."""
+        arrays = self.worker(x)
         strings = serialise(arrays)
         return strings
 
@@ -267,8 +280,9 @@ def write_trainingdata(args: ProcessTrainingArgs) -> None:
     n_rows = len(args.target_src)
     worker = _TrainingDataProcessor(args.feature_path, args.image_spec,
                                     args.halfwidth)
+    sworker = Serialised(worker)
     tasks = list(batch_slices(args.batchsize, n_rows))
-    out_it = task_list(tasks, args.target_src, worker, args.nworkers)
+    out_it = task_list(tasks, args.target_src, sworker, args.nworkers)
     fold_it = args.folds.iterator(args.batchsize)
     tfwrite.training(out_it, n_rows, args.directory, args.testfold, fold_it)
 
@@ -284,6 +298,41 @@ def write_querydata(args: ProcessQueryArgs) -> None:
                                 args.total_strips, args.batchsize)
     worker = _QueryDataProcessor(args.feature_path, args.image_spec,
                                  args.halfwidth)
+    sworker = Serialised(worker)
     tasks = list(it)
-    out_it = task_list(tasks, reader_src, worker, args.nworkers)
+    out_it = task_list(tasks, reader_src, sworker, args.nworkers)
     tfwrite.query(out_it, n_total, args.directory, args.tag)
+
+
+def read_query_hdf5(
+    features_hdf5: str,
+    npoints: int,
+    halfwidth: int = 0,
+    shuffle: bool = False,
+    batch_mb: float = 1000,
+    nworkers: int = 1,
+    random_seed: int = 220,
+) -> Iterator[DataArrays]:
+    """Read query data (in batches)."""
+    feature_metadata = read_feature_metadata(features_hdf5)
+    ndim_con = len(feature_metadata.continuous.columns) \
+        if feature_metadata.continuous else 0
+    ndim_cat = len(feature_metadata.categorical.columns) \
+        if feature_metadata.categorical else 0
+    batchsize = mb_to_points(
+        batch_mb, ndim_con, ndim_cat, halfwidth
+    )
+    imspec = feature_metadata.image
+    npoints = min(npoints, imspec.width * imspec.height)
+    if shuffle:
+        it, _ = random_indices(
+            imspec, npoints, batchsize, random_seed=random_seed
+        )
+    else:
+        it_all, _ = indices_strip(imspec, 1, 1, batchsize)
+        it = islice(it_all, npoints)
+
+    worker = _QueryDataProcessor(features_hdf5, imspec, halfwidth)
+    tasks = list(it)
+    out_it = task_list(tasks, IdReader(), worker, nworkers)
+    return out_it

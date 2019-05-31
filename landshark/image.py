@@ -341,6 +341,25 @@ def indices_strip(image_spec: ImageSpec,
     return it, n_total
 
 
+def random_indices(
+    image_spec: ImageSpec,
+    npoints: int,
+    batchsize: int,
+    random_seed: int
+) -> Tuple[Iterable[np.ndarray], int]:
+    """Create an iterator over a random indices into the image."""
+    assert batchsize > 0
+    w = image_spec.width
+    h = image_spec.height
+    image_points = h * w
+    npoints = min(npoints, image_points)
+    assert npoints > 0
+    ix_ravel = np.random.choice(image_points, size=npoints, replace=False)
+    ix = np.vstack(np.unravel_index(ix_ravel, [h, w])).astype(IndexType).T
+    ix_batch = map(_array_pair_it, iteration.batch(iter(ix), batchsize))
+    return ix_batch, npoints
+
+
 def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
     """Compute the slices corresponding to every strip along a dimension."""
     assert nstrips > 0

@@ -79,7 +79,7 @@ def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
 def _make_mask(x: Dict[str, np.ndarray],
                xm: Dict[str, np.ndarray]
                ) -> Dict[str, np.ma.MaskedArray]:
-    """Combine arrays and masks to MaskedArray's"""
+    """Combine arrays and masks to MaskedArray's."""
     assert x.keys() == xm.keys()
     d = {k: np.ma.MaskedArray(data=x[k], mask=xm[k]) for k in x.keys()}
     return d
