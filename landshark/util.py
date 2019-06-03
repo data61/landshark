@@ -20,6 +20,7 @@ import numpy as np
 
 from landshark.basetypes import (CategoricalType, ContinuousType,
                                  CoordinateType, MissingType)
+from landshark.metadata import FeatureSet
 
 log = logging.getLogger(__name__)
 
@@ -70,3 +71,11 @@ def mb_to_rows(batchMB: float,
     log.info("Batch size set to {} rows, total {:0.2f}MB".format(
         nrows, point_mbytes * row_width * nrows))
     return nrows
+
+
+def points_per_batch(meta: FeatureSet, batch_mb: float) -> int:
+    """Calculate batchsize in points."""
+    ndim_con = len(meta.continuous.columns) if meta.continuous else 0
+    ndim_cat = len(meta.categorical.columns) if meta.categorical else 0
+    batchsize = mb_to_points(batch_mb, ndim_con, ndim_cat, meta.halfwidth)
+    return batchsize

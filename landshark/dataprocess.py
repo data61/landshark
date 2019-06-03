@@ -32,7 +32,7 @@ from landshark.kfold import KFolds
 from landshark.multiproc import task_list
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import DataArrays, serialise
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -329,13 +329,9 @@ def read_query_hdf5(
 ) -> Iterator[DataArrays]:
     """Read N points of (optionally random) query data (in batches)."""
     feature_metadata = read_feature_metadata(features_hdf5)
-    ndim_con = len(feature_metadata.continuous.columns) \
-        if feature_metadata.continuous else 0
-    ndim_cat = len(feature_metadata.categorical.columns) \
-        if feature_metadata.categorical else 0
-    batchsize = mb_to_points(
-        batch_mb, ndim_con, ndim_cat, halfwidth
-    )
+    feature_metadata.halfwidth = halfwidth
+    batchsize = points_per_batch(feature_metadata, batch_mb)
+
     imspec = feature_metadata.image
     max_points = imspec.width * imspec.height
     npoints = min(npoints or max_points, max_points)

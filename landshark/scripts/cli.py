@@ -27,7 +27,7 @@ from landshark.model import setup_query, setup_training, train_test
 from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
 from landshark.tifwrite import write_geotiffs
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -134,14 +134,10 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
     """Entrypoint for predict function."""
     train_metadata, feature_metadata, query_records, strip, nstrips, cf = \
         setup_query(config, data, checkpoint)
-    ndim_con = len(feature_metadata.continuous.columns) \
-        if feature_metadata.continuous else 0
-    ndim_cat = len(feature_metadata.categorical.columns) \
-        if feature_metadata.categorical else 0
-    points_per_batch = mb_to_points(
-        batchMB, ndim_con, ndim_cat,
-        halfwidth=train_metadata.features.halfwidth)
-    params = QueryConfig(points_per_batch, gpu)
+
+    batchsize = points_per_batch(train_metadata.features, batchMB)
+
+    params = QueryConfig(batchsize, gpu)
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,
                            query_records, params)
     write_geotiffs(y_dash_it, checkpoint, train_metadata.features.image,

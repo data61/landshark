@@ -25,7 +25,7 @@ from landshark import __version__, errors, skmodel
 from landshark.model import setup_query, setup_training
 from landshark.scripts.logger import configure_logging
 from landshark.tifwrite import write_geotiffs
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -84,12 +84,8 @@ def train_entrypoint(data: str,
     metadata, training_records, testing_records, model_dir, cf = \
         setup_training(config, data)
 
-    ndims_con = len(metadata.features.continuous) \
-        if metadata.features.continuous else 0
-    ndims_cat = len(metadata.features.categorical) \
-        if metadata.features.categorical else 0
-    batchsize = mb_to_points(batchMB, ndims_con, ndims_cat,
-                             metadata.features.halfwidth)
+    batchsize = points_per_batch(metadata.features, batchMB)
+
     # copy the model spec to the model dir
     copyfile(config, os.path.join(model_dir, "config.py"))
     skmodel.train_test(cf, training_records, testing_records,
@@ -123,15 +119,11 @@ def predict_entrypoint(config: str,
     """Entry point for prediction with sklearn."""
     train_metadata, query_metadata, query_records, strip, nstrips, _ = \
         setup_query(config, data, checkpoint)
-    ndims_con = len(train_metadata.features.continuous) \
-        if train_metadata.features.continuous else 0
-    ndims_cat = len(train_metadata.features.categorical) \
-        if train_metadata.features.categorical else 0
-    points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
-                                    train_metadata.features.halfwidth)
 
-    y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
-                                points_per_batch)
+    batchsize = points_per_batch(train_metadata.features, batchMB)
+    y_dash_it = skmodel.predict(
+        checkpoint, train_metadata, query_records, batchsize
+    )
     write_geotiffs(y_dash_it, checkpoint, query_metadata.image,
                    tag="{}of{}".format(strip, nstrips))
 

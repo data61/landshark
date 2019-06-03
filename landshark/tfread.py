@@ -24,7 +24,7 @@ import tensorflow as tf
 
 from landshark.metadata import FeatureSet, Target, Training
 from landshark.serialise import deserialise
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -245,15 +245,11 @@ def read_query_record(
 ) -> Iterator[XData]:
     """Read query data in batches."""
     features, records, strip, nstrip = get_query_meta(query_dir)
-    ndims_con = len(features.continuous) if features.continuous else 0
-    ndims_cat = len(features.categorical) if features.categorical else 0
-    points_per_batch = mb_to_points(
-        batch_mb, ndims_con, ndims_cat, features.halfwidth
-    )
+    batchsize = points_per_batch(features, batch_mb)
     yield from query_data_it(
         records=records,
         features=features,
-        batchsize=points_per_batch,
+        batchsize=batchsize,
         npoints=npoints,
         shuffle=shuffle,
         shuffle_buffer=shuffle_buffer,
