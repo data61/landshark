@@ -25,6 +25,11 @@ def tifnames(directories: List[str]) -> List[str]:
     for d in directories:
         file_types = ("tif", "gtif")
         for t in file_types:
+            if os.path.isfile(d) and d.endswith(f".{t}"):
+                names.append(d)
+                break
+
             glob_pattern = os.path.join(d, "**", "*.{}".format(t))
             names.extend(glob(glob_pattern, recursive=True))
+
     return names
