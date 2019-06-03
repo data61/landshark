@@ -16,7 +16,7 @@
 
 import logging
 from itertools import product
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import numpy as np
 from affine import Affine
@@ -307,7 +307,7 @@ def indices_strip(image_spec: ImageSpec,
                   strip: int,
                   nstrips: int,
                   batchsize: int
-                  ) -> Tuple[Iterable[np.ndarray], int]:
+                  ) -> Tuple[Iterator[np.ndarray], int]:
     """
     Create an iterator over each row of a strip.
 
@@ -346,7 +346,7 @@ def random_indices(
     npoints: int,
     batchsize: int,
     random_seed: int
-) -> Tuple[Iterable[np.ndarray], int]:
+) -> Tuple[Iterator[np.ndarray], int]:
     """Create an iterator over a random indices into the image."""
     assert batchsize > 0
     w = image_spec.width
@@ -384,7 +384,7 @@ def _indices_query(image_width: int,
                    batchsize: int,
                    column_slice: Optional[FixedSlice] = None,
                    row_slice: Optional[FixedSlice] = None
-                   ) -> Iterable[np.ndarray]:
+                   ) -> Iterator[np.ndarray]:
     """Create a generator of batches of coordinates from an image."""
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)

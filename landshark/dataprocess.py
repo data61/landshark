@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import logging
-from itertools import count, groupby, islice
+from itertools import count, groupby
 from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
@@ -304,16 +304,30 @@ def write_querydata(args: ProcessQueryArgs) -> None:
     tfwrite.query(out_it, n_total, args.directory, args.tag)
 
 
+#
+# Functions for reading hdf5 query data directy
+#
+
+
+def _islice_batched(it: Iterator[np.ndarray], n: int) -> Iterator[np.ndarray]:
+    """Slice an iterator which comes in batches."""
+    while n > 0:
+        arr: np.ndarray = next(it)
+        k = arr.shape[0]
+        yield arr[:n, :]
+        n -= k
+
+
 def read_query_hdf5(
     features_hdf5: str,
-    npoints: int,
+    npoints: Optional[int] = None,
     halfwidth: int = 0,
     shuffle: bool = False,
     batch_mb: float = 1000,
     nworkers: int = 1,
     random_seed: int = 220,
 ) -> Iterator[DataArrays]:
-    """Read query data (in batches)."""
+    """Read N points of (optionally random) query data (in batches)."""
     feature_metadata = read_feature_metadata(features_hdf5)
     ndim_con = len(feature_metadata.continuous.columns) \
         if feature_metadata.continuous else 0
@@ -323,14 +337,15 @@ def read_query_hdf5(
         batch_mb, ndim_con, ndim_cat, halfwidth
     )
     imspec = feature_metadata.image
-    npoints = min(npoints, imspec.width * imspec.height)
+    max_points = imspec.width * imspec.height
+    npoints = min(npoints or max_points, max_points)
     if shuffle:
         it, _ = random_indices(
             imspec, npoints, batchsize, random_seed=random_seed
         )
     else:
         it_all, _ = indices_strip(imspec, 1, 1, batchsize)
-        it = islice(it_all, npoints)
+        it = _islice_batched(it_all, npoints)
 
     worker = _QueryDataProcessor(features_hdf5, imspec, halfwidth)
     tasks = list(it)
