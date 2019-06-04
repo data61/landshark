@@ -17,7 +17,8 @@
 import logging
 import os
 from glob import glob
-from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional,
+                    Tuple, Union)
 
 import numpy as np
 import tensorflow as tf
@@ -87,20 +88,31 @@ def _make_mask(x: Dict[str, np.ndarray],
 
 TData = Dict[str, Union[np.ndarray, Dict[str, np.ndarray]]]
 
-XData = Tuple[Optional[Dict[str, np.ma.MaskedArray]],
-              Optional[Dict[str, np.ma.MaskedArray]],
-              np.ndarray, np.ndarray]
 
-XYData = Tuple[Optional[Dict[str, np.ma.MaskedArray]],
-               Optional[Dict[str, np.ma.MaskedArray]],
-               np.ndarray, np.ndarray, Dict[str, np.ndarray]]
+class XData(NamedTuple):
+    """Container for covariate data X."""
+
+    x_con: Optional[Dict[str, np.ma.MaskedArray]]
+    x_cat: Optional[Dict[str, np.ma.MaskedArray]]
+    indices: np.ndarray
+    coords: np.ndarray
+
+
+class XYData(NamedTuple):
+    """Container for covariate X and target data Y."""
+
+    x_con: Optional[Dict[str, np.ma.MaskedArray]]
+    x_cat: Optional[Dict[str, np.ma.MaskedArray]]
+    indices: np.ndarray
+    coords: np.ndarray
+    y: Dict[str, np.ndarray]
 
 
 def _split(X: TData) -> XData:
     """Split dict into elements."""
     Xcon = _make_mask(X["con"], X["con_mask"]) if "con" in X else None
     Xcat = _make_mask(X["cat"], X["cat_mask"]) if "cat" in X else None
-    return Xcon, Xcat, X["indices"], X["coords"]
+    return XData(Xcon, Xcat, X["indices"], X["coords"])
 
 
 def _concat_dict(xlist: List[TData]) -> TData:
@@ -133,7 +145,7 @@ def extract_split_xy(dataset: tf.data.TFRecordDataset) -> XYData:
     X = _concat_dict(x_list)
     x_con, x_cat, indices, coords = _split(X)
 
-    return x_con, x_cat, indices, coords, Y
+    return XYData(x_con, x_cat, indices, coords, Y)
 
 
 def xy_record_data(

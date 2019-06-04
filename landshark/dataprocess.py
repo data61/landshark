@@ -29,9 +29,11 @@ from landshark.image import (ImageSpec, image_to_world, indices_strip,
                              random_indices, world_to_image)
 from landshark.iteration import batch_slices
 from landshark.kfold import KFolds
+from landshark.metadata import FeatureSet
 from landshark.multiproc import task_list
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import DataArrays, serialise
+from landshark.tfread import XData
 from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
@@ -318,6 +320,22 @@ def _islice_batched(it: Iterator[np.ndarray], n: int) -> Iterator[np.ndarray]:
         n -= k
 
 
+def dataarrays_to_xdata(arrays: DataArrays, features: FeatureSet) -> XData:
+    """Convert DataArrays to XData (i.e. add column names)."""
+    x_con = None
+    if arrays.con_marray is not None:
+        assert features.continuous
+        con_labels = features.continuous.columns.keys()
+        x_con = dict(zip(con_labels, np.rollaxis(arrays.con_marray, 3)))
+    x_cat = None
+    if arrays.cat_marray is not None:
+        assert features.categorical
+        cat_labels = features.categorical.columns.keys()
+        x_cat = dict(zip(cat_labels, np.rollaxis(arrays.cat_marray, 3)))
+    xdata = XData(x_con, x_cat, arrays.image_indices, arrays.con_marray)
+    return xdata
+
+
 def read_query_hdf5(
     features_hdf5: str,
     npoints: Optional[int] = None,
@@ -326,7 +344,7 @@ def read_query_hdf5(
     batch_mb: float = 1000,
     nworkers: int = 1,
     random_seed: int = 220,
-) -> Iterator[DataArrays]:
+) -> Iterator[XData]:
     """Read N points of (optionally random) query data (in batches)."""
     feature_metadata = read_feature_metadata(features_hdf5)
     feature_metadata.halfwidth = halfwidth
@@ -345,5 +363,6 @@ def read_query_hdf5(
 
     worker = _QueryDataProcessor(features_hdf5, imspec, halfwidth)
     tasks = list(it)
-    out_it = task_list(tasks, IdReader(), worker, nworkers)
-    return out_it
+    da_it = task_list(tasks, IdReader(), worker, nworkers)
+    xdata_it = (dataarrays_to_xdata(d, feature_metadata) for d in da_it)
+    return xdata_it
