@@ -39,6 +39,8 @@ _FDICT = {
 
 
 class DataArrays(NamedTuple):
+    """Container for training/query data presented to a model."""
+
     con_marray: Optional[np.ma.MaskedArray]
     cat_marray: Optional[np.ma.MaskedArray]
     targets: Optional[np.ndarray]

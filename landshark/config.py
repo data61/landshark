@@ -42,9 +42,7 @@ def flatten_patch(x: tf.Tensor) -> tf.Tensor:
 
 def value_impute(data: tf.Tensor, mask: tf.Tensor,
                  newval: Union[tf.Tensor, np.ndarray]) -> tf.Tensor:
-    """
-    Impute missing (masked) values with a single value.
-    """
+    """Impute missing (masked) values with a single value."""
     tmask = tf.cast(mask, dtype=data.dtype)
     fmask = tf.cast(tf.logical_not(mask), dtype=data.dtype)
     newdata = data * fmask + newval * tmask

@@ -43,6 +43,7 @@ def mb_to_points(batchMB: float,
                  ndim_coord: int = 0,
                  halfwidth: int = 0
                  ) -> int:
+    """Calculate the number of points of data to fill a memory allocation."""
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_con = np.dtype(ContinuousType).itemsize * ndim_con
@@ -61,6 +62,7 @@ def mb_to_rows(batchMB: float,
                ndim_cat: int,
                halfwidth: int = 0
                ) -> int:
+    """Calculate the number of rows of data to fill a memory allocation."""
     log.info("Batch size of {}MB requested".format(batchMB))
     patchsize = (halfwidth * 2 + 1) ** 2
     bytes_con = np.dtype(ContinuousType).itemsize * ndim_con
@@ -74,7 +76,7 @@ def mb_to_rows(batchMB: float,
 
 
 def points_per_batch(meta: FeatureSet, batch_mb: float) -> int:
-    """Calculate batchsize in points."""
+    """Calculate batchsize in points given a memory allocation."""
     ndim_con = len(meta.continuous.columns) if meta.continuous else 0
     ndim_cat = len(meta.categorical.columns) if meta.categorical else 0
     batchsize = mb_to_points(batch_mb, ndim_con, ndim_cat, meta.halfwidth)
