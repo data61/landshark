@@ -366,3 +366,70 @@ def read_query_hdf5(
     da_it = task_list(tasks, IdReader(), worker, nworkers)
     xdata_it = (dataarrays_to_xdata(d, feature_metadata) for d in da_it)
     return xdata_it
+
+
+class HDF5FeatureReader:
+    """Read feature data from HDF5 file."""
+
+    def __init__(
+        self,
+        hdf5_file: str,
+        halfwidth: int = 0,
+        nworkers: int = 1,
+        batch_mb: float = 1000,
+    ) -> None:
+        self.file = hdf5_file
+        self.meta = read_feature_metadata(hdf5_file)
+        self.meta.halfwidth = halfwidth
+        self.nworkers = nworkers
+        self.size = self.meta.image.height * self.meta.image.width
+        self.worker = _QueryDataProcessor(
+            hdf5_file, self.meta.image, halfwidth
+        )
+        self.batch_mb = batch_mb
+        self.batchsize = points_per_batch(self.meta, batch_mb)
+
+    def __len__(self) -> int:
+        """Total number of points."""
+        return self.size
+
+    def _run(self, index_list: List[np.ndarray]) -> Iterator[XData]:
+        """Slice array at indices defined by `tasks`."""
+        da_it = task_list(index_list, IdReader(), self.worker, self.nworkers)
+        xdata_it = (dataarrays_to_xdata(d, self.meta) for d in da_it)
+        return xdata_it
+
+    def read(
+        self,
+        npoints: Optional[int] = None,
+        shuffle: bool = False,
+        random_seed: int = 220,
+    ) -> Iterator[XData]:
+        """Read N points of (optionally random) query data (in batches)."""
+        npoints = min(npoints or self.size, self.size)
+        if shuffle:
+            it, _ = random_indices(
+                self.meta.image,
+                npoints,
+                self.batchsize,
+                random_seed=random_seed
+            )
+        else:
+            it_all, _ = indices_strip(self.meta.image, 1, 1, self.batchsize)
+            it = _islice_batched(it_all, npoints)
+        return self._run(list(it))
+
+    def read_ix(self, indexes: np.ndarray) -> Iterator[XData]:
+        """Read array at supplied indexes."""
+        index_list = np.array_split(
+            indexes, range(self.batchsize, indexes.shape[0], self.batchsize)
+        )
+        return self._run(index_list)
+
+    def read_coords(self, coords: np.ndarray) -> Iterator[XData]:
+        """Read array at the supplied coordinates."""
+        indexes = np.hstack(
+            world_to_image(coords[:, 0], self.meta.image.x_coordinates),
+            world_to_image(coords[:, 1], self.meta.image.y_coordinates),
+        )
+        return self.read_ix(indexes)
