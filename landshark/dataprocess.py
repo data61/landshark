@@ -332,7 +332,7 @@ def dataarrays_to_xdata(arrays: DataArrays, features: FeatureSet) -> XData:
         assert features.categorical
         cat_labels = features.categorical.columns.keys()
         x_cat = dict(zip(cat_labels, np.rollaxis(arrays.cat_marray, 3)))
-    xdata = XData(x_con, x_cat, arrays.image_indices, arrays.con_marray)
+    xdata = XData(x_con, x_cat, arrays.image_indices, arrays.world_coords)
     return xdata
 
 
@@ -428,8 +428,8 @@ class HDF5FeatureReader:
 
     def read_coords(self, coords: np.ndarray) -> Iterator[XData]:
         """Read array at the supplied coordinates."""
-        indexes = np.hstack(
+        indexes = np.vstack([
             world_to_image(coords[:, 0], self.meta.image.x_coordinates),
             world_to_image(coords[:, 1], self.meta.image.y_coordinates),
-        )
+        ]).T
         return self.read_ix(indexes)
