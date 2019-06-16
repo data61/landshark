@@ -393,6 +393,11 @@ class HDF5FeatureReader:
         """Total number of points."""
         return self.size
 
+    @property
+    def crs(self) -> Dict[str, str]:
+        """Get CRS."""
+        return self.meta.image.crs
+
     def _run(self, index_list: List[np.ndarray]) -> Iterator[XData]:
         """Slice array at indices defined by `tasks`."""
         da_it = task_list(index_list, IdReader(), self.worker, self.nworkers)
