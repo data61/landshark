@@ -336,38 +336,6 @@ def dataarrays_to_xdata(arrays: DataArrays, features: FeatureSet) -> XData:
     return xdata
 
 
-def read_query_hdf5(
-    features_hdf5: str,
-    npoints: Optional[int] = None,
-    halfwidth: int = 0,
-    shuffle: bool = False,
-    batch_mb: float = 1000,
-    nworkers: int = 1,
-    random_seed: int = 220,
-) -> Iterator[XData]:
-    """Read N points of (optionally random) query data (in batches)."""
-    feature_metadata = read_feature_metadata(features_hdf5)
-    feature_metadata.halfwidth = halfwidth
-    batchsize = points_per_batch(feature_metadata, batch_mb)
-
-    imspec = feature_metadata.image
-    max_points = imspec.width * imspec.height
-    npoints = min(npoints or max_points, max_points)
-    if shuffle:
-        it, _ = random_indices(
-            imspec, npoints, batchsize, random_seed=random_seed
-        )
-    else:
-        it_all, _ = indices_strip(imspec, 1, 1, batchsize)
-        it = _islice_batched(it_all, npoints)
-
-    worker = _QueryDataProcessor(features_hdf5, imspec, halfwidth)
-    tasks = list(it)
-    da_it = task_list(tasks, IdReader(), worker, nworkers)
-    xdata_it = (dataarrays_to_xdata(d, feature_metadata) for d in da_it)
-    return xdata_it
-
-
 class HDF5FeatureReader:
     """Read feature data from HDF5 file."""
 
