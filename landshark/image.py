@@ -341,6 +341,16 @@ def indices_strip(image_spec: ImageSpec,
     return it, n_total
 
 
+def _batched_choice(N: int, M: int, batchsize: int = 1_000_000) -> np.ndarray:
+    """Select random indices in batches. Results won't be in random order."""
+    k = int(np.ceil(N / batchsize))
+    ns = np.diff(np.linspace(0, N, k + 1, dtype=int))
+    ms = np.diff(np.linspace(0, M, k + 1, dtype=int))
+    rnds = [np.random.choice(n, size=m, replace=False) for n, m in zip(ns, ms)]
+    result = np.ravel(np.column_stack(rnds))
+    return result
+
+
 def random_indices(
     image_spec: ImageSpec,
     npoints: int,
@@ -354,7 +364,7 @@ def random_indices(
     image_points = h * w
     npoints = min(npoints, image_points)
     assert npoints > 0
-    ix_ravel = np.random.choice(image_points, size=npoints, replace=False)
+    ix_ravel = _batched_choice(image_points, npoints)
     ix = np.vstack(np.unravel_index(ix_ravel, [h, w])).astype(IndexType).T
     ix_batch = map(_array_pair_it, iteration.batch(iter(ix), batchsize))
     return ix_batch, npoints
