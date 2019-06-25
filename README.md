@@ -81,6 +81,8 @@ The basic steps in using Landshark are:
 3. Train a model and predict with the `landshark` command,
    or `skshark` for scikit-learn models.
 
+![Process flow diagram](flowdiagram.svg)
+
 ## Data Prerequisites
 
 Landshark has not tried to replicate features that exist in other tools,
