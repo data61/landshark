@@ -341,13 +341,50 @@ def indices_strip(image_spec: ImageSpec,
     return it, n_total
 
 
-def _batched_choice(N: int, M: int, batchsize: int = 1_000_000) -> np.ndarray:
-    """Select random indices in batches. Results won't be in random order."""
-    k = int(np.ceil(N / batchsize))
-    ns = np.diff(np.linspace(0, N, k + 1, dtype=int))
-    ms = np.diff(np.linspace(0, M, k + 1, dtype=int))
-    rnds = [np.random.choice(n, size=m, replace=False) for n, m in zip(ns, ms)]
-    result = np.ravel(np.column_stack(rnds))
+def random_choice_batched(
+    N: int,
+    M: int,
+    random_seed: Optional[int] = None,
+    batchsize: int = 1_000_000,
+    tree_width: int = 1000,
+) -> np.ndarray:
+    """Select M random indices in range [0, N), in batches for efficiency.
+
+    This function recusively splits the problem into smaller ranges of
+    random indices split across the range [0, N) because selecting all at once
+    via np.random.choice(N, size=M, replace=False) is expensive for large N.
+    """
+
+    rnd = np.random.RandomState(random_seed)
+
+    if N <= batchsize:
+        result = rnd.choice(N, size=M, replace=False)
+    else:
+        n_batches = min(tree_width, int(np.ceil(N / batchsize)))
+        steps = np.linspace(0, N, n_batches + 1, dtype=np.int64)
+        ns = np.diff(steps)
+        ms = np.empty_like(ns)
+        ixs = np.arange(M)
+        rnd.shuffle(ixs)
+
+        for i, n in enumerate(ns):
+            if M > 0:
+                m = rnd.hypergeometric(n, N - n, M, size=1)
+                M -= m
+                N -= n
+                ms[i] = m
+            else:
+                ms[i:] = 0
+                break
+
+        mixs = np.split(ixs, np.cumsum(ms)[:-1])
+        result = np.empty_like(ixs, dtype=np.int64)
+        for n, m, s, ix in zip(ns, ms, steps, mixs):
+            if m:
+                result[ix] = random_choice_batched(
+                    n, m, batchsize, tree_width
+                ) + s
+
     return result
 
 
@@ -364,7 +401,7 @@ def random_indices(
     image_points = h * w
     npoints = min(npoints, image_points)
     assert npoints > 0
-    ix_ravel = _batched_choice(image_points, npoints)
+    ix_ravel = random_choice_batched(image_points, npoints)
     ix = np.vstack(np.unravel_index(ix_ravel, [h, w])).astype(IndexType).T
     ix_batch = map(_array_pair_it, iteration.batch(iter(ix), batchsize))
     return ix_batch, npoints

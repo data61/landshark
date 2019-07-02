@@ -228,3 +228,15 @@ def test_indices_query():
     # Test we can reconstruct the labels array
     coord_accum = np.concatenate(coord_accum)
     assert np.all(coord_accum == xy)
+
+
+def test_random_indices():
+    """Test selecting random indices into a image."""
+    cols = 100
+    rows = 200
+    npoints = 10
+    x_coords = np.arange(cols + 1)
+    y_coords = np.arange(rows + 1)
+    crs = {"init": "egs123"}
+    spec = image.ImageSpec(x_coords, y_coords, crs)
+    image.random_indices(spec, npoints, batchsize=1000, random_seed=220)
