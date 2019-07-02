@@ -21,7 +21,6 @@ from typing import Any, Callable, Dict, Generator, List, NamedTuple, Optional
 
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 
 from landshark.metadata import Training
 from landshark.saver import BestScoreSaver
@@ -163,16 +162,11 @@ def predict(checkpoint_dir: str,
         params={"metadata": metadata, "config": cf.model}
     )
     it = estimator.predict(predict_fn, yield_single_examples=False)
-    height = metadata.features.image.height
-    width = metadata.features.image.width
-    total_size = (height * width) // params.batchsize
-    with tqdm(total=total_size) as pbar:
-        while True:
-            try:
-                yield next(it)
-                pbar.update()
-            except StopIteration:
-                return
+    while True:
+        try:
+            yield next(it)
+        except StopIteration:
+            return
 
 
 #

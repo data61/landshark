@@ -22,7 +22,6 @@ from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 
 from landshark.metadata import Training
 from landshark.model import predict_data, test_data, train_data
@@ -106,25 +105,21 @@ def _query_it(records_query: List[str],
               batch_size: int,
               metadata: Training
               ) -> Iterator[Dict[str, np.ndarray]]:
-
-    total_size = metadata.features.image.height * metadata.features.image.width
+    """An interator containing batches of query data covariates."""
     dataset = predict_data(records_query, metadata, batch_size)()
     X_tensor = dataset.make_one_shot_iterator().get_next()
-    with tqdm(total=total_size) as pbar:
-        with tf.Session() as sess:
-            while True:
-                try:
-                    X = sess.run(X_tensor)
-                    if "con" in X:
-                        X["con"] = _make_mask(X["con"], X["con_mask"])
-                    if "cat" in X:
-                        X["cat"] = _make_mask(X["cat"], X["cat_mask"])
-                    n = X["indices"].shape[0]
-                    pbar.update(n)
-                    yield X
-                except tf.errors.OutOfRangeError:
-                    break
-            return
+    with tf.Session() as sess:
+        while True:
+            try:
+                X = sess.run(X_tensor)
+                if "con" in X:
+                    X["con"] = _make_mask(X["con"], X["con_mask"])
+                if "cat" in X:
+                    X["cat"] = _make_mask(X["cat"], X["cat_mask"])
+                yield X
+            except tf.errors.OutOfRangeError:
+                break
+        return
 
 
 def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
