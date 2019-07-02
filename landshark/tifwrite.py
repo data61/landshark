@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import logging
 import os.path
 from typing import Dict, Iterator
@@ -21,6 +22,7 @@ from typing import Dict, Iterator
 import numpy as np
 import rasterio as rs
 from rasterio.windows import Window
+from tqdm import tqdm
 
 from landshark.errors import PredictionShape
 from landshark.image import ImageSpec
@@ -88,13 +90,15 @@ def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
                    imspec: ImageSpec,
                    tag: str = ""
                    ) -> None:
-
+    """Write predictions `y` to tifs according to the query image spec."""
     log.info("Initialising Geotiff writers")
     log.info("Image width: {} height: {}".format(imspec.width,
                                                  imspec.height))
 
-    # get the first prediction so we can see what we're dealing with
+    # "peek" at the first prediction so we can see what we're dealing with
     y0 = next(y_dash)
+    y_dash = itertools.chain([y0], y_dash)
+
     for k, v in y0.items():
         if not (v.ndim == 1 or (v.ndim == 2 and v.shape[1] == 1)):
             raise PredictionShape(k, v.shape)
@@ -102,13 +106,11 @@ def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
     writers = {k: _make_writer(directory, k + "_" + tag, v.dtype,
                                imspec) for k, v in y0.items()}
 
-    # write the initial data
-    for k, v in y0.items():
-        writers[k].write(v.flatten())
-
-    for y_i in y_dash:
-        for k, v in y_i.items():
-            writers[k].write(v.flatten())
+    with tqdm(total=imspec.width * imspec.height) as pbar:
+        for y_i in y_dash:
+            for k, v in y_i.items():
+                writers[k].write(v.flatten())
+            pbar.update(v.size)
 
     for w in writers.values():
         w.close()
