@@ -16,7 +16,7 @@
 
 import logging
 from itertools import product
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import numpy as np
 from affine import Affine
@@ -341,51 +341,31 @@ def indices_strip(image_spec: ImageSpec,
     return it, n_total
 
 
-def random_choice_batched(
+def random_ix(
     N: int,
     M: int,
     random_seed: Optional[int] = None,
-    batchsize: int = 1_000_000,
-    tree_width: int = 1000,
 ) -> np.ndarray:
-    """Select M random indices in range [0, N), in batches for efficiency.
-
-    This function recusively splits the problem into smaller ranges of
-    random indices split across the range [0, N) because selecting all at once
-    via np.random.choice(N, size=M, replace=False) is expensive for large N.
-    """
+    """M unique random ints in [0, N) where M <= min(N, 1e7), N <= 2^64 - 1."""
+    M_MAX = int(1e7)
+    if N <= 0 or M <= 0 or M > min(N, M_MAX):
+        raise ValueError("Inputs must satisfy: N > 0,  0 < M <= min(N, 1e7)")
 
     rnd = np.random.RandomState(random_seed)
 
-    if N <= batchsize:
-        result = rnd.choice(N, size=M, replace=False)
+    # np.random.choice without replacement is expensive for large N
+    if N <= 2e8:
+        C = rnd.choice(np.arange(N, dtype=np.uint32), size=M, replace=False)
     else:
-        n_batches = min(tree_width, int(np.ceil(N / batchsize)))
-        steps = np.linspace(0, N, n_batches + 1, dtype=np.int64)
-        ns = np.diff(steps)
-        ms = np.empty_like(ns)
-        ixs = np.arange(M)
-        rnd.shuffle(ixs)
-
-        for i, n in enumerate(ns):
-            if M > 0:
-                m = rnd.hypergeometric(n, N - n, M, size=1)
-                M -= m
-                N -= n
-                ms[i] = m
-            else:
-                ms[i:] = 0
-                break
-
-        mixs = np.split(ixs, np.cumsum(ms)[:-1])
-        result = np.empty_like(ixs, dtype=np.int64)
-        for n, m, s, ix in zip(ns, ms, steps, mixs):
-            if m:
-                result[ix] = random_choice_batched(
-                    n, m, batchsize, tree_width
-                ) + s
-
-    return result
+        S: Set[int] = set()
+        for _ in range(M):
+            r = rnd.randint(N, dtype=np.uint64)
+            while r in S:
+                r = rnd.randint(N, dtype=np.uint64)
+            S.add(r)
+        C = np.array(list(S))
+        rnd.shuffle(C)
+    return C
 
 
 def random_indices(
@@ -401,7 +381,7 @@ def random_indices(
     image_points = h * w
     npoints = min(npoints, image_points)
     assert npoints > 0
-    ix_ravel = random_choice_batched(image_points, npoints)
+    ix_ravel = random_ix(image_points, npoints)
     ix = np.vstack(np.unravel_index(ix_ravel, [h, w])).astype(IndexType).T
     ix_batch = map(_array_pair_it, iteration.batch(iter(ix), batchsize))
     return ix_batch, npoints
