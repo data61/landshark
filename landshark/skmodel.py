@@ -18,7 +18,7 @@ import json
 import logging
 import os.path
 import pickle
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
@@ -46,30 +46,19 @@ T = Union[np.ndarray, Dict[str, np.ndarray]]
 def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
     out_dict = {}
     for k, v in xlist[0].items():
-        if isinstance(v, np.ndarray):
+        if isinstance(v, np.ndarray) or isinstance(v, tf.Tensor):
             out_dict[k] = np.concatenate([di[k] for di in xlist], axis=0)
         else:
             out_dict[k] = _concat_dict([di[k] for di in xlist])
     return out_dict
 
 
-def _extract(xt: Dict[str, tf.Tensor],
-             yt: tf.Tensor,
-             sess: tf.compat.v1.Session
-             ) -> Tuple[dict, np.ndarray]:
+def _extract(dataset: Iterable) -> Tuple[dict, np.ndarray]:
 
-    x_list = []
-    y_list = []
-    try:
-        while True:
-            x, y = sess.run([xt, yt])
-            x_list.append(x)
-            y_list.append(y)
-    except tf.errors.OutOfRangeError:
-        pass
-
+    x_list, y_list = zip(*dataset)
     y_full = np.concatenate(y_list, axis=0)
     x_full = _concat_dict(x_list)
+
     if "con" in x_full:
         x_full["con"] = _make_mask(x_full["con"], x_full["con_mask"])
         x_full.pop("con_mask")
@@ -88,16 +77,12 @@ def _get_data(records_train: List[str],
               random_seed: int
               ) -> Tuple[Dict[str, np.ndarray], np.ndarray,
                          Dict[str, np.ndarray], np.ndarray]:
-
     train_dataset = train_data(records_train, metadata, batch_size, epochs=1,
                                take=npoints, random_seed=random_seed)()
-    X_tensor, Y_tensor = tf.compat.v1.data.make_one_shot_iterator(train_dataset).get_next()
     test_dataset = test_data(records_test, metadata, batch_size)()
-    Xt_tensor, Yt_tensor = tf.compat.v1.data.make_one_shot_iterator(test_dataset).get_next()
 
-    with tf.compat.v1.Session() as sess:
-        X, Y = _extract(X_tensor, Y_tensor, sess)
-        Xt, Yt = _extract(Xt_tensor, Yt_tensor, sess)
+    X, Y = _extract(train_dataset)
+    Xt, Yt = _extract(test_dataset)
     return X, Y, Xt, Yt
 
 
@@ -107,19 +92,14 @@ def _query_it(records_query: List[str],
               ) -> Iterator[Dict[str, np.ndarray]]:
     """An interator containing batches of query data covariates."""
     dataset = predict_data(records_query, metadata, batch_size)()
-    X_tensor = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
-    with tf.compat.v1.Session() as sess:
-        while True:
-            try:
-                X = sess.run(X_tensor)
-                if "con" in X:
-                    X["con"] = _make_mask(X["con"], X["con_mask"])
-                if "cat" in X:
-                    X["cat"] = _make_mask(X["cat"], X["cat_mask"])
-                yield X
-            except tf.errors.OutOfRangeError:
-                break
-        return
+    for X in dataset:
+        if "con" in X:
+            X["con"] = _make_mask(X["con"], X["con_mask"])
+        if "cat" in X:
+            X["cat"] = _make_mask(X["cat"], X["cat_mask"])
+        yield X
+
+    return
 
 
 def _split(x: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray,
