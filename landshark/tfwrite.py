@@ -67,9 +67,9 @@ class _MultiFileWriter:
         self.output_directory = output_directory
         self.tag = tag
         self.file_index = -1
-        self._options = tf.python_io.TFRecordOptions(
-            tf.python_io.TFRecordCompressionType.ZLIB)
-        self._f: Optional[tf.python_io.TFRecordWriter] = None
+        self._options = tf.io.TFRecordOptions(
+            tf.compat.v1.python_io.TFRecordCompressionType.ZLIB)
+        self._f: Optional[tf.io.TFRecordWriter] = None
         self._nextfile()
         self.lines_written = 0
 
@@ -80,7 +80,7 @@ class _MultiFileWriter:
         self.path = os.path.join(
             self.output_directory,
             "{}.{:05d}.tfrecord".format(self.tag, self.file_index))
-        self._f = tf.python_io.TFRecordWriter(self.path, options=self._options)
+        self._f = tf.io.TFRecordWriter(self.path, options=self._options)
 
     def add(self, batch: List[bytes]) -> None:
         if self._f:

@@ -114,11 +114,11 @@ def model(mode: estimator.ModeKeys,
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
-    l1 = tf.layers.dense(inputs, units=64, activation=tf.nn.relu)
-    l2 = tf.layers.dense(l1, units=32, activation=tf.nn.relu)
+    l1 = tf.compat.v1.layers.dense(inputs, units=64, activation=tf.nn.relu)
+    l2 = tf.compat.v1.layers.dense(l1, units=32, activation=tf.nn.relu)
 
     # Get some predictions for the labels
-    phi = tf.layers.dense(l2, units=metadata.targets.D, activation=None)
+    phi = tf.compat.v1.layers.dense(l2, units=metadata.targets.D, activation=None)
 
     # Compute predictions.
     if mode == estimator.ModeKeys.PREDICT:
@@ -127,12 +127,12 @@ def model(mode: estimator.ModeKeys,
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
-    ll_f = tf.distributions.Normal(loc=phi, scale=1.0)
-    loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
-    tf.summary.scalar("loss", loss)
+    ll_f = tf.compat.v1.distributions.Normal(loc=phi, scale=1.0)
+    loss = -1 * tf.reduce_mean(input_tensor=ll_f.log_prob(Y))
+    tf.compat.v1.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
-    mse = tf.metrics.mean_squared_error(labels=Y, predictions=phi)
+    mse = tf.compat.v1.metrics.mean_squared_error(labels=Y, predictions=phi)
     metrics = {"mse": mse}
 
     if mode == estimator.ModeKeys.EVAL:
@@ -141,6 +141,6 @@ def model(mode: estimator.ModeKeys,
 
     # For training, use Adam to learn
     assert mode == estimator.ModeKeys.TRAIN
-    optimizer = tf.train.AdamOptimizer()
-    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    optimizer = tf.compat.v1.train.AdamOptimizer()
+    train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
