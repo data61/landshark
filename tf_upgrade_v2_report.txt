@@ -1,0 +1,546 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 57 files
+Detected 7 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: ./landshark/model.py
+--------------------------------------------------------------------------------
+./landshark/model.py:136:12: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+File: ./landshark/tfread.py
+--------------------------------------------------------------------------------
+./landshark/tfread.py:65:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+File: ./landshark/skmodel.py
+--------------------------------------------------------------------------------
+./landshark/skmodel.py:94:25: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+./landshark/skmodel.py:96:27: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+./landshark/skmodel.py:110:15: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+--------------------------------------------------------------------------------
+File: ./landshark/scripts/extractors.py
+--------------------------------------------------------------------------------
+./landshark/scripts/extractors.py:146:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+./landshark/scripts/extractors.py:214:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+================================================================================
+Detailed log follows:
+
+================================================================================
+================================================================================
+Input tree: './'
+================================================================================
+--------------------------------------------------------------------------------
+Processing file './setup.py'
+ outputting to './setup.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './versioneer.py'
+ outputting to './versioneer.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './integration/conftest.py'
+ outputting to './integration/conftest.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './integration/test_pipeline.py'
+ outputting to './integration/test_pipeline.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/_version.py'
+ outputting to './landshark/_version.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/__init__.py'
+ outputting to './landshark/__init__.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/dataprocess.py'
+ outputting to './landshark/dataprocess.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/fileio.py'
+ outputting to './landshark/fileio.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/tifread.py'
+ outputting to './landshark/tifread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/multiproc.py'
+ outputting to './landshark/multiproc.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/errors.py'
+ outputting to './landshark/errors.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/tfwrite.py'
+ outputting to './landshark/tfwrite.py'
+--------------------------------------------------------------------------------
+
+70:24: INFO: Renamed 'tf.python_io.TFRecordOptions' to 'tf.io.TFRecordOptions'
+71:12: INFO: Renamed 'tf.python_io.TFRecordCompressionType' to 'tf.compat.v1.python_io.TFRecordCompressionType'
+72:26: INFO: Renamed 'tf.python_io.TFRecordWriter' to 'tf.io.TFRecordWriter'
+83:18: INFO: Renamed 'tf.python_io.TFRecordWriter' to 'tf.io.TFRecordWriter'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/model.py'
+ outputting to './landshark/model.py'
+--------------------------------------------------------------------------------
+
+108:18: INFO: Renamed 'tf.ConfigProto' to 'tf.compat.v1.ConfigProto'
+136:12: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+150:18: INFO: Renamed 'tf.ConfigProto' to 'tf.compat.v1.ConfigProto'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/config.py'
+ outputting to './landshark/config.py'
+--------------------------------------------------------------------------------
+
+38:15: INFO: Added keywords to args of function 'tf.shape'
+56:13: INFO: Renamed 'tf.feature_column.input_layer' to 'tf.compat.v1.feature_column.input_layer'
+69:17: INFO: Renamed 'tf.feature_column.input_layer' to 'tf.compat.v1.feature_column.input_layer'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/saver.py'
+ outputting to './landshark/saver.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/patch.py'
+ outputting to './landshark/patch.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/image.py'
+ outputting to './landshark/image.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/serialise.py'
+ outputting to './landshark/serialise.py'
+--------------------------------------------------------------------------------
+
+31:13: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+32:18: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+33:13: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+34:18: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+35:9: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+36:15: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+37:14: INFO: Renamed 'tf.FixedLenFeature' to 'tf.io.FixedLenFeature'
+77:19: INFO: Added keywords to args of function 'tf.parse_example'
+77:19: INFO: Renamed 'tf.parse_example' to 'tf.io.parse_example'
+81:9: INFO: `name` passed to `name_scope`. Because you may be re-entering an existing scope, it is not safe to convert automatically,  the v2 name_scope does not support re-entering scopes by name.
+
+81:9: INFO: Renamed 'tf.name_scope' to 'tf.compat.v1.name_scope'
+82:16: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+83:16: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+84:21: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+85:21: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+88:12: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+89:18: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+90:17: INFO: Renamed 'tf.decode_raw' to 'tf.io.decode_raw'
+124:27: INFO: Added keywords to args of function 'tf.shape'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/basetypes.py'
+ outputting to './landshark/basetypes.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/hread.py'
+ outputting to './landshark/hread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/tifwrite.py'
+ outputting to './landshark/tifwrite.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/iteration.py'
+ outputting to './landshark/iteration.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/category.py'
+ outputting to './landshark/category.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/shpread.py'
+ outputting to './landshark/shpread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/tfread.py'
+ outputting to './landshark/tfread.py'
+--------------------------------------------------------------------------------
+
+65:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/kfold.py'
+ outputting to './landshark/kfold.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/util.py'
+ outputting to './landshark/util.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/skmodel.py'
+ outputting to './landshark/skmodel.py'
+--------------------------------------------------------------------------------
+
+58:19: INFO: Renamed 'tf.Session' to 'tf.compat.v1.Session'
+94:25: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+96:27: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+98:9: INFO: Renamed 'tf.Session' to 'tf.compat.v1.Session'
+110:15: WARNING: Changing dataset.make_one_shot_iterator() to tf.compat.v1.data.make_one_shot_iterator(dataset). Please check this transformation.
+
+111:9: INFO: Renamed 'tf.Session' to 'tf.compat.v1.Session'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/metadata.py'
+ outputting to './landshark/metadata.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/featurewrite.py'
+ outputting to './landshark/featurewrite.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/normalise.py'
+ outputting to './landshark/normalise.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/__init__.py'
+ outputting to './landshark/scripts/__init__.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/cli.py'
+ outputting to './landshark/scripts/cli.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/importers.py'
+ outputting to './landshark/scripts/importers.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/logger.py'
+ outputting to './landshark/scripts/logger.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/skcli.py'
+ outputting to './landshark/scripts/skcli.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './landshark/scripts/extractors.py'
+ outputting to './landshark/scripts/extractors.py'
+--------------------------------------------------------------------------------
+
+146:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+214:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/__init__.py'
+ outputting to './tests/__init__.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_fileio.py'
+ outputting to './tests/test_fileio.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_kfold.py'
+ outputting to './tests/test_kfold.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_image.py'
+ outputting to './tests/test_image.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/conftest.py'
+ outputting to './tests/conftest.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_basetypes.py'
+ outputting to './tests/test_basetypes.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_iteration.py'
+ outputting to './tests/test_iteration.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_category.py'
+ outputting to './tests/test_category.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/test_patch.py'
+ outputting to './tests/test_patch.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_targetwrite.py'
+ outputting to './tests/old/test_targetwrite.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_shpread.py'
+ outputting to './tests/old/test_shpread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_featurewrite.py'
+ outputting to './tests/old/test_featurewrite.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_feed.py'
+ outputting to './tests/old/test_feed.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_normalise.py'
+ outputting to './tests/old/test_normalise.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_hread.py'
+ outputting to './tests/old/test_hread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './tests/old/test_tifread.py'
+ outputting to './tests/old/test_tifread.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './configs/nn_regression.py'
+ outputting to './configs/nn_regression.py'
+--------------------------------------------------------------------------------
+
+117:9: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+118:9: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+121:10: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+130:11: INFO: Renamed 'tf.distributions.Normal' to 'tf.compat.v1.distributions.Normal'
+131:16: INFO: Added keywords to args of function 'tf.reduce_mean'
+132:4: INFO: tf.summary.scalar requires manual check. The TF 1.x summary API cannot be automatically migrated to TF 2.0, so symbols have been converted to tf.compat.v1.summary.* and must be migrated manually. Typical usage will only require changes to the summary writing logic, not to individual calls like scalar(). For examples of the new summary API, see the Effective TF 2.0 migration document or check the TF 2.0 TensorBoard tutorials.
+132:4: INFO: Renamed 'tf.summary.scalar' to 'tf.compat.v1.summary.scalar'
+135:10: INFO: tf.metrics.mean_squared_error requires manual check. tf.metrics have been replaced with object oriented versions in TF 2.0 and after. The metric function calls have been converted to compat.v1 for backward compatibility. Please update these calls to the TF 2.0 versions.
+135:10: INFO: Renamed 'tf.metrics.mean_squared_error' to 'tf.compat.v1.metrics.mean_squared_error'
+144:16: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+145:52: INFO: Renamed 'tf.train.get_global_step' to 'tf.compat.v1.train.get_global_step'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './configs/sklearn_classification.py'
+ outputting to './configs/sklearn_classification.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './configs/nn_classification.py'
+ outputting to './configs/nn_classification.py'
+--------------------------------------------------------------------------------
+
+120:9: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+121:9: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+124:10: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+128:32: INFO: Added keywords to args of function 'tf.argmax'
+138:11: INFO: Renamed 'tf.distributions.Categorical' to 'tf.compat.v1.distributions.Categorical'
+139:16: INFO: Added keywords to args of function 'tf.reduce_mean'
+140:4: INFO: tf.summary.scalar requires manual check. The TF 1.x summary API cannot be automatically migrated to TF 2.0, so symbols have been converted to tf.compat.v1.summary.* and must be migrated manually. Typical usage will only require changes to the summary writing logic, not to individual calls like scalar(). For examples of the new summary API, see the Effective TF 2.0 migration document or check the TF 2.0 TensorBoard tutorials.
+140:4: INFO: Renamed 'tf.summary.scalar' to 'tf.compat.v1.summary.scalar'
+143:10: INFO: tf.metrics.accuracy requires manual check. tf.metrics have been replaced with object oriented versions in TF 2.0 and after. The metric function calls have been converted to compat.v1 for backward compatibility. Please update these calls to the TF 2.0 versions.
+143:10: INFO: Renamed 'tf.metrics.accuracy' to 'tf.compat.v1.metrics.accuracy'
+152:16: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+153:52: INFO: Renamed 'tf.train.get_global_step' to 'tf.compat.v1.train.get_global_step'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file './configs/sklearn_regression.py'
+ outputting to './configs/sklearn_regression.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+

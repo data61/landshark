@@ -55,7 +55,7 @@ def _concat_dict(xlist: List[Dict[str, T]]) -> Dict[str, T]:
 
 def _extract(xt: Dict[str, tf.Tensor],
              yt: tf.Tensor,
-             sess: tf.Session
+             sess: tf.compat.v1.Session
              ) -> Tuple[dict, np.ndarray]:
 
     x_list = []
@@ -91,11 +91,11 @@ def _get_data(records_train: List[str],
 
     train_dataset = train_data(records_train, metadata, batch_size, epochs=1,
                                take=npoints, random_seed=random_seed)()
-    X_tensor, Y_tensor = train_dataset.make_one_shot_iterator().get_next()
+    X_tensor, Y_tensor = tf.compat.v1.data.make_one_shot_iterator(train_dataset).get_next()
     test_dataset = test_data(records_test, metadata, batch_size)()
-    Xt_tensor, Yt_tensor = test_dataset.make_one_shot_iterator().get_next()
+    Xt_tensor, Yt_tensor = tf.compat.v1.data.make_one_shot_iterator(test_dataset).get_next()
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         X, Y = _extract(X_tensor, Y_tensor, sess)
         Xt, Yt = _extract(Xt_tensor, Yt_tensor, sess)
     return X, Y, Xt, Yt
@@ -107,8 +107,8 @@ def _query_it(records_query: List[str],
               ) -> Iterator[Dict[str, np.ndarray]]:
     """An interator containing batches of query data covariates."""
     dataset = predict_data(records_query, metadata, batch_size)()
-    X_tensor = dataset.make_one_shot_iterator().get_next()
-    with tf.Session() as sess:
+    X_tensor = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
+    with tf.compat.v1.Session() as sess:
         while True:
             try:
                 X = sess.run(X_tensor)

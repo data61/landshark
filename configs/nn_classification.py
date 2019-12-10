@@ -117,15 +117,15 @@ def model(mode: estimator.ModeKeys,
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
-    l1 = tf.layers.dense(inputs, units=64, activation=tf.nn.relu)
-    l2 = tf.layers.dense(l1, units=32, activation=tf.nn.relu)
+    l1 = tf.compat.v1.layers.dense(inputs, units=64, activation=tf.nn.relu)
+    l2 = tf.compat.v1.layers.dense(l1, units=32, activation=tf.nn.relu)
 
     # Get some predictions for the labels
-    phi = tf.layers.dense(l2, units=nvalues_target,
+    phi = tf.compat.v1.layers.dense(l2, units=nvalues_target,
                           activation=None)
 
     # geottiff doesn't support 64bit output from argmax
-    predicted_classes = tf.cast(tf.argmax(phi, 1), tf.uint8)
+    predicted_classes = tf.cast(tf.argmax(input=phi, axis=1), tf.uint8)
 
     # Compute predictions.
     if mode == estimator.ModeKeys.PREDICT:
@@ -135,12 +135,12 @@ def model(mode: estimator.ModeKeys,
 
     # Use a loss for training
     Y = Y[:, 0]
-    ll_f = tf.distributions.Categorical(logits=phi)
-    loss = -1 * tf.reduce_mean(ll_f.log_prob(Y))
-    tf.summary.scalar("loss", loss)
+    ll_f = tf.compat.v1.distributions.Categorical(logits=phi)
+    loss = -1 * tf.reduce_mean(input_tensor=ll_f.log_prob(Y))
+    tf.compat.v1.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
-    acc = tf.metrics.accuracy(labels=Y, predictions=predicted_classes)
+    acc = tf.compat.v1.metrics.accuracy(labels=Y, predictions=predicted_classes)
     metrics = {"accuracy": acc}
 
     if mode == estimator.ModeKeys.EVAL:
@@ -149,6 +149,6 @@ def model(mode: estimator.ModeKeys,
 
     # For training, use Adam to learn
     assert mode == estimator.ModeKeys.TRAIN
-    optimizer = tf.train.AdamOptimizer()
-    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    optimizer = tf.compat.v1.train.AdamOptimizer()
+    train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)

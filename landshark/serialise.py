@@ -28,13 +28,13 @@ from landshark.metadata import Feature, Training
 #
 
 _FDICT = {
-    "x_cat": tf.FixedLenFeature([], tf.string),
-    "x_cat_mask": tf.FixedLenFeature([], tf.string),
-    "x_con": tf.FixedLenFeature([], tf.string),
-    "x_con_mask": tf.FixedLenFeature([], tf.string),
-    "y": tf.FixedLenFeature([], tf.string),
-    "indices": tf.FixedLenFeature([], tf.string),
-    "coords": tf.FixedLenFeature([], tf.string)
+    "x_cat": tf.io.FixedLenFeature([], tf.string),
+    "x_cat_mask": tf.io.FixedLenFeature([], tf.string),
+    "x_con": tf.io.FixedLenFeature([], tf.string),
+    "x_con_mask": tf.io.FixedLenFeature([], tf.string),
+    "y": tf.io.FixedLenFeature([], tf.string),
+    "indices": tf.io.FixedLenFeature([], tf.string),
+    "coords": tf.io.FixedLenFeature([], tf.string)
     }
 
 
@@ -74,20 +74,20 @@ def deserialise(row: str,
                 ignore_y: bool = False
                 ) -> Union[Tuple[tf.Tensor, tf.Tensor], tf.Tensor]:
     """Decode tf.record strings into Tensors."""
-    raw_features = tf.parse_example(row, features=_FDICT)
+    raw_features = tf.io.parse_example(serialized=row, features=_FDICT)
     npatch_side = 2 * metadata.features.halfwidth + 1
     categorical = metadata.targets.dtype == CategoricalType
     y_type = tf.int32 if categorical else tf.float32
-    with tf.name_scope("Inputs"):
-        x_con = tf.decode_raw(raw_features["x_con"], tf.float32)
-        x_cat = tf.decode_raw(raw_features["x_cat"], tf.int32)
-        x_con_mask = tf.decode_raw(raw_features["x_con_mask"], tf.uint8)
-        x_cat_mask = tf.decode_raw(raw_features["x_cat_mask"], tf.uint8)
+    with tf.compat.v1.name_scope("Inputs"):
+        x_con = tf.io.decode_raw(raw_features["x_con"], tf.float32)
+        x_cat = tf.io.decode_raw(raw_features["x_cat"], tf.int32)
+        x_con_mask = tf.io.decode_raw(raw_features["x_con_mask"], tf.uint8)
+        x_cat_mask = tf.io.decode_raw(raw_features["x_cat_mask"], tf.uint8)
         x_con_mask = tf.cast(x_con_mask, tf.bool)
         x_cat_mask = tf.cast(x_cat_mask, tf.bool)
-        y = tf.decode_raw(raw_features["y"], y_type)
-        indices = tf.decode_raw(raw_features["indices"], tf.int32)
-        coords = tf.decode_raw(raw_features["coords"], tf.float64)
+        y = tf.io.decode_raw(raw_features["y"], y_type)
+        indices = tf.io.decode_raw(raw_features["indices"], tf.int32)
+        coords = tf.io.decode_raw(raw_features["coords"], tf.float64)
         ntargets = metadata.targets.D
 
         y.set_shape((None, ntargets))
@@ -121,7 +121,7 @@ def deserialise(row: str,
 def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
         -> Dict[str, tf.Tensor]:
     nfeatures = len(columns)
-    x_all = tf.reshape(x, (tf.shape(x)[0], npatch_side,
+    x_all = tf.reshape(x, (tf.shape(input=x)[0], npatch_side,
                            npatch_side, nfeatures))
     start = 0
     stop = 0
