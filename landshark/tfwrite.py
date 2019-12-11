@@ -67,8 +67,7 @@ class _MultiFileWriter:
         self.output_directory = output_directory
         self.tag = tag
         self.file_index = -1
-        self._options = tf.io.TFRecordOptions(
-            tf.compat.v1.python_io.TFRecordCompressionType.ZLIB)
+        self._options = tf.io.TFRecordOptions("ZLIB")
         self._f: Optional[tf.io.TFRecordWriter] = None
         self._nextfile()
         self.lines_written = 0
