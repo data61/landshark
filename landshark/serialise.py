@@ -78,7 +78,7 @@ def deserialise(row: str,
     npatch_side = 2 * metadata.features.halfwidth + 1
     categorical = metadata.targets.dtype == CategoricalType
     y_type = tf.int32 if categorical else tf.float32
-    with tf.compat.v1.name_scope("Inputs"):
+    with tf.name_scope("Inputs"):
         x_con = tf.io.decode_raw(raw_features["x_con"], tf.float32)
         x_cat = tf.io.decode_raw(raw_features["x_cat"], tf.int32)
         x_con_mask = tf.io.decode_raw(raw_features["x_con_mask"], tf.uint8)
