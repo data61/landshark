@@ -16,14 +16,14 @@
 
 from typing import Dict, Optional, cast
 
+import tensorflow_probability as tfp
 import tensorflow as tf
-from tensorflow import estimator
 
 from landshark import config as utils
 from landshark.metadata import CategoricalTarget, Training
 
 
-def model(mode: estimator.ModeKeys,
+def model(mode: tf.estimator.ModeKeys,
           X_con: Optional[Dict[str, tf.Tensor]],
           X_con_mask: Optional[Dict[str, tf.Tensor]],
           X_cat: Optional[Dict[str, tf.Tensor]],
@@ -117,38 +117,38 @@ def model(mode: estimator.ModeKeys,
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
-    l1 = tf.compat.v1.layers.dense(inputs, units=64, activation=tf.nn.relu)
-    l2 = tf.compat.v1.layers.dense(l1, units=32, activation=tf.nn.relu)
+    l1 = tf.keras.layers.Dense(units=64, activation=tf.nn.relu)(inputs)
+    l2 = tf.keras.layers.Dense(units=32, activation=tf.nn.relu)(l1)
 
     # Get some predictions for the labels
-    phi = tf.compat.v1.layers.dense(l2, units=nvalues_target,
-                          activation=None)
+    phi = tf.keras.layers.Dense(units=nvalues_target, activation=None)(l2)
 
     # geottiff doesn't support 64bit output from argmax
     predicted_classes = tf.cast(tf.argmax(input=phi, axis=1), tf.uint8)
 
     # Compute predictions.
-    if mode == estimator.ModeKeys.PREDICT:
+    if mode == tf.estimator.ModeKeys.PREDICT:
         predictions = {"predictions_{}".format(
             metadata.targets.labels[0]): predicted_classes}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
     Y = Y[:, 0]
-    ll_f = tf.compat.v1.distributions.Categorical(logits=phi)
+    ll_f = tfp.distributions.Categorical(logits=phi)
     loss = -1 * tf.reduce_mean(input_tensor=ll_f.log_prob(Y))
-    tf.compat.v1.summary.scalar("loss", loss)
+    tf.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
-    acc = tf.compat.v1.metrics.accuracy(labels=Y, predictions=predicted_classes)
+    acc = tf.keras.metrics.Accuracy()
+    acc.update_state(y_true=Y, y_pred=predicted_classes)
     metrics = {"accuracy": acc}
 
-    if mode == estimator.ModeKeys.EVAL:
+    if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode, loss=loss,
                                           eval_metric_ops=metrics)
 
     # For training, use Adam to learn
-    assert mode == estimator.ModeKeys.TRAIN
+    assert mode == tf.estimator.ModeKeys.TRAIN
     optimizer = tf.compat.v1.train.AdamOptimizer()
     train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)

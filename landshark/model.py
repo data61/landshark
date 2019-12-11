@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import logging
 import signal
 from itertools import count
@@ -45,6 +46,20 @@ class TrainingConfig(NamedTuple):
 class QueryConfig(NamedTuple):
     batchsize: int
     use_gpu: bool
+
+
+def use_gpu(value: bool = False) -> None:
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    print(f"Available GPUs: {gpus}")
+    if value:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        tf.config.experimental.set_visible_devices([], 'GPU')
+
+    print(f"Using GPU: {value}")
+    print(f"Visible devices {tf.config.experimental.get_visible_devices()}")
 
 
 def train_data(records: List[str],
@@ -105,9 +120,6 @@ def train_test(records_train: List[str],
                ) -> None:
     """Model training and periodic hold-out testing."""
     saver = BestScoreSaver(directory)
-    sess_config = tf.compat.v1.ConfigProto(device_count={"GPU": int(params.use_gpu)},
-                                 gpu_options={"allow_growth": True})
-
     train_fn = train_data(records_train, metadata, params.batchsize,
                           params.epochs)
     test_fn = test_data(records_test, metadata, params.test_batchsize)
@@ -116,7 +128,6 @@ def train_test(records_train: List[str],
         # tf_random_seed=params.seed,
         model_dir=directory,
         save_checkpoints_secs=300,
-        session_config=sess_config,
         keep_checkpoint_max=1
     )
 
@@ -147,13 +158,10 @@ def predict(checkpoint_dir: str,
             params: QueryConfig
             ) -> Generator:
     """Load a model and predict results for record inputs."""
-    sess_config = tf.compat.v1.ConfigProto(device_count={"GPU": int(params.use_gpu)},
-                                 gpu_options={"allow_growth": True})
     predict_fn = predict_data(records, metadata, params.batchsize)
     run_config = tf.estimator.RunConfig(
         # tf_random_seed=params.seed,
         model_dir=checkpoint_dir,
-        session_config=sess_config,
     )
 
     estimator = tf.estimator.Estimator(

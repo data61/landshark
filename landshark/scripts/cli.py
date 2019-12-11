@@ -19,11 +19,12 @@ import sys
 from typing import NamedTuple, Optional
 
 import click
+import os
 
 from landshark import __version__, errors
 from landshark.model import QueryConfig, TrainingConfig
 from landshark.model import predict as predict_fn
-from landshark.model import train_test
+from landshark.model import train_test, use_gpu
 from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
 from landshark.tfread import setup_query, setup_training
@@ -55,6 +56,9 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
     """Train a model and use it to make predictions."""
     ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb)
     configure_logging(verbosity)
+    if not gpu:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        print("Disabling GPU use: CUDA_VISIBLE_DEVICES='-1'")
     return 0
 
 
