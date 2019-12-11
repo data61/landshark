@@ -16,14 +16,14 @@
 
 from typing import Dict, Optional
 
+import tensorflow_probability as tfp
 import tensorflow as tf
-from tensorflow import estimator
 
 from landshark import config as utils
 from landshark.metadata import Training
 
 
-def model(mode: estimator.ModeKeys,
+def model(mode: tf.estimator.ModeKeys,
           X_con: Optional[Dict[str, tf.Tensor]],
           X_con_mask: Optional[Dict[str, tf.Tensor]],
           X_cat: Optional[Dict[str, tf.Tensor]],
@@ -114,33 +114,34 @@ def model(mode: estimator.ModeKeys,
 
     # Build a simple 2-layer network
     inputs = tf.concat(inputs_list, axis=1)
-    l1 = tf.compat.v1.layers.dense(inputs, units=64, activation=tf.nn.relu)
-    l2 = tf.compat.v1.layers.dense(l1, units=32, activation=tf.nn.relu)
+    l1 = tf.keras.layers.Dense(units=64, activation="relu")(inputs)
+    l2 = tf.keras.layers.Dense(units=32, activation="relu")(l1)
 
     # Get some predictions for the labels
-    phi = tf.compat.v1.layers.dense(l2, units=metadata.targets.D, activation=None)
+    phi = tf.keras.layers.Dense(units=metadata.targets.D, activation=None)(l2)
 
     # Compute predictions.
-    if mode == estimator.ModeKeys.PREDICT:
+    if mode == tf.estimator.ModeKeys.PREDICT:
         predictions = {"predictions_{}".format(l): phi[:, i]
                        for i, l in enumerate(metadata.targets.labels)}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
-    ll_f = tf.compat.v1.distributions.Normal(loc=phi, scale=1.0)
+    ll_f = tfp.distributions.Normal(loc=phi, scale=1.0)
     loss = -1 * tf.reduce_mean(input_tensor=ll_f.log_prob(Y))
-    tf.compat.v1.summary.scalar("loss", loss)
+    tf.summary.scalar("loss", loss)
 
     # Compute evaluation metrics.
-    mse = tf.compat.v1.metrics.mean_squared_error(labels=Y, predictions=phi)
+    mse = tf.keras.metrics.MeanSquaredError()
+    mse.update_state(y_true=Y, y_pred=phi)
     metrics = {"mse": mse}
 
-    if mode == estimator.ModeKeys.EVAL:
+    if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode, loss=loss,
                                           eval_metric_ops=metrics)
 
     # For training, use Adam to learn
-    assert mode == estimator.ModeKeys.TRAIN
+    assert mode == tf.estimator.ModeKeys.TRAIN
     optimizer = tf.compat.v1.train.AdamOptimizer()
     train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
