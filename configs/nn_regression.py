@@ -23,6 +23,7 @@ from landshark import config as utils
 from landshark.metadata import Training
 
 
+
 def model(mode: estimator.ModeKeys,
           X_con: Optional[Dict[str, tf.Tensor]],
           X_con_mask: Optional[Dict[str, tf.Tensor]],
@@ -85,13 +86,7 @@ def model(mode: estimator.ModeKeys,
         # let's 0-impute continuous columns
         X_con = {k: utils.value_impute(X_con[k], X_con_mask[k],
                                        tf.constant(0.0)) for k in X_con}
-
-        # just concatenate the patch pixels as more features
-        X_con = {k: utils.flatten_patch(v) for k, v in X_con.items()}
-
-        # convenience function for catting all columns into tensor
-        inputs_con = utils.continuous_input(X_con)
-        inputs_list.append(inputs_con)
+        inputs_list.extend(X_con.values())
 
     if X_cat:
         assert X_cat_mask and metadata.features.categorical
@@ -103,26 +98,30 @@ def model(mode: estimator.ModeKeys,
         X_cat = {k: utils.value_impute(
             X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
             for k in X_cat}
-        X_cat = {k: utils.flatten_patch(v) for k, v in X_cat.items()}
 
         nvalues = {k: v.nvalues + 1 for k, v in
                    metadata.features.categorical.columns.items()}
         embedding_dims = {k: 3 for k in X_cat.keys()}
-        inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
-                                                      embedding_dims)
-        inputs_list.append(inputs_cat)
+
+        inputs_cat = [
+            tf.keras.layers.Embedding(
+                nvalues[k], embedding_dims[k]
+            )(tf.squeeze(x, 3)) for k, x in X_cat.items()
+        ]
+        inputs_list.extend(inputs_cat)
 
     # Build a simple 2-layer network
-    inputs = tf.concat(inputs_list, axis=1)
-    l1 = tf.layers.dense(inputs, units=64, activation=tf.nn.relu)
-    l2 = tf.layers.dense(l1, units=32, activation=tf.nn.relu)
+    inputs = tf.concat(inputs_list, axis=3)
+    l1 = tf.layers.Conv2D(filters=64, kernel_size=2, activation=tf.nn.relu)(inputs)
+    l2 = tf.layers.Conv2D(filters=32, kernel_size=2, activation=tf.nn.relu)(l1)
 
     # Get some predictions for the labels
-    phi = tf.layers.dense(l2, units=metadata.targets.D, activation=None)
+    phi = tf.layers.Dense(units=metadata.targets.D, activation=None)(l2)
+    phi = tf.reshape(phi, (-1, 1))
 
     # Compute predictions.
     if mode == estimator.ModeKeys.PREDICT:
-        predictions = {"predictions_{}".format(l): phi[:, i]
+        predictions = {"predictions_{}".format(l): phi
                        for i, l in enumerate(metadata.targets.labels)}
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
