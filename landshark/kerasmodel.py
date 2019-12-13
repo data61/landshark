@@ -111,19 +111,18 @@ def gen_keras_inputs(
     return feats
 
 
-def flatten_dataset(d, ignore_y=False):
-    print(d)
-    #d = d if ignore_y else d[0]
+def flatten_dataset(x, y=None):
 
-    def _flat_mask(x, key):
+    def _flat_mask(x_, key):
         x_flat = {
-            **x.get(key, {}),
-            **{f"{k}_mask": v for k, v in x.get(f"{key}_mask", {}).items()},
+            **x_.get(key, {}),
+            **{f"{k}_mask": v for k, v in x_.get(f"{key}_mask", {}).items()},
         }
         return x_flat
 
-    d_flat = {**_flat_mask(d, "con"), **_flat_mask(d, "cat")}
-    return d_flat
+    x_flat = {**_flat_mask(x, "con"), **_flat_mask(x, "cat")}
+
+    return x_flat if y is None else x_flat, y
 
 
 def train_test(records_train: List[str],
@@ -138,7 +137,6 @@ def train_test(records_train: List[str],
     xtrain = train_data(records_train, metadata, params.batchsize,
                         params.epochs)()
     xtest = test_data(records_test, metadata, params.test_batchsize)()
-
     inputs = gen_keras_inputs(xtrain, metadata)
 
     model = cf.model(*inputs, metadata.targets.D)
@@ -165,7 +163,6 @@ def train_test(records_train: List[str],
         workers=1,
         use_multiprocessing=False
     )
-    a = 1
     return
 
 

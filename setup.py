@@ -34,6 +34,7 @@ setup(
     include_package_data=True,
     entry_points={
         "console_scripts": [
+            "landshark-keras = landshark.scripts.kerascli:cli",
             "landshark = landshark.scripts.cli:cli",
             "skshark = landshark.scripts.skcli:cli",
             "landshark-import = landshark.scripts.importers:cli",

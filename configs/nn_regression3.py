@@ -43,8 +43,8 @@ def model(
 
     # CNN
     l0 = tf.keras.layers.Concatenate(axis=3)(num_imputed + cat_embedded)
-    l1 = tf.keras.layers.Conv2D(filters=64, kernel_size=2, activation="relu")(l0)
-    l2 = tf.keras.layers.Conv2D(filters=32, kernel_size=2, activation="relu")(l1)
+    l1 = tf.keras.layers.Conv2D(filters=32, kernel_size=2, activation="relu")(l0)
+    l2 = tf.keras.layers.Conv2D(filters=16, kernel_size=2, activation="relu")(l1)
 
     # Get some predictions for the labels
     phi = tf.keras.layers.Dense(units=n_targets, activation=None)(l2)
