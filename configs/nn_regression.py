@@ -110,7 +110,7 @@ def model(mode: estimator.ModeKeys,
         ]
         inputs_list.extend(inputs_cat)
 
-    # Build a simple 2-layer network
+    # Build a simple CNN
     inputs = tf.concat(inputs_list, axis=3)
     l1 = tf.layers.Conv2D(filters=64, kernel_size=2, activation=tf.nn.relu)(inputs)
     l2 = tf.layers.Conv2D(filters=32, kernel_size=2, activation=tf.nn.relu)(l1)
