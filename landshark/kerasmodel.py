@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 import logging
 import signal
 from typing import Any, Generator, List, NamedTuple, Optional, Sequence, Tuple
@@ -149,16 +150,28 @@ def train_test(
 
     model = cf.model(*inputs, metadata.targets.D)
 
+    weights = f"{directory}/checkpoint_weights.h5"
+    if Path(weights).exists():
+        model.load_weights(weights)
+
     xtrain = xtrain.map(flatten_dataset)
     xtest = xtest.map(flatten_dataset)
 
-    print(params.epochs, iterations)
+    callbacks = [
+        tf.keras.callbacks.TensorBoard(directory),
+        tf.keras.callbacks.ModelCheckpoint(weights, save_best_only=True),
+        tf.keras.callbacks.EarlyStopping(
+            patience=50,
+            restore_best_weights=True
+        ),
+    ]
+
     model.fit(
         x=xtrain,
         batch_size=None,
         epochs=iterations,
         verbose=1,
-        callbacks=None,
+        callbacks=callbacks,
         validation_data=xtest,
         shuffle=True,
         class_weight=None,
