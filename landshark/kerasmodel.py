@@ -152,11 +152,12 @@ def train_test(
     xtrain = xtrain.map(flatten_dataset)
     xtest = xtest.map(flatten_dataset)
 
+    print(params.epochs, iterations)
     model.fit(
         x=xtrain,
         batch_size=None,
-        epochs=params.epochs,
-        verbose=0,
+        epochs=iterations,
+        verbose=1,
         callbacks=None,
         validation_data=xtest,
         shuffle=True,
@@ -165,7 +166,7 @@ def train_test(
         initial_epoch=0,
         steps_per_epoch=None,
         validation_steps=None,
-        validation_freq=iterations,
+        validation_freq=1,
         max_queue_size=10,
         workers=1,
         use_multiprocessing=False,
