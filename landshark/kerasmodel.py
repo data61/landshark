@@ -144,45 +144,35 @@ def train_test(
     iterations: Optional[int],
 ) -> None:
     """Model training and periodic hold-out testing."""
-    xtrain = train_data(records_train, metadata, params.batchsize, params.epochs)()
+    xtrain = train_data(records_train, metadata, params.batchsize)()
     xtest = test_data(records_test, metadata, params.test_batchsize)()
     inputs = gen_keras_inputs(xtrain, metadata)
 
     model = cf.model(*inputs, metadata.targets.D)
 
-    weights = f"{directory}/checkpoint_weights.h5"
-    if Path(weights).exists():
-        model.load_weights(weights)
+    weights_file = Path(directory) / "checkpoint_weights.h5"
+    if weights_file.exists():
+        model.load_weights(str(weights_file))
 
     xtrain = xtrain.map(flatten_dataset)
     xtest = xtest.map(flatten_dataset)
 
+    # create callbacks for tensorboard, model saving, and early stopping
     callbacks = [
         tf.keras.callbacks.TensorBoard(directory),
-        tf.keras.callbacks.ModelCheckpoint(weights, save_best_only=True),
-        tf.keras.callbacks.EarlyStopping(
-            patience=50,
-            restore_best_weights=True
-        ),
+        tf.keras.callbacks.ModelCheckpoint(str(weights_file), save_best_only=True),
+        tf.keras.callbacks.EarlyStopping(patience=50),
     ]
 
     model.fit(
         x=xtrain,
-        batch_size=None,
-        epochs=iterations,
-        verbose=1,
+        epochs=iterations * params.epochs,
+        verbose=2,
         callbacks=callbacks,
         validation_data=xtest,
         shuffle=True,
-        class_weight=None,
-        sample_weight=None,
-        initial_epoch=0,
-        steps_per_epoch=None,
-        validation_steps=None,
-        validation_freq=1,
-        max_queue_size=10,
-        workers=1,
-        use_multiprocessing=False,
+        validation_freq=params.epochs,
+        use_multiprocessing=True,
     )
     return
 

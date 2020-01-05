@@ -15,16 +15,16 @@
 # limitations under the License.
 
 import logging
+import os
 import sys
 from typing import NamedTuple, Optional
 
 import click
-import os
 
 from landshark import __version__, errors
-from landshark.model import QueryConfig, TrainingConfig
-from landshark.model import predict as predict_fn
-from landshark.model import train_test, use_gpu
+from landshark.kerasmodel import predict as keras_predict
+from landshark.kerasmodel import train_test as keras_train_test
+from landshark.model import QueryConfig, TrainingConfig, predict, train_test
 from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
 from landshark.tfread import setup_query, setup_training
@@ -39,6 +39,7 @@ class CliArgs(NamedTuple):
 
     gpu: bool
     batchMB: float
+    keras: bool
 
 
 @click.group()
@@ -51,10 +52,13 @@ class CliArgs(NamedTuple):
 @click.option("-v", "--verbosity",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
               default="INFO", help="Level of logging")
+@click.option("--keras-model", is_flag=True, help="Use a tf.keras.Model configuration.")
 @click.pass_context
-def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
+def cli(
+    ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float, keras_model: bool
+) -> int:
     """Train a model and use it to make predictions."""
-    ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb)
+    ctx.obj = CliArgs(gpu=gpu, batchMB=batch_mb, keras=keras_model)
     configure_logging(verbosity)
     if not gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -78,44 +82,54 @@ def cli(ctx: click.Context, gpu: bool, verbosity: str, batch_mb: float) -> int:
 @click.option("--checkpoint", type=click.Path(exists=True), default=None,
               help="Optional directory containing model checkpoints.")
 @click.pass_context
-def train(ctx: click.Context,
-          data: str,
-          config: str,
-          epochs: int,
-          batchsize: int,
-          test_batchsize: int,
-          iterations: Optional[int],
-          checkpoint: Optional[str]
-          ) -> None:
+def train(
+    ctx: click.Context,
+    data: str,
+    config: str,
+    epochs: int,
+    batchsize: int,
+    test_batchsize: int,
+    iterations: Optional[int],
+    checkpoint: Optional[str]
+) -> None:
     """Train a model specified by a config file."""
     log.info("Ignoring batch-mb option, using specified or default batchsize")
     catching_f = errors.catch_and_exit(train_entrypoint)
-    catching_f(data, config, epochs, batchsize, test_batchsize,
-               iterations, ctx.obj.gpu, checkpoint)
+    catching_f(
+        data, config, ctx.obj.keras, epochs, batchsize, test_batchsize, iterations,
+        ctx.obj.gpu, checkpoint
+    )
 
 
-def train_entrypoint(data: str,
-                     config: str,
-                     epochs: int,
-                     batchsize: int,
-                     test_batchsize: int,
-                     iterations: Optional[int],
-                     gpu: bool,
-                     checkpoint_dir: Optional[str]
-                     ) -> None:
+def train_entrypoint(
+    data: str,
+    config: str,
+    keras: bool,
+    epochs: int,
+    batchsize: int,
+    test_batchsize: int,
+    iterations: Optional[int],
+    gpu: bool,
+    checkpoint_dir: Optional[str]
+) -> None:
     """Entry point for training function."""
-    training_records, testing_records, metadata, model_dir, cf = \
-        setup_training(config, data)
+    train_test_fn = keras_train_test if keras else train_test
+
+    training_records, testing_records, metadata, model_dir, cf = setup_training(
+        config, data
+    )
     if checkpoint_dir:
         overwrite_model_dir(model_dir, checkpoint_dir)
 
     training_params = TrainingConfig(epochs, batchsize,
                                      test_batchsize, gpu)
-    train_test(training_records, testing_records, metadata, model_dir,
-               sys.modules[cf], training_params, iterations)
+    train_test_fn(
+        training_records, testing_records, metadata, model_dir, sys.modules[cf],
+        training_params, iterations
+    )
 
 
-@cli.command()
+@cli.command("predict")
 @click.option("--config", type=click.Path(exists=True), required=True,
               help="Path to the model file")
 @click.option("--checkpoint", type=click.Path(exists=True), required=True,
@@ -123,7 +137,7 @@ def train_entrypoint(data: str,
 @click.option("--data", type=click.Path(exists=True), required=True,
               help="Path to the query data directory")
 @click.pass_context
-def predict(
+def run_predict(
         ctx: click.Context,
         config: str,
         checkpoint: str,
@@ -131,14 +145,19 @@ def predict(
         ) -> None:
     """Predict using a learned model."""
     catching_f = errors.catch_and_exit(predict_entrypoint)
-    catching_f(config, checkpoint, data, ctx.obj.batchMB, ctx.obj.gpu)
+    catching_f(config, ctx.obj.keras, checkpoint, data, ctx.obj.batchMB, ctx.obj.gpu)
 
 
-def predict_entrypoint(config: str, checkpoint: str, data: str,
-                       batchMB: float, gpu: bool) -> None:
+def predict_entrypoint(
+    config: str, keras: bool, checkpoint: str, data: str, batchMB: float, gpu: bool
+) -> None:
     """Entrypoint for predict function."""
-    train_metadata, feature_metadata, query_records, strip, nstrips, cf = \
-        setup_query(config, data, checkpoint)
+    predict_fn = keras_predict if keras else predict
+
+    train_metadata, feature_metadata, query_records, strip, nstrips, cf = setup_query(
+        config, data, checkpoint
+    )
+
     ndim_con = len(feature_metadata.continuous.columns) \
         if feature_metadata.continuous else 0
     ndim_cat = len(feature_metadata.categorical.columns) \
@@ -147,8 +166,10 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
         batchMB, ndim_con, ndim_cat,
         halfwidth=train_metadata.features.halfwidth)
     params = QueryConfig(points_per_batch, gpu)
+
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,
                            query_records, params)
+
     write_geotiffs(y_dash_it, checkpoint, feature_metadata.image,
                    tag="{}of{}".format(strip, nstrips))
 
