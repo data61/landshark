@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 import logging
 import signal
+from pathlib import Path
+from timeit import default_timer as timer
 from typing import Any, Generator, List, NamedTuple, Optional, Sequence, Tuple
 
 import tensorflow as tf
@@ -134,6 +135,37 @@ def flatten_dataset(x, y=None):
     return x_flat if y is None else x_flat, y
 
 
+class UpdateCallback(tf.keras.callbacks.Callback):
+    """Callback for printing loss and training/validation metrics."""
+
+    def __init__(self, epochs: int = 1, iterations: int = 1):
+        self.starttime = None
+        self.epochs = epochs
+        self.total_epochs = epochs * iterations
+
+    def on_epoch_begin(self, epoch, logs=None):
+        """Start timer at beginning of each iteration."""
+        self.starttime = timer()
+
+    def on_epoch_end(self, epoch, logs=None):
+        """Print loss/metrics at the end of each iteration."""
+        epoch_str = f"Epoch {(epoch + 1) * self.epochs}/{self.total_epochs}"
+        time_str = f"{round(timer() - self.starttime)}s"
+
+        def get_value_str(name: str):
+            value_str = f"{name}: {logs[name]:.4f}"
+            if f"val_{name}" in logs:
+                value_str += f" / {logs[f'val_{name}']:.4f}"
+            return value_str
+
+        if logs is not None:
+            metrics = [m for m in logs if not m.startswith("val_") and m != "loss"]
+            metrics_str = " - ".join([get_value_str(m) for m in ["loss"] + metrics])
+        else:
+            metrics_str = "No logged data."
+        print(" - ".join([epoch_str, time_str, metrics_str]))
+
+
 def train_test(
     records_train: List[str],
     records_test: List[str],
@@ -144,7 +176,7 @@ def train_test(
     iterations: Optional[int],
 ) -> None:
     """Model training and periodic hold-out testing."""
-    xtrain = train_data(records_train, metadata, params.batchsize)()
+    xtrain = train_data(records_train, metadata, params.batchsize, params.epochs)()
     xtest = test_data(records_test, metadata, params.test_batchsize)()
     inputs = gen_keras_inputs(xtrain, metadata)
 
@@ -162,18 +194,23 @@ def train_test(
         tf.keras.callbacks.TensorBoard(directory),
         tf.keras.callbacks.ModelCheckpoint(str(weights_file), save_best_only=True),
         tf.keras.callbacks.EarlyStopping(patience=50),
+        UpdateCallback(params.epochs, params.epochs * iterations),
     ]
 
-    model.fit(
-        x=xtrain,
-        epochs=iterations * params.epochs,
-        verbose=2,
-        callbacks=callbacks,
-        validation_data=xtest,
-        shuffle=True,
-        validation_freq=params.epochs,
-        use_multiprocessing=True,
-    )
+    try:
+        model.fit(
+            x=xtrain,
+            epochs=iterations,
+            verbose=0,
+            callbacks=callbacks,
+            validation_data=xtest,
+            shuffle=True,
+            validation_freq=1,
+            use_multiprocessing=False,
+        )
+    except KeyboardInterrupt:
+        print("Training interrupted.")
+
     return
 
 
