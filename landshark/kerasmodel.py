@@ -16,9 +16,20 @@
 
 import logging
 import signal
+from functools import reduce
 from pathlib import Path
 from timeit import default_timer as timer
-from typing import Any, Generator, List, NamedTuple, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import tensorflow as tf
 
@@ -79,10 +90,11 @@ class KerasInputs(NamedTuple):
 
 
 def gen_keras_inputs(
-    dataset: tf.data.TFRecordDataset, metadata: Training,
+    dataset: tf.data.TFRecordDataset, metadata: Training, x_only: bool = False,
 ) -> KerasInputs:
     """Generate keras.Inputs for each covariate in the dataset."""
-    xs, _ = dataset.element_spec
+
+    xs = dataset.element_spec if x_only else dataset.element_spec[0]
 
     def gen_feat_input(
         data: tf.TensorSpec, mask: tf.TensorSpec, name: str
@@ -121,10 +133,17 @@ def gen_keras_inputs(
     return feats
 
 
-def flatten_dataset(x, y=None):
+def flatten_dataset_x(x: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten tf dataset dictionary with x data only."""
+    return flatten_dataset(x)[0]
+
+
+def flatten_dataset(
+    x: Dict[str, Any], y: Optional[tf.Tensor] = None
+) -> Tuple[Dict[str, Any], Optional[Union[tf.Tensor, Tuple[tf.Tensor]]]]:
     """Flatten tf dataset dictionary."""
 
-    def _flat_mask(x_, key):
+    def _flat_mask(x_: Dict[str, Any], key: str) -> Dict[str, Any]:
         x_flat = {
             **x_.get(key, {}),
             **{f"{k}_mask": v for k, v in x_.get(f"{key}_mask", {}).items()},
@@ -132,35 +151,49 @@ def flatten_dataset(x, y=None):
         return x_flat
 
     x_flat = {**_flat_mask(x, "con"), **_flat_mask(x, "cat")}
-    return x_flat if y is None else x_flat, y
+
+    if y is not None and y.shape[1] > 1:
+        y = tuple(tf.split(y, [1] * y.shape[1], 1))
+
+    return x_flat, y
 
 
 class UpdateCallback(tf.keras.callbacks.Callback):
     """Callback for printing loss and training/validation metrics."""
 
-    def __init__(self, epochs: int = 1, iterations: int = 1):
+    remove_strs = ("tf_op_layer_",)
+
+    def __init__(self, epochs: int = 1, iterations: Optional[int] = None):
         self.starttime = None
         self.epochs = epochs
-        self.total_epochs = epochs * iterations
+        self.total_epochs = epochs * iterations if iterations else None
+        self.epoch_count = 0
 
     def on_epoch_begin(self, epoch, logs=None):
         """Start timer at beginning of each iteration."""
+        self.epoch_count += self.epochs
         self.starttime = timer()
 
     def on_epoch_end(self, epoch, logs=None):
         """Print loss/metrics at the end of each iteration."""
-        epoch_str = f"Epoch {(epoch + 1) * self.epochs}/{self.total_epochs}"
+        epoch_str = f"Epoch {self.epoch_count}"
+        if self.total_epochs is not None:
+            epoch_str += f"/{self.total_epochs}"
+
         time_str = f"{round(timer() - self.starttime)}s"
 
         def get_value_str(name: str):
-            value_str = f"{name}: {logs[name]:.4f}"
+            name_ = reduce(lambda n, s: "".join(n.split(s)), self.remove_strs, name)
+            value_str = f"{name_}: {logs[name]:.4f}"
             if f"val_{name}" in logs:
                 value_str += f" / {logs[f'val_{name}']:.4f}"
             return value_str
 
         if logs is not None:
             metrics = [m for m in logs if not m.startswith("val_") and m != "loss"]
-            metrics_str = " - ".join([get_value_str(m) for m in ["loss"] + metrics])
+            if "loss" in logs:
+                metrics = ["loss"] + metrics
+            metrics_str = " - ".join([get_value_str(m) for m in metrics])
         else:
             metrics_str = "No logged data."
         print(" - ".join([epoch_str, time_str, metrics_str]))
@@ -180,7 +213,7 @@ def train_test(
     xtest = test_data(records_test, metadata, params.test_batchsize)()
     inputs = gen_keras_inputs(xtrain, metadata)
 
-    model = cf.model(*inputs, metadata.targets.D)
+    model = cf.model(*inputs, metadata.targets.labels)
 
     weights_file = Path(directory) / "checkpoint_weights.h5"
     if weights_file.exists():
@@ -194,20 +227,24 @@ def train_test(
         tf.keras.callbacks.TensorBoard(directory),
         tf.keras.callbacks.ModelCheckpoint(str(weights_file), save_best_only=True),
         tf.keras.callbacks.EarlyStopping(patience=50),
-        UpdateCallback(params.epochs, params.epochs * iterations),
+        UpdateCallback(params.epochs, iterations),
     ]
 
     try:
-        model.fit(
-            x=xtrain,
-            epochs=iterations,
-            verbose=0,
-            callbacks=callbacks,
-            validation_data=xtest,
-            shuffle=True,
-            validation_freq=1,
-            use_multiprocessing=False,
-        )
+        while True:
+            model.fit(
+                x=xtrain,
+                epochs=iterations or 1_000_000,
+                verbose=0,
+                callbacks=callbacks,
+                validation_data=xtest,
+                shuffle=True,
+                validation_freq=1,
+                use_multiprocessing=False,
+            )
+            if iterations is not None:
+                break
+
     except KeyboardInterrupt:
         print("Training interrupted.")
 
@@ -216,22 +253,34 @@ def train_test(
 
 def predict(
     checkpoint_dir: str,
-    model: Any,  # Module type
+    cf: Any,  # Module type
     metadata: Training,
     records: List[str],
     params: QueryConfig,
 ) -> Generator:
     """Load a model and predict results for record inputs."""
-    x = predict_data(records, metadata, params.batchsize)
+    x = predict_data(records, metadata, params.batchsize)()
+    inputs = gen_keras_inputs(x, metadata, x_only=True)
+    x = x.map(flatten_dataset_x)
 
-    it = model.predict(
-        x,
-        batch_size=None,
-        verbose=0,
-        steps=None,
-        callbacks=None,
-        max_queue_size=10,
-        workers=1,
-        use_multiprocessing=False,
-    )
-    yield it
+    model = cf.model(*inputs, metadata.targets.labels)
+
+    weights_file = Path(checkpoint_dir) / "checkpoint_weights.h5"
+    if weights_file.exists():
+        model.load_weights(str(weights_file))
+
+    for x_it in x:
+        y_it = model.predict(
+            x=x_it,
+            batch_size=None,
+            verbose=0,
+            steps=1,
+            callbacks=None,
+            max_queue_size=10,
+            workers=1,
+            use_multiprocessing=False,
+        )
+        if not isinstance(y_it, Tuple):
+            y_it = (y_it,)
+
+        yield dict(zip(model.output_names, y_it))

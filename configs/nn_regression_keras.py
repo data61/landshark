@@ -1,4 +1,4 @@
-"""Generic classification config file."""
+"""Example regression config using a Keras Model."""
 
 # Copyright 2019 CSIRO (Data61)
 #
@@ -14,12 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, Tuple
 
 import tensorflow as tf
 
-from landshark.kerasmodel import (FeatInput, get_feat_input_list,
-                                  impute_const_layer)
+from landshark.kerasmodel import FeatInput, get_feat_input_list, impute_const_layer
+
+
+def r2(y_true, y_pred):
+    """Coefficient of determination metric."""
+    SS_res = tf.reduce_sum(tf.math.squared_difference(y_true, y_pred))
+    SS_tot = tf.reduce_sum(tf.math.squared_difference(y_true, tf.reduce_mean(y_true)))
+    return 1 - SS_res / SS_tot
 
 
 def model(
@@ -27,8 +33,11 @@ def model(
     cat_feats: List[Tuple[FeatInput, int]],
     indices: tf.keras.Input,
     coords: tf.keras.Input,
-    n_targets: int,
+    target_labels: List[str],
 ) -> tf.keras.Model:
+    """ Example model config.
+        Must match the signature above and return a compiled tf.keras.Model
+    """
 
     # inpute with constant value
     num_imputed = [impute_const_layer(x) for x in num_feats]
@@ -41,18 +50,19 @@ def model(
         for x, (n, d) in zip(cat_imputed, embed_dims)
     ]
 
-    # CNN
+    # CNN on patch data
     l0 = tf.keras.layers.Concatenate(axis=3)(num_imputed + cat_embedded)
     l1 = tf.keras.layers.Conv2D(filters=32, kernel_size=2, activation="relu")(l0)
-    l2 = tf.keras.layers.Conv2D(filters=16, kernel_size=2, activation="relu")(l1)
+    l2 = tf.keras.layers.Conv2D(filters=18, kernel_size=2, activation="relu")(l1)
 
     # Get some predictions for the labels
-    phi = tf.keras.layers.Dense(units=n_targets, activation=None)(l2)
-    phi = tf.reshape(phi, (-1, 1))
+    n_targets = len(target_labels)
+    l3 = tf.keras.layers.Dense(units=n_targets, activation=None)(l2)
+    phi = [tf.reshape(l3[..., i], (-1, 1), name=l) for i, l in enumerate(target_labels)]
 
     # create keras model
     model_inputs = get_feat_input_list(num_feats, cat_feats)
     model = tf.keras.Model(inputs=model_inputs, outputs=phi)
-    model.compile(loss="mean_squared_error", optimizer="sgd")
+    model.compile(loss="mean_squared_error", optimizer="sgd", metrics=[r2])
 
     return model
