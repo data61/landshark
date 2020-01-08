@@ -84,6 +84,8 @@ def setup_query(config: str,
     query_records = glob(os.path.join(querydir, "*.tfrecord"))
     query_records.sort()
 
+    assert query_metadata.halfwidth == training_metadata.features.halfwidth
+
     # Load the model
     module_name = load_model(config)
     return (training_metadata, query_metadata, query_records,
