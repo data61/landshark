@@ -26,16 +26,18 @@ log = logging.getLogger(__name__)
 class Error(Exception):
     """Base class for exceptions in Landshark."""
 
-    message = "Landshark error."
+    def __init__(self, msg: str = "Landshark error."):
+        super().__init__(msg)
 
 
 def catch_and_exit(f: Callable) -> Callable:
     """Decorate function to exit program if it throws an Error."""
+
     def wrapped(*args: Any, **kwargs: Any) -> None:
         try:
             f(*args, **kwargs)
         except Error as e:
-            log.error(str(e))
+            log.error(f"{type(e).__name__}: {e}")
             sys.exit()
 
     return wrapped
@@ -44,7 +46,10 @@ def catch_and_exit(f: Callable) -> Callable:
 class NoTifFilesFound(Error):
     """Couldn't find TIF files."""
 
-    message = "The supplied paths had no files with .tif or .gtif extensions"
+    def __init__(self) -> None:
+        super().__init__(
+            "The supplied paths had no files with .tif or .gtif extensions"
+        )
 
 
 class ZeroDeviation(Error):
@@ -52,23 +57,25 @@ class ZeroDeviation(Error):
 
     def __init__(self, sd: np.ndarray, cols: List[str]) -> None:
         zsrcs = [c for z, c in zip(sd, cols) if z]
-        self.message = "The following sources have bands \
-            with zero standard deviation: {}".format(zsrcs)
+        super().__init__(
+            f"The following sources have bands with zero standard deviation: {zsrcs}"
+        )
 
 
 class ConCatNMismatch(Error):
     """N doesnt match between the con and cat sources."""
 
     def __init__(self, N_con: int, N_cat: int) -> None:
-        """Construct the object."""
-        self.message = "Continuous and Categorical source mismatch with \
-            {} and {} points respectively".format(N_con, N_cat)
+        super().__init__(
+            "Continuous and Categorical source mismatch with"
+            f"{N_con} and {N_cat} points respectively"
+        )
 
 
-class PredictionShape(Error):
+class InvalidPredictionShape(Error):
     """Prediction output is not 1D or 2D."""
 
     def __init__(self, name: str, shape: Tuple[int]) -> None:
-        """Construct the object."""
-        self.message = "Prediction shape for {} is shaped {}. Predictions \
-            must be 1D.".format(name, shape)
+        super().__init__(
+            f"'{name}' prediction has shape {shape}. Predictions must be 1D."
+        )
