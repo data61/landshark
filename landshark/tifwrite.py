@@ -24,7 +24,7 @@ import rasterio as rs
 from rasterio.windows import Window
 from tqdm import tqdm
 
-from landshark.errors import PredictionShape
+from landshark.errors import InvalidPredictionShape
 from landshark.image import ImageSpec
 
 log = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
 
     for k, v in y0.items():
         if not (v.ndim == 1 or (v.ndim == 2 and v.shape[1] == 1)):
-            raise PredictionShape(k, v.shape)
+            raise InvalidPredictionShape(k, v.shape)
 
     writers = {k: _make_writer(directory, k + "_" + tag, v.dtype,
                                imspec) for k, v in y0.items()}
