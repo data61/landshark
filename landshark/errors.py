@@ -46,7 +46,7 @@ def catch_and_exit(f: Callable) -> Callable:
 class NoTifFilesFound(Error):
     """Couldn't find TIF files."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             "The supplied paths had no files with .tif or .gtif extensions"
         )

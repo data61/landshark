@@ -93,7 +93,6 @@ def gen_keras_inputs(
     dataset: tf.data.TFRecordDataset, metadata: Training, x_only: bool = False,
 ) -> KerasInputs:
     """Generate keras.Inputs for each covariate in the dataset."""
-
     xs = dataset.element_spec if x_only else dataset.element_spec[0]
 
     def gen_feat_input(
@@ -164,17 +163,16 @@ class UpdateCallback(tf.keras.callbacks.Callback):
     remove_strs = ("tf_op_layer_",)
 
     def __init__(self, epochs: int = 1, iterations: Optional[int] = None):
-        self.starttime = None
         self.epochs = epochs
         self.total_epochs = epochs * iterations if iterations else None
         self.epoch_count = 0
 
-    def on_epoch_begin(self, epoch, logs=None):
+    def on_epoch_begin(self, epoch: int, logs: Optional[Dict] = None) -> None:
         """Start timer at beginning of each iteration."""
         self.epoch_count += self.epochs
         self.starttime = timer()
 
-    def on_epoch_end(self, epoch, logs=None):
+    def on_epoch_end(self, epoch: int, logs: Optional[Dict] = None) -> None:
         """Print loss/metrics at the end of each iteration."""
         epoch_str = f"Epoch {self.epoch_count}"
         if self.total_epochs is not None:
@@ -182,18 +180,18 @@ class UpdateCallback(tf.keras.callbacks.Callback):
 
         time_str = f"{round(timer() - self.starttime)}s"
 
-        def get_value_str(name: str):
+        def get_value_str(name: str, val_dict: Dict) -> str:
             name_ = reduce(lambda n, s: "".join(n.split(s)), self.remove_strs, name)
-            value_str = f"{name_}: {logs[name]:.4f}"
-            if f"val_{name}" in logs:
-                value_str += f" / {logs[f'val_{name}']:.4f}"
+            value_str = f"{name_}: {val_dict[name]:.4f}"
+            if f"val_{name}" in val_dict:
+                value_str += f" / {val_dict[f'val_{name}']:.4f}"
             return value_str
 
         if logs is not None:
             metrics = [m for m in logs if not m.startswith("val_") and m != "loss"]
             if "loss" in logs:
                 metrics = ["loss"] + metrics
-            metrics_str = " - ".join([get_value_str(m) for m in metrics])
+            metrics_str = " - ".join([get_value_str(m, logs) for m in metrics])
         else:
             metrics_str = "No logged data."
         print(" - ".join([epoch_str, time_str, metrics_str]))
@@ -280,7 +278,7 @@ def predict(
             workers=1,
             use_multiprocessing=False,
         )
-        if not isinstance(y_it, Tuple):
+        if not isinstance(y_it, tuple):
             y_it = (y_it,)
 
         yield dict(zip(model.output_names, y_it))
