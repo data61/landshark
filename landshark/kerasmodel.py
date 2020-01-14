@@ -88,7 +88,8 @@ def impute_const_layer(
 ) -> tf.keras.layers.Layer:
     """Create an imputation Layer."""
     if mask is not None:
-        layer = tf.keras.layers.Lambda(_impute_const_fn, value)((data, mask))
+        name = f"impute_{value}_{data.name.split(':')[0]}"
+        layer = tf.keras.layers.Lambda(_impute_const_fn, value, name=name)((data, mask))
     else:
         layer = tf.keras.layers.InputLayer(data)
     return layer
@@ -111,7 +112,7 @@ def impute_embed_concat_layer(
     # embed categorical
     embed_dims = [(f.n_classes, cat_embed_dims) for f in cat_feats]
     cat_embedded = [
-        tf.keras.layers.Embedding(n, d)(tf.squeeze(x, 3))
+        tf.keras.layers.Embedding(n, d, f"embed_cat_{n}_{x.name}")(tf.squeeze(x, 3))
         for x, (n, d) in zip(cat_imputed, embed_dims)
     ]
 

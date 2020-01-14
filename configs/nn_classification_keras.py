@@ -72,5 +72,7 @@ def model(
     # create keras model
     model_inputs = get_feat_input_list(num_feats, cat_feats)
     model = tf.keras.Model(inputs=model_inputs, outputs=outputs)
-    model.compile(loss=losses, optimizer="sgd", metrics=metrics)
+    optimizer = tf.keras.optimizers.Adam()
+    model.compile(loss=losses, optimizer=optimizer, metrics=metrics)
+    model.summary()
     return model
