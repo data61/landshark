@@ -47,15 +47,15 @@ def model(
 
     l0 = impute_embed_concat_layer(num_feats, cat_feats, cat_embed_dims=3)
 
-    # Dense NN
-    l1 = tf.keras.layers.Dense(units=64, activation="relu")(l0)
-    l2 = tf.keras.layers.Dense(units=32, activation="relu")(l1)
+    # CNN on patch data
+    l1 = tf.keras.layers.Conv2D(filters=32, kernel_size=2, activation="relu")(l0)
+    l2 = tf.keras.layers.Conv2D(filters=18, kernel_size=2, activation="relu")(l1)
 
     # Get some predictions for the labels
     n_targets = len(targets)
     l3 = tf.keras.layers.Dense(units=n_targets, activation=None)(l2)
     ys = [
-        tf.keras.layers.Reshape((-1,), name=f"predictions_{t.label}")(l3[..., i])
+        tf.keras.layers.Reshape((-1, 1), name=f"predictions_{t.label}")(l3[..., i])
         for i, t in enumerate(targets)
     ]
 

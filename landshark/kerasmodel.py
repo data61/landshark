@@ -16,6 +16,7 @@
 
 import logging
 import signal
+from dataclasses import dataclass
 from functools import reduce
 from pathlib import Path
 from timeit import default_timer as timer
@@ -33,7 +34,7 @@ from typing import (
 
 import tensorflow as tf
 
-from landshark.metadata import Training
+from landshark.metadata import CategoricalTarget, Target, Training
 from landshark.model import (
     QueryConfig,
     TrainingConfig,
@@ -46,11 +47,31 @@ log = logging.getLogger(__name__)
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
 
-class FeatInput(NamedTuple):
-    """Paired Data/Mask inputs."""
+@dataclass(frozen=True)
+class FeatInput:
+    """Feature input data."""
 
     data: tf.keras.Input
-    mask: Optional[tf.keras.Input]
+    mask: tf.keras.Input
+
+    @property
+    def data_mask(self) -> Tuple[tf.keras.Input, tf.keras.Input]:
+        """Return data and mask together."""
+        return self.data, self.mask
+
+
+@dataclass(frozen=True)
+class NumFeatInput(FeatInput):
+    """Numerical data inputs."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class CatFeatInput(FeatInput):
+    """Categorical data inputs."""
+
+    n_classes: int
 
 
 def _impute_const_fn(x: Sequence[tf.Tensor], value: int = 0) -> tf.Tensor:
@@ -62,29 +83,56 @@ def _impute_const_fn(x: Sequence[tf.Tensor], value: int = 0) -> tf.Tensor:
     return data_imputed
 
 
-def impute_const_layer(feat: FeatInput, value: int = 0) -> tf.keras.layers.Layer:
+def impute_const_layer(
+    data: tf.keras.Input, mask: Optional[tf.keras.Input], value: int = 0
+) -> tf.keras.layers.Layer:
     """Create an imputation Layer."""
-    if feat.mask is not None:
-        layer = tf.keras.layers.Lambda(_impute_const_fn, value)(feat)
+    if mask is not None:
+        layer = tf.keras.layers.Lambda(_impute_const_fn, value)((data, mask))
     else:
-        layer = tf.keras.layers.InputLayer(feat.data)
+        layer = tf.keras.layers.InputLayer(data)
+    return layer
+
+
+def impute_embed_concat_layer(
+    num_feats: List[NumFeatInput],
+    cat_feats: List[CatFeatInput],
+    num_impute_val: int = 0,
+    cat_embed_dims: int = 3,
+) -> tf.keras.layers.Layer:
+    """Impute missing data, embed categorical, and concat inputs together."""
+
+    # inpute with constant value
+    num_imputed = [
+        impute_const_layer(x.data, x.mask, num_impute_val) for x in num_feats
+    ]
+    cat_imputed = [impute_const_layer(x.data, x.mask, x.n_classes) for x in cat_feats]
+
+    # embed categorical
+    embed_dims = [(f.n_classes, cat_embed_dims) for f in cat_feats]
+    cat_embedded = [
+        tf.keras.layers.Embedding(n, d)(tf.squeeze(x, 3))
+        for x, (n, d) in zip(cat_imputed, embed_dims)
+    ]
+
+    # concatenate layer
+    layer = tf.keras.layers.Concatenate(axis=3)(num_imputed + cat_embedded)
     return layer
 
 
 def get_feat_input_list(
-    num_feats: List[FeatInput], cat_feats: List[Tuple[FeatInput, int]]
+    num_feats: List[FeatInput], cat_feats: List[FeatInput]
 ) -> List[tf.keras.Input]:
     """Concatenate feature inputs."""
-    num = [x for f in num_feats for x in f]
-    cat = [x for f, _ in cat_feats for x in f if x is not None]
-    return num + cat
+    i_list = [i for fs in (num_feats, cat_feats) for f in fs for i in f.data_mask]
+    return i_list
 
 
 class KerasInputs(NamedTuple):
     """Inputs required for the keras model configuration function."""
 
-    num_feats: List[FeatInput]
-    cat_feats: List[Tuple[FeatInput, int]]
+    num_feats: List[NumFeatInput]
+    cat_feats: List[CatFeatInput]
     indices: tf.keras.Input
     coords: tf.keras.Input
 
@@ -95,33 +143,30 @@ def gen_keras_inputs(
     """Generate keras.Inputs for each covariate in the dataset."""
     xs = dataset.element_spec if x_only else dataset.element_spec[0]
 
-    def gen_feat_input(
+    def gen_keras_input(data: tf.TensorSpec, name: str) -> tf.keras.Input:
+        """TensorSpec to keras input."""
+        return tf.keras.Input(name=name, shape=data.shape[1:], dtype=data.dtype)
+
+    def gen_data_mask_inputs(
         data: tf.TensorSpec, mask: tf.TensorSpec, name: str
-    ) -> FeatInput:
-        feat = FeatInput(
-            data=tf.keras.Input(name=name, shape=data.shape[1:], dtype=data.dtype),
-            mask=tf.keras.Input(
-                name=f"{name}_mask", shape=mask.shape[1:], dtype=mask.dtype
-            ),
-        )
-        return feat
+    ) -> Tuple[tf.keras.Input, tf.keras.Input]:
+        """Create keras inputs for data and mask."""
+        return gen_keras_input(data, name), gen_keras_input(mask, f"{name}_mask")
 
     num_feats = []
     if "con" in xs:
         assert "con_mask" in xs
         for k in xs["con"]:
-            num_feats.append(gen_feat_input(xs["con"][k], xs["con_mask"][k], k))
+            data, mask = gen_data_mask_inputs(xs["con"][k], xs["con_mask"][k], k)
+            num_feats.append(NumFeatInput(data, mask))
 
     cat_feats = []
     if "cat" in xs:
         assert "cat_mask" in xs and metadata.features.categorical
         for k in xs["cat"]:
-            cat_feats.append(
-                (
-                    gen_feat_input(xs["cat"][k], xs["cat_mask"][k], k),
-                    metadata.features.categorical.columns[k].mapping.shape[0],
-                )
-            )
+            data, mask = gen_data_mask_inputs(xs["cat"][k], xs["cat_mask"][k], k)
+            n_classes = metadata.features.categorical.columns[k].mapping.shape[0]
+            cat_feats.append(CatFeatInput(data, mask, n_classes))
 
     feats = KerasInputs(
         num_feats=num_feats,
@@ -197,6 +242,23 @@ class UpdateCallback(tf.keras.callbacks.Callback):
         print(" - ".join([epoch_str, time_str, metrics_str]))
 
 
+class TargetData(NamedTuple):
+    """Target data."""
+
+    label: str
+    is_categorical: bool
+    n_classes: Optional[int] = None
+
+
+def get_target_data(target: Target) -> List[TargetData]:
+    """Create list of target data."""
+    if isinstance(target, CategoricalTarget):
+        ts = [TargetData(l, True, n) for l, n in zip(target.labels, target.nvalues)]
+    else:
+        ts = [TargetData(l, False) for l in target.labels]
+    return ts
+
+
 def train_test(
     records_train: List[str],
     records_test: List[str],
@@ -210,8 +272,9 @@ def train_test(
     xtrain = train_data(records_train, metadata, params.batchsize, params.epochs)()
     xtest = test_data(records_test, metadata, params.test_batchsize)()
     inputs = gen_keras_inputs(xtrain, metadata)
+    targets = get_target_data(metadata.targets)
 
-    model = cf.model(*inputs, metadata.targets.labels)
+    model = cf.model(*inputs, targets)
 
     weights_file = Path(directory) / "checkpoint_weights.h5"
     if weights_file.exists():
@@ -259,9 +322,10 @@ def predict(
     """Load a model and predict results for record inputs."""
     x = predict_data(records, metadata, params.batchsize)()
     inputs = gen_keras_inputs(x, metadata, x_only=True)
+    targets = get_target_data(metadata.targets)
     x = x.map(flatten_dataset_x)
 
-    model = cf.model(*inputs, metadata.targets.labels)
+    model = cf.model(*inputs, targets)
 
     weights_file = Path(checkpoint_dir) / "checkpoint_weights.h5"
     if weights_file.exists():
@@ -278,7 +342,10 @@ def predict(
             workers=1,
             use_multiprocessing=False,
         )
-        if not isinstance(y_it, tuple):
-            y_it = (y_it,)
+        if not isinstance(y_it, list):
+            y_it = [y_it]
 
-        yield dict(zip(model.output_names, y_it))
+        predictions = dict(
+            p for p in zip(model.output_names, y_it) if p[0].startswith("predictions")
+        )
+        yield predictions

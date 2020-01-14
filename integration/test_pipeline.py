@@ -27,19 +27,29 @@ from _pytest.fixtures import FixtureRequest
 # small batch size to emulate normal use
 BATCH_MB = 0.001
 
+
+commands = {
+    "landshark": ["landshark"],
+    "landshark-keras": ["landshark", "--keras-model"],
+    "skshark": ["skshark"],
+}
+
 model_files = {
     "regression": {
         "landshark": "nn_regression.py",
+        "landshark-keras": "nn_regression_keras.py",
         "skshark": "sklearn_regression.py"
     },
     "classification": {
         "landshark": "nn_classification.py",
+        "landshark-keras": "nn_classification_keras.py",
         "skshark": "sklearn_classification.py"
     }
 }
 
 training_args = {
     "landshark": ["--epochs", "200", "--iterations", "5"],
+    "landshark-keras": ["--epochs", "200", "--iterations", "5"],
     "skshark": []
 }
 
@@ -75,7 +85,7 @@ def half_width(request: FixtureRequest) -> Any:
     return request.param
 
 
-@pytest.fixture(params=["landshark", "skshark"])
+@pytest.fixture(params=["landshark", "skshark", "landshark-keras"])
 def whichalgo(request: FixtureRequest) -> Any:
     return request.param
 
@@ -125,8 +135,8 @@ def extract_query_data(feature_file, ncpus):
 
 def train(cmd, model_dir, model_filename, trainingdata_folder,
           training_args):
-    _run([cmd, "train", "--data", trainingdata_folder,
-               "--config", model_filename] + training_args)
+    _run(cmd + ["train", "--data", trainingdata_folder,
+                 "--config", model_filename] + training_args)
     trained_model_dir = "{}_model_1of10".format(
         os.path.basename(model_filename).split(".py")[0])
     assert os.path.isdir(trained_model_dir)
@@ -135,7 +145,7 @@ def train(cmd, model_dir, model_filename, trainingdata_folder,
 
 def predict(cmd, model_filename, trained_model_dir,
             querydata_folder, target_name):
-    _run([cmd] + ["--batch-mb", BATCH_MB, "predict",
+    _run(cmd + ["--batch-mb", BATCH_MB, "predict",
                   "--config", model_filename,
                   "--checkpoint", trained_model_dir,
                   "--data", querydata_folder])
@@ -157,7 +167,6 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
     con_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     os.chdir(os.path.abspath(tmpdir))
     ncpus = number_of_cpus
-
     thisrun = "{}_{}_{}_{}cpus_hw{}".format(whichalgo, whichproblem,
                                             whichfeatures, ncpus, half_width)
     print("Current run: {}".format(thisrun))
@@ -181,10 +190,10 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
     print("Extracting query data...")
     querydata_folder = extract_query_data(feature_file, ncpus)
     print("Training...")
-    trained_model_dir = train(whichalgo, model_dir, model_path,
+    trained_model_dir = train(commands[whichalgo], model_dir, model_path,
                               trainingdata_folder, train_args)
     print("Predicting...")
-    predict(whichalgo, model_path, trained_model_dir,
+    predict(commands[whichalgo], model_path, trained_model_dir,
             querydata_folder, target_name)
     print("Cleaning up...")
 

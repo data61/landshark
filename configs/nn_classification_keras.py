@@ -27,13 +27,6 @@ from landshark.kerasmodel import (
 )
 
 
-def r2(y_true, y_pred):
-    """Coefficient of determination metric."""
-    SS_res = tf.reduce_sum(tf.math.squared_difference(y_true, y_pred))
-    SS_tot = tf.reduce_sum(tf.math.squared_difference(y_true, tf.reduce_mean(y_true)))
-    return 1 - SS_res / SS_tot
-
-
 def model(
     num_feats: List[NumFeatInput],
     cat_feats: List[CatFeatInput],
@@ -52,16 +45,32 @@ def model(
     l2 = tf.keras.layers.Dense(units=32, activation="relu")(l1)
 
     # Get some predictions for the labels
-    n_targets = len(targets)
-    l3 = tf.keras.layers.Dense(units=n_targets, activation=None)(l2)
-    ys = [
-        tf.keras.layers.Reshape((-1,), name=f"predictions_{t.label}")(l3[..., i])
-        for i, t in enumerate(targets)
-    ]
+    n_outputs = sum(t.n_classes for t in targets)
+    l3 = tf.keras.layers.Dense(units=n_outputs, activation=None)(l2)
+
+    outputs = []
+    losses = {}
+    metrics = {}
+    i = 0
+    for t in targets:
+        target_vals = l3[..., i : i + t.n_classes]
+        logits = tf.keras.layers.Reshape((-1,), name=t.label)(target_vals)
+        losses[t.label] = tf.keras.losses.SparseCategoricalCrossentropy(
+            from_logits=True
+        )
+        metrics[t.label] = "accuracy"
+
+        pred_name = f"predictions_{t.label}"
+        pred = tf.keras.layers.Lambda(
+            lambda x: tf.keras.backend.cast(tf.keras.backend.argmax(x), "uint8"),
+            name=pred_name,
+        )(logits)
+
+        outputs.extend([logits, pred])
+        i += t.n_classes
 
     # create keras model
     model_inputs = get_feat_input_list(num_feats, cat_feats)
-    model = tf.keras.Model(inputs=model_inputs, outputs=ys)
-    model.compile(loss="mean_squared_error", optimizer="sgd", metrics=[r2])
-
+    model = tf.keras.Model(inputs=model_inputs, outputs=outputs)
+    model.compile(loss=losses, optimizer="sgd", metrics=metrics)
     return model
