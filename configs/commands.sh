@@ -1,7 +1,8 @@
 #! /usr/bin/env bash
 
+# Commands from integration tests
 
-# regression
+# keras-model regression
 landshark-import --batch-mb 0.001 targets \
     --shapefile ../integration/data/targets/geochem_sites.shp \
     --name NaCu \
@@ -34,7 +35,7 @@ landshark --keras-model --no-gpu train \
     --iterations 5
 
 
-# Classification
+# keras-model classification
 landshark-import --batch-mb 0.001 targets \
     --shapefile ../integration/data/targets/geochem_sites.shp \
     --name NaCu \
