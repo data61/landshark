@@ -74,7 +74,7 @@ def setup_query(config: str,
                 querydir: str,
                 checkpoint: str
                 ) -> Tuple[Training, FeatureSet, List[str], int, int, str]:
-    strip_list = querydir.split("strip")[-1].split("of")
+    strip_list = querydir.rstrip("/").split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])
     nstrip = int(strip_list[1])
