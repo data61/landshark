@@ -16,8 +16,8 @@
 
 from typing import Dict, Optional
 
-import tensorflow_probability as tfp
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from landshark import config as utils
 from landshark.metadata import Training

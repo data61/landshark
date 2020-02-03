@@ -15,11 +15,11 @@
 # limitations under the License.
 
 import logging
+import os
 import sys
 from typing import NamedTuple, Optional
 
 import click
-import os
 
 from landshark import __version__, errors
 from landshark.model import QueryConfig, TrainingConfig
