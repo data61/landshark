@@ -132,7 +132,7 @@ def _as_range(iterable: Iterator[int]) -> FixedSlice:
 
 
 def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
-    rowlist = sorted(list({k.y for k in patch_reads}))
+    rowlist = sorted({k.y for k in patch_reads})
 
     c_init = count()
 
@@ -275,6 +275,7 @@ class Serialised(Worker):
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
+    """Write training data to tfrecord."""
     log.info("Testing data is fold {} of {}".format(args.testfold,
                                                     args.folds.K))
     log.info("Writing training data to tfrecord in {}-point batches".format(
@@ -290,7 +291,7 @@ def write_trainingdata(args: ProcessTrainingArgs) -> None:
 
 
 def write_querydata(args: ProcessQueryArgs) -> None:
-
+    """Write query data to tfrecord."""
     log.info("Query data is strip {} of {}".format(args.strip_idx,
                                                    args.total_strips))
     log.info("Writing query data to tfrecord in {}-point batches".format(

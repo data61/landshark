@@ -50,6 +50,7 @@ def value_impute(data: tf.Tensor, mask: tf.Tensor,
 
 
 def continuous_input(d: Dict[str, tf.Tensor]) -> tf.Tensor:
+    """Create input layer for named continuous data."""
     cols = [tf.feature_column.numeric_column(k) for k in d.keys()]
     inputs = tf.feature_column.input_layer(d, cols)
     return inputs
@@ -58,6 +59,7 @@ def continuous_input(d: Dict[str, tf.Tensor]) -> tf.Tensor:
 def categorical_embedded_input(d: Dict[str, tf.Tensor],
                                ncat_dict: Dict[str, int],
                                embed_dict: Dict[str, int]) -> tf.Tensor:
+    """Create input layer for named categorical data with embedding."""
     columns_cat = [
         tf.feature_column.embedding_column(
             tf.feature_column.categorical_column_with_identity(

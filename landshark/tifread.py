@@ -39,7 +39,7 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 
 # Convenience types
 class Band(NamedTuple):
-
+    """Rasterio dataset reader and band index."""
     image: DatasetReader
     idx: int
 
