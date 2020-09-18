@@ -105,14 +105,16 @@ def impute_embed_concat_layer(
     num_imputed = [
         impute_const_layer(x.data, x.mask, num_impute_val) for x in num_feats
     ]
-    cat_imputed = [impute_const_layer(x.data, x.mask, x.n_classes) for x in cat_feats]
 
-    # embed categorical
-    embed_dims = [(f.n_classes, cat_embed_dims) for f in cat_feats]
-    cat_embedded = [
-        tf.keras.layers.Embedding(n, d, f"embed_cat_{n}_{x.name}")(tf.squeeze(x, 3))
-        for x, (n, d) in zip(cat_imputed, embed_dims)
-    ]
+    # impute/embed categorical
+    def _impute_embed_cat(f: CatFeatInput) -> tf.keras.layers.Layer:
+        f_imp = impute_const_layer(f.data, f.mask, f.n_classes)
+        name = f"embed_cat_{f.n_classes}_{f_imp.name.split('/')[0]}"
+        embedding = tf.keras.layers.Embedding(f.n_classes, cat_embed_dims, name=name)
+        f_emb = embedding(tf.squeeze(f_imp, 3))
+        return f_emb
+
+    cat_embedded = [_impute_embed_cat(f) for f in cat_feats]
 
     # concatenate layer
     layer = tf.keras.layers.Concatenate(axis=3)(num_imputed + cat_embedded)

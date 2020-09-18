@@ -16,12 +16,17 @@
 
 import os
 import shutil
-import subprocess
 from glob import glob
 from typing import Any
 
 import pytest
 from _pytest.fixtures import FixtureRequest
+from click.testing import CliRunner
+
+from landshark.scripts.cli import cli as landshark_cli
+from landshark.scripts.extractors import cli as landshark_extract_cli
+from landshark.scripts.importers import cli as landshark_import_cli
+from landshark.scripts.skcli import cli as skshark_cli
 
 # these data are tiny so we need a really
 # small batch size to emulate normal use
@@ -29,9 +34,9 @@ BATCH_MB = 0.001
 
 
 commands = {
-    "landshark": ["landshark"],
-    "landshark-keras": ["landshark", "--keras-model"],
-    "skshark": ["skshark"],
+    "landshark": (landshark_cli, []),
+    "landshark-keras": (landshark_cli, ["--keras-model"]),
+    "skshark": (skshark_cli, []),
 }
 
 model_files = {
@@ -90,80 +95,96 @@ def whichalgo(request: FixtureRequest) -> Any:
     return request.param
 
 
-def import_tifs(cat_dir, con_dir, feature_string, ncpus):
-    tif_import_args = ["--categorical", cat_dir, "--continuous", con_dir,
-                       "--ignore-crs"]
+def _cli_run(runner, cmd, args):
+    str_args = " ".join([str(a) for a in args])
+    print(f"Running: {runner.get_default_prog_name(cmd)} {str_args}")
+    res = runner.invoke(cmd, str_args)
+    assert res.exit_code == 0, res.stdout
+    return res
+
+
+def import_tifs(cli_runner, cat_dir, con_dir, feature_string, ncpus):
+    tif_import_args = ["--categorical", cat_dir, "--continuous", con_dir]
     if feature_string == "continuous-only":
         tif_import_args = tif_import_args[2:]
     elif feature_string == "categorical-only":
-        tif_import_args = tif_import_args[:2] + ["--ignore-crs"]
-    _run(["landshark-import", "--nworkers", ncpus,
-          "--batch-mb", BATCH_MB, "tifs", "--name", "sirsam"
-          ] + tif_import_args)
+        tif_import_args = tif_import_args[:2]
+
+    all_args = [
+        "--nworkers", ncpus, "--batch-mb", BATCH_MB, "tifs",
+        "--name", "sirsam", "--ignore-crs"
+    ] + tif_import_args
+    res = _cli_run(cli_runner, landshark_import_cli, all_args)
     feature_file = "features_sirsam.hdf5"
     assert os.path.isfile(feature_file)
     return feature_file
 
 
-def import_targets(target_dir, target_name, target_flags, ncpus):
+def import_targets(cli_runner, target_dir, target_name, target_flags, ncpus):
     target_file = os.path.join(target_dir, "geochem_sites.shp")
-    _run(["landshark-import", "--batch-mb", BATCH_MB, "targets",
-          "--shapefile", target_file, "--name", target_name,
-          "--record", target_name] + target_flags)
+    all_args = [
+        "--batch-mb", BATCH_MB, "targets", "--shapefile", target_file,
+        "--name", target_name, "--record", target_name
+    ] + target_flags
+    res = _cli_run(cli_runner, landshark_import_cli, all_args)
     target_file = "targets_{}.hdf5".format(target_name)
     assert os.path.isfile(target_file)
     return target_file
 
 
-def extract_training_data(target_file, target_name, ncpus):
-    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-          "traintest", "--features", "features_sirsam.hdf5", "--split", 1, 10,
-          "--targets", target_file, "--name", "sirsam"])
+def extract_training_data(cli_runner, target_file, target_name, ncpus):
+    all_args = [
+        "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+        "traintest", "--features", "features_sirsam.hdf5", "--split", 1, 10,
+        "--targets", target_file, "--name", "sirsam"
+    ]
+    res = _cli_run(cli_runner, landshark_extract_cli, all_args)
     trainingdata_folder = "traintest_sirsam_fold1of10"
     assert os.path.isdir(trainingdata_folder)
     return trainingdata_folder
 
 
-def extract_query_data(feature_file, ncpus):
-    _run(["landshark-extract", "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-          "query", "--features", feature_file, "--strip", 5, 10,
-          "--name", "sirsam"])
+def extract_query_data(cli_runner, feature_file, ncpus):
+    all_args = [
+        "--nworkers", ncpus, "--batch-mb", BATCH_MB,
+        "query", "--features", feature_file, "--strip", 5, 10, "--name", "sirsam"
+    ]
+    res = _cli_run(cli_runner, landshark_extract_cli, all_args)
     querydata_folder = "query_sirsam_strip5of10"
     assert os.path.isdir(querydata_folder)
     return querydata_folder
 
 
-def train(cmd, model_dir, model_filename, trainingdata_folder,
-          training_args):
-    _run(cmd + ["train", "--data", trainingdata_folder,
-                 "--config", model_filename] + training_args)
+def train(cli_runner, cmd, model_dir, model_filename, trainingdata_folder, training_args):
+    train_cli, args = cmd
+    all_args = args + [
+        "train", "--data", trainingdata_folder, "--config", model_filename
+    ] + training_args
+    res = _cli_run(cli_runner, train_cli, all_args)
     trained_model_dir = "{}_model_1of10".format(
         os.path.basename(model_filename).split(".py")[0])
     assert os.path.isdir(trained_model_dir)
     return trained_model_dir
 
 
-def predict(cmd, model_filename, trained_model_dir,
+def predict(cli_runner, cmd, model_filename, trained_model_dir,
             querydata_folder, target_name):
-    _run(cmd + ["--batch-mb", BATCH_MB, "predict",
-                  "--config", model_filename,
-                  "--checkpoint", trained_model_dir,
-                  "--data", querydata_folder])
+    predict_cli, args = cmd
+    all_args = args + [
+        "--batch-mb", BATCH_MB, "predict",
+        "--config", model_filename,
+        "--checkpoint", trained_model_dir,
+        "--data", querydata_folder
+    ]
+    res = _cli_run(cli_runner, predict_cli, all_args)
     image_filename = "predictions_{}_5of10.tif".format(target_name)
     image_path = os.path.join(trained_model_dir, image_filename)
     assert os.path.isfile(image_path)
 
 
-def _run(cmd):
-    """Execute CLI command  using subprocess."""
-    cmd_str = [str(k) for k in cmd]
-    print("Running command: {}".format(" ".join(cmd_str)))
-    proc = subprocess.run(cmd_str, stdout=subprocess.PIPE)
-    assert proc.returncode == 0
-
-
 def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
                        whichalgo, number_of_cpus, half_width):
+    cli_runner = CliRunner()
     con_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     os.chdir(os.path.abspath(tmpdir))
     ncpus = number_of_cpus
@@ -179,21 +200,25 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
 
     # need to make isolated filesystem
     print("Importing tifs...")
-    feature_file = import_tifs(cat_dir, con_dir, whichfeatures, ncpus)
+    feature_file = import_tifs(cli_runner, cat_dir, con_dir, whichfeatures, ncpus)
     print("Importing targets...")
-    target_file = import_targets(target_dir, target_name, target_flags,
-                                 ncpus)
+    target_file = import_targets(
+        cli_runner, target_dir, target_name, target_flags, ncpus
+    )
     print("Extracting training data...")
-    trainingdata_folder = extract_training_data(target_file,
-                                                target_name, ncpus)
+    trainingdata_folder = extract_training_data(
+        cli_runner, target_file, target_name, ncpus
+    )
 
     print("Extracting query data...")
-    querydata_folder = extract_query_data(feature_file, ncpus)
+    querydata_folder = extract_query_data(cli_runner, feature_file, ncpus)
     print("Training...")
-    trained_model_dir = train(commands[whichalgo], model_dir, model_path,
-                              trainingdata_folder, train_args)
+    trained_model_dir = train(
+        cli_runner, commands[whichalgo], model_dir, model_path, trainingdata_folder,
+        train_args
+    )
     print("Predicting...")
-    predict(commands[whichalgo], model_path, trained_model_dir,
+    predict(cli_runner, commands[whichalgo], model_path, trained_model_dir,
             querydata_folder, target_name)
     print("Cleaning up...")
 
