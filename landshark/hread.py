@@ -26,8 +26,11 @@ from landshark.featurewrite import read_feature_metadata, read_target_metadata
 
 
 class H5ArraySource(ArraySource):
-    """Note these are only used for targets! see the target specific metadata
-    call. Should probably be renamed."""
+    """HDF5 array source for target data.
+
+    Note these are only used for targets! see the target specific metadata
+    call. Should probably be renamed.
+    """
 
     _array_name = ""
 
@@ -78,11 +81,13 @@ class H5ArraySource(ArraySource):
 
 
 class ContinuousH5ArraySource(H5ArraySource, ContinuousArraySource):
+    """HDF5 array source for continuous target data."""
 
     _array_name = "continuous_data"
 
 
 class CategoricalH5ArraySource(H5ArraySource, CategoricalArraySource):
+    """HDF5 array source for categorical target data."""
 
     _array_name = "categorical_data"
 

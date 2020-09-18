@@ -88,7 +88,7 @@ def _write_continuous_metadata(meta: ContinuousFeatureSet,
                                ) -> None:
     hfile.root.continuous_data.attrs.missing = meta.missing_value
     hfile.root.continuous_data.attrs.normalised = meta.normalised
-    labels = [k for k in meta.columns.keys()]
+    labels = list(meta.columns.keys())
     D = np.array([v.D for v in meta.columns.values()], dtype=int)
     means = [v.mean for v in meta.columns.values()]
     sds = [v.sd for v in meta.columns.values()]
@@ -141,7 +141,7 @@ def _write_categorical_metadata(meta: CategoricalFeatureSet,
                                 hfile: tables.File
                                 ) -> None:
     hfile.root.categorical_data.attrs.missing = meta.missing_value
-    labels = [k for k in meta.columns.keys()]
+    labels = list(meta.columns.keys())
     nvalues = np.array([v.nvalues for v in meta.columns.values()])
     D = np.array([v.D for v in meta.columns.values()])
     mappings = [v.mapping for v in meta.columns.values()]

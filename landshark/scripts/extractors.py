@@ -30,7 +30,7 @@ from landshark.hread import CategoricalH5ArraySource, ContinuousH5ArraySource
 from landshark.image import strip_image_spec
 from landshark.kfold import KFolds
 from landshark.scripts.logger import configure_logging
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -109,14 +109,7 @@ def traintest_entrypoint(targets: str,
     feature_metadata = read_feature_metadata(features)
     feature_metadata.halfwidth = halfwidth
     target_metadata = read_target_metadata(targets)
-
-    ndim_con = len(feature_metadata.continuous.columns) \
-        if feature_metadata.continuous else 0
-    ndim_cat = len(feature_metadata.categorical.columns) \
-        if feature_metadata.categorical else 0
-    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
-                                    halfwidth=halfwidth)
-
+    batchsize = points_per_batch(feature_metadata, batchMB)
     target_src = CategoricalH5ArraySource(targets) \
         if isinstance(target_metadata, meta.CategoricalTarget) \
         else ContinuousH5ArraySource(targets)
@@ -135,7 +128,7 @@ def traintest_entrypoint(targets: str,
                                testfold=testfold,
                                folds=kfolds,
                                directory=directory,
-                               batchsize=points_per_batch,
+                               batchsize=batchsize,
                                nworkers=nworkers)
     write_trainingdata(args)
     training_metadata = meta.Training(targets=target_metadata,
@@ -194,20 +187,14 @@ def query_entrypoint(features: str,
 
     feature_metadata = read_feature_metadata(features)
     feature_metadata.halfwidth = halfwidth
-    ndim_con = len(feature_metadata.continuous.columns) \
-        if feature_metadata.continuous else 0
-    ndim_cat = len(feature_metadata.categorical.columns) \
-        if feature_metadata.categorical else 0
-    points_per_batch = mb_to_points(batchMB, ndim_con, ndim_cat,
-                                    halfwidth=halfwidth)
-
+    batchsize = points_per_batch(feature_metadata, batchMB)
     strip_imspec = strip_image_spec(strip_idx, totalstrips,
                                     feature_metadata.image)
     tag = "query.{}of{}".format(strip_idx, totalstrips)
 
     qargs = ProcessQueryArgs(name, features, feature_metadata.image,
                              strip_idx, totalstrips, strip_imspec, halfwidth,
-                             directory, points_per_batch, nworkers, tag)
+                             directory, batchsize, nworkers, tag)
 
     write_querydata(qargs)
     feature_metadata.image = strip_imspec

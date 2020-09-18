@@ -31,6 +31,7 @@ def query(data: Iterator[List[bytes]],
           output_directory: str,
           tag: str
           ) -> None:
+    """Write query data to tfrecord."""
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
         writer.add(d)
@@ -43,6 +44,7 @@ def training(data: Iterator[List[bytes]],
              testfold: int,
              folds: Iterator[np.ndarray]
              ) -> None:
+    """Write training data to tfrecord."""
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
         os.makedirs(test_directory)

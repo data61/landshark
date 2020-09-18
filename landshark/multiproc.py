@@ -19,6 +19,7 @@
 
 import logging
 import queue
+import sys
 from multiprocessing import Pipe, Process, Queue
 from typing import Any, Dict, Iterator, List
 
@@ -27,6 +28,12 @@ from tqdm import tqdm
 from landshark.basetypes import Reader, Worker
 
 log = logging.getLogger(__name__)
+
+# Required for debugging multiprocess applications with ptvsd
+if sys.gettrace() is not None:
+    import multiprocessing
+    multiprocessing.set_start_method("spawn", True)
+    log.info("Setting multiprocessing start method to 'spawn' for debugging")
 
 # Do not make result queue size 0 if you care about memory
 # Values larger than 1 probably dont help anyway
