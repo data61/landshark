@@ -67,7 +67,7 @@ def get_training_meta(directory: str) -> Tuple[Training, List[str], List[str]]:
 
 def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
     """Read query metadata and record filenames from dir."""
-    strip_list = query_dir.split("strip")[-1].split("of")
+    strip_list = query_dir.rstrip("/").split("strip")[-1].split("of")
     assert len(strip_list) == 2
     strip = int(strip_list[0])
     nstrip = int(strip_list[1])
