@@ -57,6 +57,7 @@ setup(
     ],
     extras_require={
         "dev": [
+            "isort<5.0",
             "jedi>=0.10.2",
             "pytest>=3.1.3",
             "pytest-flake8>=0.8.1",
