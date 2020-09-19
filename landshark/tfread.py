@@ -29,7 +29,6 @@ from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
-tf.compat.v1.disable_eager_execution()
 
 
 def dataset_fn(
@@ -121,7 +120,7 @@ def _concat_dict(xlist: List[TData]) -> TData:
     """Join dicts of arrays together."""
     out_dict = {}
     for k, v in xlist[0].items():
-        if isinstance(v, np.ndarray):
+        if isinstance(v, tf.python.framework.ops.EagerTensor):
             out_dict[k] = np.concatenate([di[k] for di in xlist], axis=0)
         else:
             out_dict[k] = _concat_dict([di[k] for di in xlist])
@@ -130,19 +129,7 @@ def _concat_dict(xlist: List[TData]) -> TData:
 
 def extract_split_xy(dataset: tf.data.TFRecordDataset) -> XYData:
     """Extract (X, Y) data from tensor dataset and split."""
-    X_tensor, Y_tensor = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
-
-    x_list = []
-    y_list = []
-    with tf.compat.v1.Session() as sess:
-        try:
-            while True:
-                x, y = sess.run([X_tensor, Y_tensor])
-                x_list.append(x)
-                y_list.append(y)
-        except tf.errors.OutOfRangeError:
-            pass
-
+    x_list, y_list = zip(*dataset)
     Y = np.concatenate(y_list, axis=0)
     X = _concat_dict(x_list)
     x_con, x_cat, indices, coords = _split(X)
@@ -193,15 +180,8 @@ def query_data_it(
         shuffle_buffer=shuffle_buffer,
         random_seed=random_seed,
     )()
-    X_tensor = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
-    with tf.compat.v1.Session() as sess:
-        while True:
-            try:
-                X = sess.run(X_tensor)
-                yield _split(X)
-            except tf.errors.OutOfRangeError:
-                break
-        return
+    for X in dataset:
+        yield _split(X)
 
 
 #
