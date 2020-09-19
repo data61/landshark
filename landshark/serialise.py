@@ -71,6 +71,7 @@ def serialise(x: DataArrays) -> List[bytes]:
     return string_list
 
 
+@tf.function
 def deserialise(
     row: str,
     features: FeatureSet,
@@ -125,6 +126,7 @@ def deserialise(
     return result
 
 
+@tf.function
 def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
         -> Dict[str, tf.Tensor]:
     nfeatures = len(columns)

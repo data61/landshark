@@ -20,6 +20,7 @@ import numpy as np
 import tensorflow as tf
 
 
+@tf.function
 def flatten_patch(x: tf.Tensor) -> tf.Tensor:
     """
     Reshape tensor by concatenating patch pixel columns.
@@ -40,6 +41,7 @@ def flatten_patch(x: tf.Tensor) -> tf.Tensor:
     return new_x
 
 
+@tf.function
 def value_impute(data: tf.Tensor, mask: tf.Tensor,
                  newval: Union[tf.Tensor, np.ndarray]) -> tf.Tensor:
     """Impute missing (masked) values with a single value."""
