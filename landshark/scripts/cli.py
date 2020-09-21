@@ -23,12 +23,11 @@ import click
 from landshark import __version__, errors
 from landshark.model import QueryConfig, TrainingConfig
 from landshark.model import predict as predict_fn
-from landshark.model import train_test
+from landshark.model import setup_query, setup_training, train_test
 from landshark.saver import overwrite_model_dir
 from landshark.scripts.logger import configure_logging
-from landshark.tfread import setup_query, setup_training
 from landshark.tifwrite import write_geotiffs
-from landshark.util import mb_to_points
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +99,7 @@ def train_entrypoint(data: str,
                      checkpoint_dir: Optional[str]
                      ) -> None:
     """Entry point for training function."""
-    training_records, testing_records, metadata, model_dir, cf = \
+    metadata, training_records, testing_records, model_dir, cf = \
         setup_training(config, data)
     if checkpoint_dir:
         overwrite_model_dir(model_dir, checkpoint_dir)
@@ -135,14 +134,10 @@ def predict_entrypoint(config: str, checkpoint: str, data: str,
     """Entrypoint for predict function."""
     train_metadata, feature_metadata, query_records, strip, nstrips, cf = \
         setup_query(config, data, checkpoint)
-    ndim_con = len(feature_metadata.continuous.columns) \
-        if feature_metadata.continuous else 0
-    ndim_cat = len(feature_metadata.categorical.columns) \
-        if feature_metadata.categorical else 0
-    points_per_batch = mb_to_points(
-        batchMB, ndim_con, ndim_cat,
-        halfwidth=train_metadata.features.halfwidth)
-    params = QueryConfig(points_per_batch, gpu)
+
+    batchsize = points_per_batch(train_metadata.features, batchMB)
+
+    params = QueryConfig(batchsize, gpu)
     y_dash_it = predict_fn(checkpoint, sys.modules[cf], train_metadata,
                            query_records, params)
     write_geotiffs(y_dash_it, checkpoint, feature_metadata.image,

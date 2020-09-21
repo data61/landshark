@@ -31,6 +31,7 @@ log = logging.getLogger(__name__)
 
 
 class BatchWriter:
+    """Writer class for incrementally writing to a tif file."""
 
     def __init__(self,
                  rs_file: rs.DatasetReader,
@@ -46,7 +47,7 @@ class BatchWriter:
         self.rows_written = 0
 
     def write(self, data: np.ndarray) -> None:
-
+        """Append `data` to tif file."""
         assert data.ndim == 1
         all_data = np.hstack((self.res, data))
         nrows = len(all_data) // self.width
@@ -60,6 +61,7 @@ class BatchWriter:
             self.res = all_data
 
     def close(self) -> None:
+        """Close the rasterio dataset."""
         self.f.close()
 
 
@@ -68,6 +70,7 @@ def _make_writer(directory: str,
                  dtype: np.dtype,
                  image_spec: ImageSpec
                  ) -> BatchWriter:
+    """Create a writer for a tif file."""
     crs = rs.crs.CRS(**image_spec.crs)
     params = {
         "driver": "GTiff",

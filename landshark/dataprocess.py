@@ -16,21 +16,25 @@
 
 import logging
 from itertools import count, groupby
-from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import tables
 
 from landshark import patch, tfwrite
 from landshark.basetypes import ArraySource, FixedSlice, IdReader, Worker
+from landshark.featurewrite import read_feature_metadata
 from landshark.hread import H5Features
 from landshark.image import (ImageSpec, image_to_world, indices_strip,
-                             world_to_image)
+                             random_indices, world_to_image)
 from landshark.iteration import batch_slices
 from landshark.kfold import KFolds
+from landshark.metadata import FeatureSet
 from landshark.multiproc import task_list
 from landshark.patch import PatchMaskRowRW, PatchRowRW
 from landshark.serialise import DataArrays, serialise
+from landshark.tfread import XData
+from landshark.util import points_per_batch
 
 log = logging.getLogger(__name__)
 
@@ -128,7 +132,7 @@ def _as_range(iterable: Iterator[int]) -> FixedSlice:
 
 
 def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
-    rowlist = sorted(list({k.y for k in patch_reads}))
+    rowlist = sorted({k.y for k in patch_reads})
 
     c_init = count()
 
@@ -228,14 +232,13 @@ class _TrainingDataProcessor(Worker):
         self.image_spec = image_spec
         self.halfwidth = halfwidth
 
-    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> List[bytes]:
+    def __call__(self, values: Tuple[np.ndarray, np.ndarray]) -> DataArrays:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         targets, coords = values
         arrays = _process_training(coords, targets, self.feature_source,
                                    self.image_spec, self.halfwidth)
-        strings = serialise(arrays)
-        return strings
+        return arrays
 
 
 class _QueryDataProcessor(Worker):
@@ -250,16 +253,29 @@ class _QueryDataProcessor(Worker):
         self.image_spec = image_spec
         self.halfwidth = halfwidth
 
-    def __call__(self, indices: np.ndarray) -> List[bytes]:
+    def __call__(self, indices: np.ndarray) -> DataArrays:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         arrays = _process_query(indices, self.feature_source, self.image_spec,
                                 self.halfwidth)
+        return arrays
+
+
+class Serialised(Worker):
+    """Serialise worker output."""
+
+    def __init__(self, w: Worker) -> None:
+        self.worker = w
+
+    def __call__(self, x: Any) -> List[bytes]:
+        """Wrap worker function and serialise output."""
+        arrays = self.worker(x)
         strings = serialise(arrays)
         return strings
 
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
+    """Write training data to tfrecord."""
     log.info("Testing data is fold {} of {}".format(args.testfold,
                                                     args.folds.K))
     log.info("Writing training data to tfrecord in {}-point batches".format(
@@ -267,14 +283,15 @@ def write_trainingdata(args: ProcessTrainingArgs) -> None:
     n_rows = len(args.target_src)
     worker = _TrainingDataProcessor(args.feature_path, args.image_spec,
                                     args.halfwidth)
+    sworker = Serialised(worker)
     tasks = list(batch_slices(args.batchsize, n_rows))
-    out_it = task_list(tasks, args.target_src, worker, args.nworkers)
+    out_it = task_list(tasks, args.target_src, sworker, args.nworkers)
     fold_it = args.folds.iterator(args.batchsize)
     tfwrite.training(out_it, n_rows, args.directory, args.testfold, fold_it)
 
 
 def write_querydata(args: ProcessQueryArgs) -> None:
-
+    """Write query data to tfrecord."""
     log.info("Query data is strip {} of {}".format(args.strip_idx,
                                                    args.total_strips))
     log.info("Writing query data to tfrecord in {}-point batches".format(
@@ -284,6 +301,109 @@ def write_querydata(args: ProcessQueryArgs) -> None:
                                 args.total_strips, args.batchsize)
     worker = _QueryDataProcessor(args.feature_path, args.image_spec,
                                  args.halfwidth)
+    sworker = Serialised(worker)
     tasks = list(it)
-    out_it = task_list(tasks, reader_src, worker, args.nworkers)
+    out_it = task_list(tasks, reader_src, sworker, args.nworkers)
     tfwrite.query(out_it, n_total, args.directory, args.tag)
+
+
+#
+# Functions for reading hdf5 query data directy
+#
+
+
+def _islice_batched(it: Iterator[np.ndarray], n: int) -> Iterator[np.ndarray]:
+    """Slice an iterator which comes in batches."""
+    while n > 0:
+        arr: np.ndarray = next(it)
+        k = arr.shape[0]
+        yield arr[:n, :]
+        n -= k
+
+
+def dataarrays_to_xdata(arrays: DataArrays, features: FeatureSet) -> XData:
+    """Convert DataArrays to XData (i.e. add column names)."""
+    x_con = None
+    if arrays.con_marray is not None:
+        assert features.continuous
+        con_labels = features.continuous.columns.keys()
+        x_con = dict(zip(con_labels, np.rollaxis(arrays.con_marray, 3)))
+    x_cat = None
+    if arrays.cat_marray is not None:
+        assert features.categorical
+        cat_labels = features.categorical.columns.keys()
+        x_cat = dict(zip(cat_labels, np.rollaxis(arrays.cat_marray, 3)))
+    xdata = XData(x_con, x_cat, arrays.image_indices, arrays.world_coords)
+    return xdata
+
+
+class HDF5FeatureReader:
+    """Read feature data from HDF5 file."""
+
+    def __init__(
+        self,
+        hdf5_file: str,
+        halfwidth: int = 0,
+        nworkers: int = 1,
+        batch_mb: float = 1000,
+    ) -> None:
+        self.file = hdf5_file
+        self.meta = read_feature_metadata(hdf5_file)
+        self.meta.halfwidth = halfwidth
+        self.nworkers = nworkers
+        self.size = self.meta.image.height * self.meta.image.width
+        self.worker = _QueryDataProcessor(
+            hdf5_file, self.meta.image, halfwidth
+        )
+        self.batch_mb = batch_mb
+        self.batchsize = points_per_batch(self.meta, batch_mb)
+
+    def __len__(self) -> int:
+        """Total number of points."""
+        return self.size
+
+    @property
+    def crs(self) -> Dict[str, str]:
+        """Get CRS."""
+        return self.meta.image.crs
+
+    def _run(self, index_list: List[np.ndarray]) -> Iterator[XData]:
+        """Slice array at indices defined by `tasks`."""
+        da_it = task_list(index_list, IdReader(), self.worker, self.nworkers)
+        xdata_it = (dataarrays_to_xdata(d, self.meta) for d in da_it)
+        return xdata_it
+
+    def read(
+        self,
+        npoints: Optional[int] = None,
+        shuffle: bool = False,
+        random_seed: int = 220,
+    ) -> Iterator[XData]:
+        """Read N points of (optionally random) query data (in batches)."""
+        npoints = min(npoints or self.size, self.size)
+        if shuffle:
+            it, _ = random_indices(
+                self.meta.image,
+                npoints,
+                self.batchsize,
+                random_seed=random_seed
+            )
+        else:
+            it_all, _ = indices_strip(self.meta.image, 1, 1, self.batchsize)
+            it = _islice_batched(it_all, npoints)
+        return self._run(list(it))
+
+    def read_ix(self, indexes: np.ndarray) -> Iterator[XData]:
+        """Read array at supplied indexes."""
+        index_list = np.array_split(
+            indexes, range(self.batchsize, indexes.shape[0], self.batchsize)
+        )
+        return self._run(index_list)
+
+    def read_coords(self, coords: np.ndarray) -> Iterator[XData]:
+        """Read array at the supplied coordinates."""
+        indexes = np.vstack([
+            world_to_image(coords[:, 0], self.meta.image.x_coordinates),
+            world_to_image(coords[:, 1], self.meta.image.y_coordinates),
+        ]).T
+        return self.read_ix(indexes)

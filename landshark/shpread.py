@@ -107,7 +107,7 @@ class CategoricalShpArraySource(_AbstractShpArraySource,
 
 class CoordinateShpArraySource(CoordinateArraySource):
 
-    def __init__(self, filename: str, random_seed: int)-> None:
+    def __init__(self, filename: str, random_seed: int) -> None:
         self._sf = shapefile.Reader(filename)
         self._shape = (self._sf.numRecords, 2)
         self._native = 1

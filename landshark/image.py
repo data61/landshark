@@ -16,7 +16,7 @@
 
 import logging
 from itertools import product
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import numpy as np
 from affine import Affine
@@ -307,7 +307,7 @@ def indices_strip(image_spec: ImageSpec,
                   strip: int,
                   nstrips: int,
                   batchsize: int
-                  ) -> Tuple[Iterable[np.ndarray], int]:
+                  ) -> Tuple[Iterator[np.ndarray], int]:
     """
     Create an iterator over each row of a strip.
 
@@ -341,6 +341,52 @@ def indices_strip(image_spec: ImageSpec,
     return it, n_total
 
 
+def random_ix(
+    N: int,
+    M: int,
+    random_seed: Optional[int] = None,
+) -> np.ndarray:
+    """M unique random ints in [0, N) where M <= min(N, 1e7), N <= 2^64 - 1."""
+    M_MAX = int(1e7)
+    if N <= 0 or M <= 0 or M > min(N, M_MAX):
+        raise ValueError("Inputs must satisfy: N > 0,  0 < M <= min(N, 1e7)")
+
+    rnd = np.random.RandomState(random_seed)
+
+    # np.random.choice without replacement is expensive for large N
+    if N <= 2e8:
+        C = rnd.choice(np.arange(N, dtype=np.uint32), size=M, replace=False)
+    else:
+        S: Set[int] = set()
+        for _ in range(M):
+            r = rnd.randint(N, dtype=np.uint64)
+            while r in S:
+                r = rnd.randint(N, dtype=np.uint64)
+            S.add(r)
+        C = np.array(list(S))
+        rnd.shuffle(C)
+    return C
+
+
+def random_indices(
+    image_spec: ImageSpec,
+    npoints: int,
+    batchsize: int,
+    random_seed: int
+) -> Tuple[Iterator[np.ndarray], int]:
+    """Create an iterator over a random indices into the image."""
+    assert batchsize > 0
+    w = image_spec.width
+    h = image_spec.height
+    image_points = h * w
+    npoints = min(npoints, image_points)
+    assert npoints > 0
+    ix_ravel = random_ix(image_points, npoints)
+    ix = np.vstack(np.unravel_index(ix_ravel, [h, w])).astype(IndexType).T
+    ix_batch = map(_array_pair_it, iteration.batch(iter(ix), batchsize))
+    return ix_batch, npoints
+
+
 def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
     """Compute the slices corresponding to every strip along a dimension."""
     assert nstrips > 0
@@ -365,7 +411,7 @@ def _indices_query(image_width: int,
                    batchsize: int,
                    column_slice: Optional[FixedSlice] = None,
                    row_slice: Optional[FixedSlice] = None
-                   ) -> Iterable[np.ndarray]:
+                   ) -> Iterator[np.ndarray]:
     """Create a generator of batches of coordinates from an image."""
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)

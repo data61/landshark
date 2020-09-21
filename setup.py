@@ -41,7 +41,7 @@ setup(
         ]
     },
     install_requires=[
-        "numpy>=1.13.3,<1.16",  # pytables<=3.4.4 has problem with numpy==1.16
+        "numpy>=1.16.0",
         "scipy>=0.19",
         "click>=6.7",
         "rasterio>=1.0.2",
