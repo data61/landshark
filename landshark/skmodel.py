@@ -29,15 +29,16 @@ from landshark.tfread import query_data_it, xy_record_data
 log = logging.getLogger(__name__)
 
 
-def train_test(config_module: str,
-               records_train: List[str],
-               records_test: List[str],
-               metadata: Training,
-               model_dir: str,
-               maxpoints: Optional[int],
-               batchsize: int,
-               random_seed: int
-               ) -> None:
+def train_test(
+    config_module: str,
+    records_train: List[str],
+    records_test: List[str],
+    metadata: Training,
+    model_dir: str,
+    maxpoints: Optional[int],
+    batchsize: int,
+    random_seed: int,
+) -> None:
     """Train and test an sklean model."""
     log.info("Extracting and subsetting training data")
     npoints = maxpoints if maxpoints is not None else -1
@@ -76,11 +77,9 @@ def train_test(config_module: str,
         json.dump(scores, f)
 
 
-def predict(modeldir: str,
-            metadata: Training,
-            query_records: List[str],
-            batchsize: int
-            ) -> Iterator[Dict[str, np.ndarray]]:
+def predict(
+    modeldir: str, metadata: Training, query_records: List[str], batchsize: int
+) -> Iterator[Dict[str, np.ndarray]]:
     """Run predictions on query data in batches using sklearn model."""
     model_path = os.path.join(modeldir, "skmodel.pickle")
     with open(model_path, "rb") as f:

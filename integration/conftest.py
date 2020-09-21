@@ -33,10 +33,10 @@ def data_loc(request: FixtureRequest) -> Tuple[str, str, str, str, str]:
     target_dir = os.path.join(data_dir, "targets")
     cat_dir = os.path.join(data_dir, "categorical")
     con_dir = os.path.join(data_dir, "continuous")
-    model_dir = os.path.abspath(
-        os.path.join(test_dir, "..", "configs"))
+    model_dir = os.path.abspath(os.path.join(test_dir, "..", "configs"))
     result_dir = os.path.abspath(
-        os.path.join(test_dir, "..", "test_output", "pipeline"))
+        os.path.join(test_dir, "..", "test_output", "pipeline")
+    )
     try:
         os.makedirs(result_dir)
     except FileExistsError:

@@ -18,10 +18,7 @@ import pytest
 
 from landshark.kfold import KFolds
 
-fold_params = [
-    (10, 2, 5),
-    (123456, 10, 99)
-]
+fold_params = [(10, 2, 5), (123456, 10, 99)]
 
 
 @pytest.mark.parametrize("N,K,B", fold_params)

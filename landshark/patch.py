@@ -36,12 +36,13 @@ class PatchMaskRowRW(NamedTuple):
     yp: int
 
 
-def patches(x_coords: np.ndarray,
-            y_coords: np.ndarray,
-            halfwidth: int,
-            image_width: int,
-            image_height: int
-            ) -> Tuple[List[PatchRowRW], List[PatchMaskRowRW]]:
+def patches(
+    x_coords: np.ndarray,
+    y_coords: np.ndarray,
+    halfwidth: int,
+    image_width: int,
+    image_height: int,
+) -> Tuple[List[PatchRowRW], List[PatchMaskRowRW]]:
     """
     Generate the Read and write ops for patches given a set of coords.
 
@@ -101,22 +102,39 @@ def patches(x_coords: np.ndarray,
     y_reads_sorted = y_reads[order]
     patch_indices_sorted = patch_indices[order]
 
-    patch_rws = _patch_reads(n, y_reads_sorted, xmins, xmaxs, ymins,
-                             patch_indices_sorted, image_width, image_height)
-    mask_ws = _mask_patches(n, y_reads_sorted, xmins, xmaxs, ymins,
-                            patch_indices_sorted, image_width, image_height)
+    patch_rws = _patch_reads(
+        n,
+        y_reads_sorted,
+        xmins,
+        xmaxs,
+        ymins,
+        patch_indices_sorted,
+        image_width,
+        image_height,
+    )
+    mask_ws = _mask_patches(
+        n,
+        y_reads_sorted,
+        xmins,
+        xmaxs,
+        ymins,
+        patch_indices_sorted,
+        image_width,
+        image_height,
+    )
     return patch_rws, mask_ws
 
 
-def _patch_reads(n: int,
-                 y_reads: np.ndarray,
-                 xmins: np.ndarray,
-                 xmaxs: np.ndarray,
-                 ymins: np.ndarray,
-                 patch_indices: np.ndarray,
-                 image_width: int,
-                 image_height: int
-                 ) -> List[PatchRowRW]:
+def _patch_reads(
+    n: int,
+    y_reads: np.ndarray,
+    xmins: np.ndarray,
+    xmaxs: np.ndarray,
+    ymins: np.ndarray,
+    patch_indices: np.ndarray,
+    image_width: int,
+    image_height: int,
+) -> List[PatchRowRW]:
     """Compute the read and writes for the patches."""
     y_mask = np.logical_and(y_reads >= 0, y_reads < image_height)
 
@@ -131,21 +149,27 @@ def _patch_reads(n: int,
     patch_rw_list = []
     for i, m, y, yp in zip(patch_indices, y_mask, y_reads, y_patch_reads):
         if m:
-            r = PatchRowRW(i, slice(x_starts[i], x_stops[i]), y,
-                           slice(x_patch_starts[i], x_patch_stops[i]), yp)
+            r = PatchRowRW(
+                i,
+                slice(x_starts[i], x_stops[i]),
+                y,
+                slice(x_patch_starts[i], x_patch_stops[i]),
+                yp,
+            )
             patch_rw_list.append(r)
     return patch_rw_list
 
 
-def _mask_patches(n: int,
-                  y_reads: np.ndarray,
-                  xmins: np.ndarray,
-                  xmaxs: np.ndarray,
-                  ymins: np.ndarray,
-                  patch_indices: np.ndarray,
-                  image_width: int,
-                  image_height: int
-                  ) -> List[PatchMaskRowRW]:
+def _mask_patches(
+    n: int,
+    y_reads: np.ndarray,
+    xmins: np.ndarray,
+    xmaxs: np.ndarray,
+    ymins: np.ndarray,
+    patch_indices: np.ndarray,
+    image_width: int,
+    image_height: int,
+) -> List[PatchMaskRowRW]:
     """Compute the inverse writes for the mask for the patches."""
     # Inverse (mask) writes
     inv_y_mask = np.logical_or(y_reads < 0, y_reads >= image_height)
@@ -165,11 +189,15 @@ def _mask_patches(n: int,
             mask_w_list.append(PatchMaskRowRW(i, slice(0, n), yp))
         else:
             if x_premask[i]:
-                mask_w_list.append(PatchMaskRowRW(i,
-                                   slice(x_patch_prestarts[i],
-                                         x_patch_prestops[i]), yp))
+                mask_w_list.append(
+                    PatchMaskRowRW(
+                        i, slice(x_patch_prestarts[i], x_patch_prestops[i]), yp
+                    )
+                )
             if x_postmask[i]:
-                mask_w_list.append(PatchMaskRowRW(i,
-                                   slice(x_patch_poststarts[i],
-                                         x_patch_poststops[i]), yp))
+                mask_w_list.append(
+                    PatchMaskRowRW(
+                        i, slice(x_patch_poststarts[i], x_patch_poststops[i]), yp
+                    )
+                )
     return mask_w_list

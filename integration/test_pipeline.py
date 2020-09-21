@@ -43,30 +43,24 @@ model_files = {
     "regression": {
         "landshark": "nn_regression.py",
         "landshark-keras": "nn_regression_keras.py",
-        "skshark": "sklearn_regression.py"
+        "skshark": "sklearn_regression.py",
     },
     "classification": {
         "landshark": "nn_classification.py",
         "landshark-keras": "nn_classification_keras.py",
-        "skshark": "sklearn_classification.py"
-    }
+        "skshark": "sklearn_classification.py",
+    },
 }
 
 training_args = {
     "landshark": ["--epochs", "200", "--iterations", "5"],
     "landshark-keras": ["--epochs", "200", "--iterations", "5"],
-    "skshark": []
+    "skshark": [],
 }
 
 target_files = {
-    "regression": {
-        "target": "Na_ppm_i_1",
-        "args": ["--dtype", "continuous"]
-    },
-    "classification": {
-        "target": "SAMPLETYPE",
-        "args": ["--dtype", "categorical"]
-    }
+    "regression": {"target": "Na_ppm_i_1", "args": ["--dtype", "continuous"]},
+    "classification": {"target": "SAMPLETYPE", "args": ["--dtype", "categorical"]},
 }
 
 
@@ -111,8 +105,14 @@ def import_tifs(cli_runner, cat_dir, con_dir, feature_string, ncpus):
         tif_import_args = tif_import_args[:2]
 
     all_args = [
-        "--nworkers", ncpus, "--batch-mb", BATCH_MB, "tifs",
-        "--name", "sirsam", "--ignore-crs"
+        "--nworkers",
+        ncpus,
+        "--batch-mb",
+        BATCH_MB,
+        "tifs",
+        "--name",
+        "sirsam",
+        "--ignore-crs",
     ] + tif_import_args
     res = _cli_run(cli_runner, landshark_import_cli, all_args)
     feature_file = "features_sirsam.hdf5"
@@ -123,8 +123,15 @@ def import_tifs(cli_runner, cat_dir, con_dir, feature_string, ncpus):
 def import_targets(cli_runner, target_dir, target_name, target_flags, ncpus):
     target_file = os.path.join(target_dir, "geochem_sites.shp")
     all_args = [
-        "--batch-mb", BATCH_MB, "targets", "--shapefile", target_file,
-        "--name", target_name, "--record", target_name
+        "--batch-mb",
+        BATCH_MB,
+        "targets",
+        "--shapefile",
+        target_file,
+        "--name",
+        target_name,
+        "--record",
+        target_name,
     ] + target_flags
     res = _cli_run(cli_runner, landshark_import_cli, all_args)
     target_file = "targets_{}.hdf5".format(target_name)
@@ -134,9 +141,20 @@ def import_targets(cli_runner, target_dir, target_name, target_flags, ncpus):
 
 def extract_training_data(cli_runner, target_file, target_name, ncpus):
     all_args = [
-        "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-        "traintest", "--features", "features_sirsam.hdf5", "--split", 1, 10,
-        "--targets", target_file, "--name", "sirsam"
+        "--nworkers",
+        ncpus,
+        "--batch-mb",
+        BATCH_MB,
+        "traintest",
+        "--features",
+        "features_sirsam.hdf5",
+        "--split",
+        1,
+        10,
+        "--targets",
+        target_file,
+        "--name",
+        "sirsam",
     ]
     res = _cli_run(cli_runner, landshark_extract_cli, all_args)
     trainingdata_folder = "traintest_sirsam_fold1of10"
@@ -146,8 +164,18 @@ def extract_training_data(cli_runner, target_file, target_name, ncpus):
 
 def extract_query_data(cli_runner, feature_file, ncpus):
     all_args = [
-        "--nworkers", ncpus, "--batch-mb", BATCH_MB,
-        "query", "--features", feature_file, "--strip", 5, 10, "--name", "sirsam"
+        "--nworkers",
+        ncpus,
+        "--batch-mb",
+        BATCH_MB,
+        "query",
+        "--features",
+        feature_file,
+        "--strip",
+        5,
+        10,
+        "--name",
+        "sirsam",
     ]
     res = _cli_run(cli_runner, landshark_extract_cli, all_args)
     querydata_folder = "query_sirsam_strip5of10"
@@ -155,26 +183,37 @@ def extract_query_data(cli_runner, feature_file, ncpus):
     return querydata_folder
 
 
-def train(cli_runner, cmd, model_dir, model_filename, trainingdata_folder, training_args):
+def train(
+    cli_runner, cmd, model_dir, model_filename, trainingdata_folder, training_args
+):
     train_cli, args = cmd
-    all_args = args + [
-        "train", "--data", trainingdata_folder, "--config", model_filename
-    ] + training_args
+    all_args = (
+        args
+        + ["train", "--data", trainingdata_folder, "--config", model_filename]
+        + training_args
+    )
     res = _cli_run(cli_runner, train_cli, all_args)
     trained_model_dir = "{}_model_1of10".format(
-        os.path.basename(model_filename).split(".py")[0])
+        os.path.basename(model_filename).split(".py")[0]
+    )
     assert os.path.isdir(trained_model_dir)
     return trained_model_dir
 
 
-def predict(cli_runner, cmd, model_filename, trained_model_dir,
-            querydata_folder, target_name):
+def predict(
+    cli_runner, cmd, model_filename, trained_model_dir, querydata_folder, target_name
+):
     predict_cli, args = cmd
     all_args = args + [
-        "--batch-mb", BATCH_MB, "predict",
-        "--config", model_filename,
-        "--checkpoint", trained_model_dir,
-        "--data", querydata_folder
+        "--batch-mb",
+        BATCH_MB,
+        "predict",
+        "--config",
+        model_filename,
+        "--checkpoint",
+        trained_model_dir,
+        "--data",
+        querydata_folder,
     ]
     res = _cli_run(cli_runner, predict_cli, all_args)
     image_filename = "predictions_{}_5of10.tif".format(target_name)
@@ -182,14 +221,16 @@ def predict(cli_runner, cmd, model_filename, trained_model_dir,
     assert os.path.isfile(image_path)
 
 
-def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
-                       whichalgo, number_of_cpus, half_width):
+def test_full_pipeline(
+    tmpdir, data_loc, whichfeatures, whichproblem, whichalgo, number_of_cpus, half_width
+):
     cli_runner = CliRunner()
     con_dir, cat_dir, target_dir, model_dir, result_dir = data_loc
     os.chdir(os.path.abspath(tmpdir))
     ncpus = number_of_cpus
-    thisrun = "{}_{}_{}_{}cpus_hw{}".format(whichalgo, whichproblem,
-                                            whichfeatures, ncpus, half_width)
+    thisrun = "{}_{}_{}_{}cpus_hw{}".format(
+        whichalgo, whichproblem, whichfeatures, ncpus, half_width
+    )
     print("Current run: {}".format(thisrun))
 
     target_name = target_files[whichproblem]["target"]
@@ -214,12 +255,22 @@ def test_full_pipeline(tmpdir, data_loc, whichfeatures, whichproblem,
     querydata_folder = extract_query_data(cli_runner, feature_file, ncpus)
     print("Training...")
     trained_model_dir = train(
-        cli_runner, commands[whichalgo], model_dir, model_path, trainingdata_folder,
-        train_args
+        cli_runner,
+        commands[whichalgo],
+        model_dir,
+        model_path,
+        trainingdata_folder,
+        train_args,
     )
     print("Predicting...")
-    predict(cli_runner, commands[whichalgo], model_path, trained_model_dir,
-            querydata_folder, target_name)
+    predict(
+        cli_runner,
+        commands[whichalgo],
+        model_path,
+        trained_model_dir,
+        querydata_folder,
+        target_name,
+    )
     print("Cleaning up...")
 
     this_result_dir = os.path.join(result_dir, thisrun)

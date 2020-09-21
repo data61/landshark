@@ -36,9 +36,7 @@ def test_patch_00():
     for r in patch_rws:
         p_data[r.yp, r.xp] = image[r.y, r.x]
 
-    true_answer = np.array([[-1, -1, -1],
-                            [-1, 0, 1],
-                            [-1, 5, 6]], dtype=int)
+    true_answer = np.array([[-1, -1, -1], [-1, 0, 1], [-1, 5, 6]], dtype=int)
     assert np.all(true_answer == p_data)
 
 
@@ -57,9 +55,9 @@ def test_patch_00_mask():
     for r in mask_ws:
         p_mask[r.yp, r.xp] = True
 
-    true_answer = np.array([[True, True, True],
-                            [True, False, False],
-                            [True, False, False]], dtype=bool)
+    true_answer = np.array(
+        [[True, True, True], [True, False, False], [True, False, False]], dtype=bool
+    )
     assert np.all(true_answer == p_mask)
 
 
@@ -79,9 +77,7 @@ def test_patch_44():
     patch_rws, mask_ws = patch.patches(x, y, halfwidth, im_width, im_height)
     for r in patch_rws:
         p_data[r.yp, r.xp] = image[r.y, r.x]
-    true_answer = np.array([[18, 19, -1],
-                            [23, 24, -1],
-                            [-1, -1, -1]], dtype=int)
+    true_answer = np.array([[18, 19, -1], [23, 24, -1], [-1, -1, -1]], dtype=int)
     assert np.all(true_answer == p_data)
 
 
@@ -100,9 +96,9 @@ def test_patch_44_mask():
     for r in mask_ws:
         p_mask[r.yp, r.xp] = True
 
-    true_answer = np.array([[False, False, True],
-                            [False, False, True],
-                            [True, True, True]], dtype=bool)
+    true_answer = np.array(
+        [[False, False, True], [False, False, True], [True, True, True]], dtype=bool
+    )
     assert np.all(true_answer == p_mask)
 
 
@@ -123,9 +119,7 @@ def test_patch_02():
     patch_rws, mask_ws = patch.patches(x, y, halfwidth, im_width, im_height)
     for r in patch_rws:
         p_data[r.yp, r.xp] = image[r.y, r.x]
-    true_answer = np.array([[-1, 5, 6],
-                            [-1, 10, 11],
-                            [-1, 15, 16]], dtype=int)
+    true_answer = np.array([[-1, 5, 6], [-1, 10, 11], [-1, 15, 16]], dtype=int)
     assert np.all(true_answer == p_data)
 
 
@@ -144,9 +138,9 @@ def test_patch_02_mask():
     for r in mask_ws:
         p_mask[r.yp, r.xp] = True
 
-    true_answer = np.array([[True, False, False],
-                            [True, False, False],
-                            [True, False, False]], dtype=bool)
+    true_answer = np.array(
+        [[True, False, False], [True, False, False], [True, False, False]], dtype=bool
+    )
 
     assert np.all(true_answer == p_mask)
 
@@ -167,9 +161,7 @@ def test_patch_20():
     patch_rws, mask_ws = patch.patches(x, y, halfwidth, im_width, im_height)
     for r in patch_rws:
         p_data[r.yp, r.xp] = image[r.y, r.x]
-    true_answer = np.array([[-1, -1, -1],
-                            [1, 2, 3],
-                            [6, 7, 8]], dtype=int)
+    true_answer = np.array([[-1, -1, -1], [1, 2, 3], [6, 7, 8]], dtype=int)
     assert np.all(true_answer == p_data)
 
 
@@ -188,8 +180,8 @@ def test_patch_20_mask():
     for r in mask_ws:
         p_mask[r.yp, r.xp] = True
 
-    true_answer = np.array([[True, True, True],
-                            [False, False, False],
-                            [False, False, False]], dtype=bool)
+    true_answer = np.array(
+        [[True, True, True], [False, False, False], [False, False, False]], dtype=bool
+    )
 
     assert np.all(true_answer == p_mask)

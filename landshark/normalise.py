@@ -43,7 +43,7 @@ class StatCounter:
 
         new_n = np.ma.count(array, axis=0)
         new_mean = (np.ma.mean(array, axis=0)).data
-        new_mean[new_n == 0] = 0.  # enforce this condition
+        new_mean[new_n == 0] = 0.0  # enforce this condition
         new_m2 = (np.ma.var(array, axis=0, ddof=0) * new_n).data
 
         add_n = new_n + self._n
@@ -78,12 +78,9 @@ class StatCounter:
 
 
 class Normaliser(Worker):
-
-    def __init__(self,
-                 mean: np.ndarray,
-                 sd: np.ndarray,
-                 missing: Optional[ContinuousType]
-                 ) -> None:
+    def __init__(
+        self, mean: np.ndarray, sd: np.ndarray, missing: Optional[ContinuousType]
+    ) -> None:
         self._mean = mean
         self._sd = sd
         self._missing = missing
@@ -95,9 +92,9 @@ class Normaliser(Worker):
         return xm.data
 
 
-def get_stats(src: ContinuousArraySource,
-              batchrows: int
-              ) -> Tuple[np.ndarray, np.ndarray]:
+def get_stats(
+    src: ContinuousArraySource, batchrows: int
+) -> Tuple[np.ndarray, np.ndarray]:
     log.info("Computing continuous feature statistics")
     n_rows = src.shape[0]
     n_cols = src.shape[-1]

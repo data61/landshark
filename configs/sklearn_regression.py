@@ -30,28 +30,31 @@ NTREES = 100
 class SKModel:
     def __init__(self, metadata: Training, random_seed: int) -> None:
         self.con_imp = SimpleImputer(strategy="mean", verbose=0, copy=True)
-        self.cat_imp = SimpleImputer(missing_values=-1,
-                                     strategy="most_frequent",
-                                     verbose=0, copy=True)
+        self.cat_imp = SimpleImputer(
+            missing_values=-1, strategy="most_frequent", verbose=0, copy=True
+        )
         self.label = metadata.targets.labels[0]
         if metadata.features.categorical:
             n_values = np.array(
-                [k.nvalues.flatten()[0] for k in
-                 metadata.features.categorical.columns.values()]
+                [
+                    k.nvalues.flatten()[0]
+                    for k in metadata.features.categorical.columns.values()
+                ]
             )
-            self.enc = OneHotEncoder(categories=[range(k) for k in n_values],
-                                     dtype=np.float32, sparse=False)
+            self.enc = OneHotEncoder(
+                categories=[range(k) for k in n_values], dtype=np.float32, sparse=False
+            )
 
-        self.est = RandomForestRegressor(n_estimators=NTREES,
-                                         random_state=random_seed)
+        self.est = RandomForestRegressor(n_estimators=NTREES, random_state=random_seed)
 
-    def train(self,
-              X_con: Optional[Dict[str, np.ma.MaskedArray]],
-              X_cat: Optional[Dict[str, np.ma.MaskedArray]],
-              indices: np.ndarray,
-              coords: np.ndarray,
-              Y: np.ndarray
-              ) -> None:
+    def train(
+        self,
+        X_con: Optional[Dict[str, np.ma.MaskedArray]],
+        X_cat: Optional[Dict[str, np.ma.MaskedArray]],
+        indices: np.ndarray,
+        coords: np.ndarray,
+        Y: np.ndarray,
+    ) -> None:
 
         Y = Y[:, 0]
         X_list = []
@@ -71,21 +74,20 @@ class SKModel:
         X = np.concatenate(X_list, axis=1)
         self.est.fit(X, Y)
 
-    def test(self,
-             Y: np.array,
-             predictions: Dict[str, np.array]
-             ) -> Dict[str, np.ndarray]:
+    def test(
+        self, Y: np.array, predictions: Dict[str, np.array]
+    ) -> Dict[str, np.ndarray]:
         Y = Y[:, 0]
-        mse = mean_squared_error(
-            Y, predictions["predictions_" + self.label])
+        mse = mean_squared_error(Y, predictions["predictions_" + self.label])
         return {"mse": mse}
 
-    def predict(self,
-                X_con: Dict[str, np.ma.MaskedArray],
-                X_cat: Dict[str, np.ma.MaskedArray],
-                indices: np.ndarray,
-                coords: np.ndarray
-                ) -> Dict[str, np.ndarray]:
+    def predict(
+        self,
+        X_con: Dict[str, np.ma.MaskedArray],
+        X_cat: Dict[str, np.ma.MaskedArray],
+        indices: np.ndarray,
+        coords: np.ndarray,
+    ) -> Dict[str, np.ndarray]:
         X_list = []
         if X_cat is not None:
             X_cat_m = np.ma.concatenate(list(X_cat.values()), axis=1)

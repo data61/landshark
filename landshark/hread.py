@@ -20,8 +20,11 @@ from typing import Tuple, Union
 import numpy as np
 import tables
 
-from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 ContinuousArraySource)
+from landshark.basetypes import (
+    ArraySource,
+    CategoricalArraySource,
+    ContinuousArraySource,
+)
 from landshark.featurewrite import read_feature_metadata, read_target_metadata
 
 
@@ -39,9 +42,7 @@ class H5ArraySource(ArraySource):
         self.metadata = read_target_metadata(path)
         with tables.open_file(self._path, "r") as hfile:
             carray = hfile.get_node("/" + self._array_name)
-            self._shape = tuple(
-                list(carray.shape) + [carray.atom.dtype.shape[0]]
-            )
+            self._shape = tuple(list(carray.shape) + [carray.atom.dtype.shape[0]])
             self._missing = carray.attrs.missing
             self._native = carray.chunkshape[0]
             self._dtype = carray.atom.dtype.base
@@ -53,22 +54,17 @@ class H5ArraySource(ArraySource):
             self._coords = self._hfile.root.coordinates
         super().__enter__()
 
-    def __exit__(self,
-                 ex_type: type,
-                 ex_val: Exception,
-                 ex_tb: TracebackType
-                 ) -> None:
+    def __exit__(self, ex_type: type, ex_val: Exception, ex_tb: TracebackType) -> None:
         self._hfile.close()
-        del(self._carray)
+        del self._carray
         if hasattr(self, "_coords"):
-            del(self._coords)
-        del(self._hfile)
+            del self._coords
+        del self._hfile
         super().__exit__(ex_type, ex_val, ex_tb)
 
-    def _arrayslice(self,
-                    start: int,
-                    end: int
-                    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def _arrayslice(
+        self, start: int, end: int
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
 
         # TODO: Note this is bad because I'm changing the return type.
 

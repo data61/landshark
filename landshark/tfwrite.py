@@ -26,11 +26,9 @@ log = logging.getLogger(__name__)
 FILESIZE_MB = 100
 
 
-def query(data: Iterator[List[bytes]],
-          n_total: int,
-          output_directory: str,
-          tag: str
-          ) -> None:
+def query(
+    data: Iterator[List[bytes]], n_total: int, output_directory: str, tag: str
+) -> None:
     """Write query data to tfrecord."""
     writer = _MultiFileWriter(output_directory, tag=tag)
     for d in data:
@@ -38,12 +36,13 @@ def query(data: Iterator[List[bytes]],
     writer.close()
 
 
-def training(data: Iterator[List[bytes]],
-             n_total: int,
-             output_directory: str,
-             testfold: int,
-             folds: Iterator[np.ndarray]
-             ) -> None:
+def training(
+    data: Iterator[List[bytes]],
+    n_total: int,
+    output_directory: str,
+    testfold: int,
+    folds: Iterator[np.ndarray],
+) -> None:
     """Write training data to tfrecord."""
     test_directory = os.path.join(output_directory, "testing")
     if not os.path.exists(test_directory):
@@ -80,7 +79,8 @@ class _MultiFileWriter:
         self.file_index += 1
         self.path = os.path.join(
             self.output_directory,
-            "{}.{:05d}.tfrecord".format(self.tag, self.file_index))
+            "{}.{:05d}.tfrecord".format(self.tag, self.file_index),
+        )
         self._f = tf.io.TFRecordWriter(self.path, options=self._options)
 
     def add(self, batch: List[bytes]) -> None:
@@ -102,10 +102,9 @@ class _MultiFileWriter:
             raise RuntimeError("Cannot close a writer that isnt open")
 
 
-def _split_on_mask(data: List[bytes],
-                   folds: np.ndarray,
-                   testfold: int
-                   ) -> Tuple[List[bytes], List[bytes]]:
+def _split_on_mask(
+    data: List[bytes], folds: np.ndarray, testfold: int
+) -> Tuple[List[bytes], List[bytes]]:
     mask = folds != testfold
 
     # in the case of one fold/no testing data

@@ -44,8 +44,7 @@ def batch_slices(batchsize: int, total_size: int) -> Iterator[FixedSlice]:
         yield FixedSlice(start, stop)
 
 
-def with_slices(it: Iterator[np.ndarray]
-                ) -> Iterator[Tuple[FixedSlice, np.ndarray]]:
+def with_slices(it: Iterator[np.ndarray]) -> Iterator[Tuple[FixedSlice, np.ndarray]]:
     """Add slice into vstacked array to each sub array in `it`."""
     start_idx = 0
     for d in it:

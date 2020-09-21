@@ -35,10 +35,7 @@ from typing import (
 import tensorflow as tf
 
 from landshark.metadata import CategoricalTarget, Target, Training
-from landshark.model import (
-    QueryConfig,
-    TrainingConfig,
-)
+from landshark.model import QueryConfig, TrainingConfig
 from landshark.tfread import dataset_fn
 
 log = logging.getLogger(__name__)
@@ -139,7 +136,9 @@ class KerasInputs(NamedTuple):
 
 
 def gen_keras_inputs(
-    dataset: tf.data.TFRecordDataset, metadata: Training, x_only: bool = False,
+    dataset: tf.data.TFRecordDataset,
+    metadata: Training,
+    x_only: bool = False,
 ) -> KerasInputs:
     """Generate keras.Inputs for each covariate in the dataset."""
     xs = dataset.element_spec if x_only else dataset.element_spec[0]
@@ -270,10 +269,17 @@ def train_test(
     iterations: Optional[int],
 ) -> None:
     """Model training and periodic hold-out testing."""
-    xtrain = dataset_fn(records_train, params.batchsize, metadata.features,
-                          metadata.targets, params.epochs, shuffle=True)()
-    xtest = dataset_fn(records_test, params.test_batchsize,
-                         metadata.features, metadata.targets)()
+    xtrain = dataset_fn(
+        records_train,
+        params.batchsize,
+        metadata.features,
+        metadata.targets,
+        params.epochs,
+        shuffle=True,
+    )()
+    xtest = dataset_fn(
+        records_test, params.test_batchsize, metadata.features, metadata.targets
+    )()
 
     inputs = gen_keras_inputs(xtrain, metadata)
     targets = get_target_data(metadata.targets)

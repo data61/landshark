@@ -23,16 +23,17 @@ from landshark import config as utils
 from landshark.metadata import Training
 
 
-def model(mode: tf.estimator.ModeKeys,
-          X_con: Optional[Dict[str, tf.Tensor]],
-          X_con_mask: Optional[Dict[str, tf.Tensor]],
-          X_cat: Optional[Dict[str, tf.Tensor]],
-          X_cat_mask: Optional[Dict[str, tf.Tensor]],
-          Y: tf.Tensor,
-          image_indices: tf.Tensor,
-          coordinates: tf.Tensor,
-          metadata: Training,
-          ) -> tf.estimator.EstimatorSpec:
+def model(
+    mode: tf.estimator.ModeKeys,
+    X_con: Optional[Dict[str, tf.Tensor]],
+    X_con_mask: Optional[Dict[str, tf.Tensor]],
+    X_cat: Optional[Dict[str, tf.Tensor]],
+    X_cat_mask: Optional[Dict[str, tf.Tensor]],
+    Y: tf.Tensor,
+    image_indices: tf.Tensor,
+    coordinates: tf.Tensor,
+    metadata: Training,
+) -> tf.estimator.EstimatorSpec:
     """
     Describe the specification of a Tensorflow custom estimator model.
 
@@ -83,29 +84,31 @@ def model(mode: tf.estimator.ModeKeys,
     if X_con:
         assert X_con_mask
         # let's 0-impute continuous columns
-        X_con = {k: utils.value_impute(X_con[k], X_con_mask[k],
-                                       tf.constant(0.0)) for k in X_con}
+        X_con = {
+            k: utils.value_impute(X_con[k], X_con_mask[k], tf.constant(0.0))
+            for k in X_con
+        }
         inputs_list.extend(X_con.values())
 
     if X_cat:
         assert X_cat_mask and metadata.features.categorical
         # impute as an extra category
         extra_cat = {
-            k: metadata.features.categorical.columns[k].mapping.shape[0]
+            k: metadata.features.categorical.columns[k].mapping.shape[0] for k in X_cat
+        }
+        X_cat = {
+            k: utils.value_impute(X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
             for k in X_cat
         }
-        X_cat = {k: utils.value_impute(
-            X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
-            for k in X_cat}
 
-        nvalues = {k: v.nvalues + 1 for k, v in
-                   metadata.features.categorical.columns.items()}
+        nvalues = {
+            k: v.nvalues + 1 for k, v in metadata.features.categorical.columns.items()
+        }
         embedding_dims = {k: 3 for k in X_cat.keys()}
 
         inputs_cat = [
-            tf.keras.layers.Embedding(
-                nvalues[k], embedding_dims[k]
-            )(tf.squeeze(x, 3)) for k, x in X_cat.items()
+            tf.keras.layers.Embedding(nvalues[k], embedding_dims[k])(tf.squeeze(x, 3))
+            for k, x in X_cat.items()
         ]
         inputs_list.extend(inputs_cat)
 
@@ -128,8 +131,10 @@ def model(mode: tf.estimator.ModeKeys,
 
     # Compute predictions.
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {"predictions_{}".format(l): phi
-                       for i, l in enumerate(metadata.targets.labels)}
+        predictions = {
+            "predictions_{}".format(l): phi
+            for i, l in enumerate(metadata.targets.labels)
+        }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
@@ -143,11 +148,12 @@ def model(mode: tf.estimator.ModeKeys,
     metrics = {"mse": mse}
 
     if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode, loss=loss,
-                                          eval_metric_ops=metrics)
+        return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=metrics)
 
     # For training, use Adam to learn
     assert mode == tf.estimator.ModeKeys.TRAIN
     optimizer = tf.compat.v1.train.AdamOptimizer()
-    train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
+    train_op = optimizer.minimize(
+        loss, global_step=tf.compat.v1.train.get_global_step()
+    )
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)

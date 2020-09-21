@@ -25,8 +25,13 @@ from landshark import patch, tfwrite
 from landshark.basetypes import ArraySource, FixedSlice, IdReader, Worker
 from landshark.featurewrite import read_feature_metadata
 from landshark.hread import H5Features
-from landshark.image import (ImageSpec, image_to_world, indices_strip,
-                             random_indices, world_to_image)
+from landshark.image import (
+    ImageSpec,
+    image_to_world,
+    indices_strip,
+    random_indices,
+    world_to_image,
+)
 from landshark.iteration import batch_slices
 from landshark.kfold import KFolds
 from landshark.metadata import FeatureSet
@@ -66,19 +71,19 @@ class ProcessQueryArgs(NamedTuple):
     tag: str
 
 
-def _direct_read(array: tables.CArray,
-                 patch_reads: List[PatchRowRW],
-                 mask_reads: List[PatchMaskRowRW],
-                 npatches: int,
-                 patchwidth: int
-                 ) -> np.ma.MaskedArray:
+def _direct_read(
+    array: tables.CArray,
+    patch_reads: List[PatchRowRW],
+    mask_reads: List[PatchMaskRowRW],
+    npatches: int,
+    patchwidth: int,
+) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
     nfeatures = array.atom.shape[0]
     dtype = array.atom.dtype.base
-    patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures),
-                          dtype=dtype)
+    patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures), dtype=dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
@@ -94,20 +99,20 @@ def _direct_read(array: tables.CArray,
     return marray
 
 
-def _cached_read(row_dict: Dict[int, np.ndarray],
-                 array: tables.CArray,
-                 patch_reads: List[PatchRowRW],
-                 mask_reads: List[PatchMaskRowRW],
-                 npatches: int,
-                 patchwidth: int
-                 ) -> np.ma.MaskedArray:
+def _cached_read(
+    row_dict: Dict[int, np.ndarray],
+    array: tables.CArray,
+    patch_reads: List[PatchRowRW],
+    mask_reads: List[PatchMaskRowRW],
+    npatches: int,
+    patchwidth: int,
+) -> np.ma.MaskedArray:
     """Build patches from a data source given the read/write operations."""
     assert npatches > 0
     assert patchwidth > 0
     nfeatures = array.atom.shape[0]
     dtype = array.atom.dtype.base
-    patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures),
-                          dtype=dtype)
+    patch_data = np.zeros((npatches, patchwidth, patchwidth, nfeatures), dtype=dtype)
     patch_mask = np.zeros_like(patch_data, dtype=bool)
 
     for r in patch_reads:
@@ -144,11 +149,9 @@ def _slices_from_patches(patch_reads: List[PatchRowRW]) -> List[FixedSlice]:
     return slices
 
 
-def _get_rows(slices: List[FixedSlice],
-              array: tables.CArray
-              ) -> Dict[int, np.ndarray]:
+def _get_rows(slices: List[FixedSlice], array: tables.CArray) -> Dict[int, np.ndarray]:
     # TODO make faster
-    data_slices = [array[s.start:s.stop] for s in slices]
+    data_slices = [array[s.start : s.stop] for s in slices]
     data = {}
     for s, d in zip(slices, data_slices):
         for i, d_io in zip(range(s[0], s[1]), d):
@@ -156,77 +159,80 @@ def _get_rows(slices: List[FixedSlice],
     return data
 
 
-def _process_training(coords: np.ndarray,
-                      targets: np.ndarray,
-                      feature_source: H5Features,
-                      image_spec: ImageSpec,
-                      halfwidth: int
-                      ) -> DataArrays:
+def _process_training(
+    coords: np.ndarray,
+    targets: np.ndarray,
+    feature_source: H5Features,
+    image_spec: ImageSpec,
+    halfwidth: int,
+) -> DataArrays:
     coords_x, coords_y = coords.T
     indices_x = world_to_image(coords_x, image_spec.x_coordinates)
     indices_y = world_to_image(coords_y, image_spec.y_coordinates)
-    patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                            halfwidth,
-                                            image_spec.width,
-                                            image_spec.height)
+    patch_reads, mask_reads = patch.patches(
+        indices_x, indices_y, halfwidth, image_spec.width, image_spec.height
+    )
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
     con_marray, cat_marray = None, None
     if feature_source.continuous:
-        con_marray = _direct_read(feature_source.continuous,
-                                  patch_reads, mask_reads,
-                                  npatches, patchwidth)
+        con_marray = _direct_read(
+            feature_source.continuous, patch_reads, mask_reads, npatches, patchwidth
+        )
     if feature_source.categorical:
-        cat_marray = _direct_read(feature_source.categorical,
-                                  patch_reads, mask_reads,
-                                  npatches, patchwidth)
+        cat_marray = _direct_read(
+            feature_source.categorical, patch_reads, mask_reads, npatches, patchwidth
+        )
     indices = np.vstack((indices_x, indices_y)).T
     output = DataArrays(con_marray, cat_marray, targets, coords, indices)
     return output
 
 
-def _process_query(indices: np.ndarray,
-                   feature_source: H5Features,
-                   image_spec: ImageSpec,
-                   halfwidth: int
-                   ) -> DataArrays:
+def _process_query(
+    indices: np.ndarray,
+    feature_source: H5Features,
+    image_spec: ImageSpec,
+    halfwidth: int,
+) -> DataArrays:
     indices_x, indices_y = indices.T
     coords_x = image_to_world(indices_x, image_spec.x_coordinates)
     coords_y = image_to_world(indices_y, image_spec.y_coordinates)
-    patch_reads, mask_reads = patch.patches(indices_x, indices_y,
-                                            halfwidth,
-                                            image_spec.width,
-                                            image_spec.height)
+    patch_reads, mask_reads = patch.patches(
+        indices_x, indices_y, halfwidth, image_spec.width, image_spec.height
+    )
     patch_data_slices = _slices_from_patches(patch_reads)
     npatches = indices_x.shape[0]
     patchwidth = 2 * halfwidth + 1
     con_marray, cat_marray = None, None
     if feature_source.continuous:
-        con_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.continuous)
-        con_marray = _cached_read(con_data_cache,
-                                  feature_source.continuous,
-                                  patch_reads, mask_reads, npatches,
-                                  patchwidth)
+        con_data_cache = _get_rows(patch_data_slices, feature_source.continuous)
+        con_marray = _cached_read(
+            con_data_cache,
+            feature_source.continuous,
+            patch_reads,
+            mask_reads,
+            npatches,
+            patchwidth,
+        )
     if feature_source.categorical:
-        cat_data_cache = _get_rows(patch_data_slices,
-                                   feature_source.categorical)
-        cat_marray = _cached_read(cat_data_cache,
-                                  feature_source.categorical,
-                                  patch_reads, mask_reads, npatches,
-                                  patchwidth)
+        cat_data_cache = _get_rows(patch_data_slices, feature_source.categorical)
+        cat_marray = _cached_read(
+            cat_data_cache,
+            feature_source.categorical,
+            patch_reads,
+            mask_reads,
+            npatches,
+            patchwidth,
+        )
     coords = np.vstack((coords_x, coords_y)).T
     output = DataArrays(con_marray, cat_marray, None, coords, indices)
     return output
 
 
 class _TrainingDataProcessor(Worker):
-
-    def __init__(self,
-                 feature_path: str,
-                 image_spec: ImageSpec,
-                 halfwidth: int
-                 ) -> None:
+    def __init__(
+        self, feature_path: str, image_spec: ImageSpec, halfwidth: int
+    ) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec
@@ -236,18 +242,16 @@ class _TrainingDataProcessor(Worker):
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
         targets, coords = values
-        arrays = _process_training(coords, targets, self.feature_source,
-                                   self.image_spec, self.halfwidth)
+        arrays = _process_training(
+            coords, targets, self.feature_source, self.image_spec, self.halfwidth
+        )
         return arrays
 
 
 class _QueryDataProcessor(Worker):
-
-    def __init__(self,
-                 feature_path: str,
-                 image_spec: ImageSpec,
-                 halfwidth: int
-                 ) -> None:
+    def __init__(
+        self, feature_path: str, image_spec: ImageSpec, halfwidth: int
+    ) -> None:
         self.feature_path = feature_path
         self.feature_source: Optional[H5Features] = None
         self.image_spec = image_spec
@@ -256,8 +260,9 @@ class _QueryDataProcessor(Worker):
     def __call__(self, indices: np.ndarray) -> DataArrays:
         if not self.feature_source:
             self.feature_source = H5Features(self.feature_path)
-        arrays = _process_query(indices, self.feature_source, self.image_spec,
-                                self.halfwidth)
+        arrays = _process_query(
+            indices, self.feature_source, self.image_spec, self.halfwidth
+        )
         return arrays
 
 
@@ -276,13 +281,12 @@ class Serialised(Worker):
 
 def write_trainingdata(args: ProcessTrainingArgs) -> None:
     """Write training data to tfrecord."""
-    log.info("Testing data is fold {} of {}".format(args.testfold,
-                                                    args.folds.K))
-    log.info("Writing training data to tfrecord in {}-point batches".format(
-        args.batchsize))
+    log.info("Testing data is fold {} of {}".format(args.testfold, args.folds.K))
+    log.info(
+        "Writing training data to tfrecord in {}-point batches".format(args.batchsize)
+    )
     n_rows = len(args.target_src)
-    worker = _TrainingDataProcessor(args.feature_path, args.image_spec,
-                                    args.halfwidth)
+    worker = _TrainingDataProcessor(args.feature_path, args.image_spec, args.halfwidth)
     sworker = Serialised(worker)
     tasks = list(batch_slices(args.batchsize, n_rows))
     out_it = task_list(tasks, args.target_src, sworker, args.nworkers)
@@ -292,15 +296,15 @@ def write_trainingdata(args: ProcessTrainingArgs) -> None:
 
 def write_querydata(args: ProcessQueryArgs) -> None:
     """Write query data to tfrecord."""
-    log.info("Query data is strip {} of {}".format(args.strip_idx,
-                                                   args.total_strips))
-    log.info("Writing query data to tfrecord in {}-point batches".format(
-        args.batchsize))
+    log.info("Query data is strip {} of {}".format(args.strip_idx, args.total_strips))
+    log.info(
+        "Writing query data to tfrecord in {}-point batches".format(args.batchsize)
+    )
     reader_src = IdReader()
-    it, n_total = indices_strip(args.image_spec, args.strip_idx,
-                                args.total_strips, args.batchsize)
-    worker = _QueryDataProcessor(args.feature_path, args.image_spec,
-                                 args.halfwidth)
+    it, n_total = indices_strip(
+        args.image_spec, args.strip_idx, args.total_strips, args.batchsize
+    )
+    worker = _QueryDataProcessor(args.feature_path, args.image_spec, args.halfwidth)
     sworker = Serialised(worker)
     tasks = list(it)
     out_it = task_list(tasks, reader_src, sworker, args.nworkers)
@@ -352,9 +356,7 @@ class HDF5FeatureReader:
         self.meta.halfwidth = halfwidth
         self.nworkers = nworkers
         self.size = self.meta.image.height * self.meta.image.width
-        self.worker = _QueryDataProcessor(
-            hdf5_file, self.meta.image, halfwidth
-        )
+        self.worker = _QueryDataProcessor(hdf5_file, self.meta.image, halfwidth)
         self.batch_mb = batch_mb
         self.batchsize = points_per_batch(self.meta, batch_mb)
 
@@ -383,10 +385,7 @@ class HDF5FeatureReader:
         npoints = min(npoints or self.size, self.size)
         if shuffle:
             it, _ = random_indices(
-                self.meta.image,
-                npoints,
-                self.batchsize,
-                random_seed=random_seed
+                self.meta.image, npoints, self.batchsize, random_seed=random_seed
             )
         else:
             it_all, _ = indices_strip(self.meta.image, 1, 1, self.batchsize)
@@ -402,8 +401,10 @@ class HDF5FeatureReader:
 
     def read_coords(self, coords: np.ndarray) -> Iterator[XData]:
         """Read array at the supplied coordinates."""
-        indexes = np.vstack([
-            world_to_image(coords[:, 0], self.meta.image.x_coordinates),
-            world_to_image(coords[:, 1], self.meta.image.y_coordinates),
-        ]).T
+        indexes = np.vstack(
+            [
+                world_to_image(coords[:, 0], self.meta.image.x_coordinates),
+                world_to_image(coords[:, 1], self.meta.image.y_coordinates),
+            ]
+        ).T
         return self.read_ix(indexes)

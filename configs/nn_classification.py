@@ -23,16 +23,17 @@ from landshark import config as utils
 from landshark.metadata import CategoricalTarget, Training
 
 
-def model(mode: tf.estimator.ModeKeys,
-          X_con: Optional[Dict[str, tf.Tensor]],
-          X_con_mask: Optional[Dict[str, tf.Tensor]],
-          X_cat: Optional[Dict[str, tf.Tensor]],
-          X_cat_mask: Optional[Dict[str, tf.Tensor]],
-          Y: tf.Tensor,
-          image_indices: tf.Tensor,
-          coordinates: tf.Tensor,
-          metadata: Training,
-          ) -> tf.estimator.EstimatorSpec:
+def model(
+    mode: tf.estimator.ModeKeys,
+    X_con: Optional[Dict[str, tf.Tensor]],
+    X_con_mask: Optional[Dict[str, tf.Tensor]],
+    X_cat: Optional[Dict[str, tf.Tensor]],
+    X_cat_mask: Optional[Dict[str, tf.Tensor]],
+    Y: tf.Tensor,
+    image_indices: tf.Tensor,
+    coordinates: tf.Tensor,
+    metadata: Training,
+) -> tf.estimator.EstimatorSpec:
     """
     Describe the specification of a Tensorflow custom estimator model.
 
@@ -86,8 +87,10 @@ def model(mode: tf.estimator.ModeKeys,
     if X_con:
         assert X_con_mask
         # let's 0-impute continuous columns
-        X_con = {k: utils.value_impute(X_con[k], X_con_mask[k],
-                                       tf.constant(0.0)) for k in X_con}
+        X_con = {
+            k: utils.value_impute(X_con[k], X_con_mask[k], tf.constant(0.0))
+            for k in X_con
+        }
 
         # just concatenate the patch pixels as more features
         X_con = {k: utils.flatten_patch(v) for k, v in X_con.items()}
@@ -100,19 +103,19 @@ def model(mode: tf.estimator.ModeKeys,
         assert X_cat_mask and metadata.features.categorical
         # impute as an extra category
         extra_cat = {
-            k: metadata.features.categorical.columns[k].mapping.shape[0]
+            k: metadata.features.categorical.columns[k].mapping.shape[0] for k in X_cat
+        }
+        X_cat = {
+            k: utils.value_impute(X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
             for k in X_cat
         }
-        X_cat = {k: utils.value_impute(
-            X_cat[k], X_cat_mask[k], tf.constant(extra_cat[k]))
-            for k in X_cat}
         X_cat = {k: utils.flatten_patch(v) for k, v in X_cat.items()}
 
-        nvalues = {k: v.nvalues + 1
-                   for k, v in metadata.features.categorical.columns.items()}
+        nvalues = {
+            k: v.nvalues + 1 for k, v in metadata.features.categorical.columns.items()
+        }
         embedding_dims = {k: 3 for k in X_cat.keys()}
-        inputs_cat = utils.categorical_embedded_input(X_cat, nvalues,
-                                                      embedding_dims)
+        inputs_cat = utils.categorical_embedded_input(X_cat, nvalues, embedding_dims)
         inputs_list.append(inputs_cat)
 
     # Build a simple 2-layer network
@@ -128,8 +131,9 @@ def model(mode: tf.estimator.ModeKeys,
 
     # Compute predictions.
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {"predictions_{}".format(
-            metadata.targets.labels[0]): predicted_classes}
+        predictions = {
+            "predictions_{}".format(metadata.targets.labels[0]): predicted_classes
+        }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
     # Use a loss for training
@@ -144,11 +148,12 @@ def model(mode: tf.estimator.ModeKeys,
     metrics = {"accuracy": acc}
 
     if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode, loss=loss,
-                                          eval_metric_ops=metrics)
+        return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=metrics)
 
     # For training, use Adam to learn
     assert mode == tf.estimator.ModeKeys.TRAIN
     optimizer = tf.compat.v1.train.AdamOptimizer()
-    train_op = optimizer.minimize(loss, global_step=tf.compat.v1.train.get_global_step())
+    train_op = optimizer.minimize(
+        loss, global_step=tf.compat.v1.train.get_global_step()
+    )
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)

@@ -42,10 +42,7 @@ class BoundingBox:
 
     """
 
-    def __init__(self,
-                 x_pixel_coords: np.ndarray,
-                 y_pixel_coords: np.ndarray
-                 ) -> None:
+    def __init__(self, x_pixel_coords: np.ndarray, y_pixel_coords: np.ndarray) -> None:
         """Construct the bounding box."""
         assert x_pixel_coords.ndim == 1
         assert y_pixel_coords.ndim == 1
@@ -61,7 +58,8 @@ class BoundingBox:
     def __repr__(self) -> str:
         """Print a string representation of object."""
         rep = "<bbox ([{:.2f},{:.2f}], [{:.2f},{:.2f}])>".format(
-            self.xmin, self.xmax, self.ymin, self.ymax)
+            self.xmin, self.xmax, self.ymin, self.ymax
+        )
         return rep
 
     def contains(self, coords: np.ndarray) -> np.ndarray:
@@ -106,11 +104,9 @@ class ImageSpec:
 
     """
 
-    def __init__(self,
-                 x_coordinates: np.ndarray,
-                 y_coordinates: np.ndarray,
-                 crs: Dict[str, str]
-                 ) -> None:
+    def __init__(
+        self, x_coordinates: np.ndarray, y_coordinates: np.ndarray, crs: Dict[str, str]
+    ) -> None:
         """Construct the ImageSpec object."""
         assert x_coordinates.ndim == 1
         assert y_coordinates.ndim == 1
@@ -124,21 +120,26 @@ class ImageSpec:
         self.crs = crs
 
         # affine transformation
-        self.affine = from_bounds(west=self.bbox.xmin, east=self.bbox.xmax,
-                                  north=self.bbox.ymax, south=self.bbox.ymin,
-                                  width=self.width, height=self.height)
+        self.affine = from_bounds(
+            west=self.bbox.xmin,
+            east=self.bbox.xmax,
+            north=self.bbox.ymax,
+            south=self.bbox.ymin,
+            width=self.width,
+            height=self.height,
+        )
 
     def __repr__(self) -> str:
         """Create a string representation of the object."""
         rep = "<{}x{} image with bbox {} in {}>".format(
-            self.height, self.width, self.bbox, self.crs)
+            self.height, self.width, self.bbox, self.crs
+        )
         return rep
 
 
-def pixel_coordinates(width: int,
-                      height: int,
-                      affine: Affine
-                      ) -> Tuple[np.ndarray, np.ndarray]:
+def pixel_coordinates(
+    width: int, height: int, affine: Affine
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Create the pixel to coordinate map.
 
@@ -179,9 +180,9 @@ def pixel_coordinates(width: int,
     return coords_x, coords_y
 
 
-def image_to_world(indices: np.ndarray,
-                   pixel_coordinate_array: np.ndarray
-                   ) -> np.ndarray:
+def image_to_world(
+    indices: np.ndarray, pixel_coordinate_array: np.ndarray
+) -> np.ndarray:
     """
     Map image coordinates (pixel indices) to world coordinates.
 
@@ -216,9 +217,9 @@ def image_to_world(indices: np.ndarray,
     return result
 
 
-def world_to_image(points: np.ndarray,
-                   pixel_coordinate_array: np.ndarray
-                   ) -> np.ndarray:
+def world_to_image(
+    points: np.ndarray, pixel_coordinate_array: np.ndarray
+) -> np.ndarray:
     """
     Map world coordinates to pixel indices.
 
@@ -246,12 +247,10 @@ def world_to_image(points: np.ndarray,
     assert pixel_coordinate_array.dtype == CoordinateType
     reverse = pixel_coordinate_array[1] < pixel_coordinate_array[0]
     if reverse:
-        rev_idx = np.searchsorted(pixel_coordinate_array[::-1], points,
-                                  side="left") + 1
+        rev_idx = np.searchsorted(pixel_coordinate_array[::-1], points, side="left") + 1
         idx = len(pixel_coordinate_array) - rev_idx
     else:
-        idx = np.searchsorted(pixel_coordinate_array, points,
-                              side="right") - 1
+        idx = np.searchsorted(pixel_coordinate_array, points, side="right") - 1
 
     # We want the *closed* interval, which means moving
     # points on the end back by 1
@@ -259,16 +258,13 @@ def world_to_image(points: np.ndarray,
     idx[on_end] -= 1
 
     res = pixel_coordinate_array.shape[0] - 1
-    if (not all(np.logical_and(idx >= 0, idx < res))):
+    if not all(np.logical_and(idx >= 0, idx < res)):
         raise ValueError("Queried location is not in the image")
     idx = idx.astype(IndexType)
     return idx
 
 
-def strip_image_spec(strip: int,
-                     nstrips: int,
-                     image_spec: ImageSpec
-                     ) -> ImageSpec:
+def strip_image_spec(strip: int, nstrips: int, image_spec: ImageSpec) -> ImageSpec:
     """
     Create an imagespec for an indexed strip of a larger image.
 
@@ -296,18 +292,15 @@ def strip_image_spec(strip: int,
     strip_slice = _strip_slices(image_spec.height, nstrips)[strip - 1]
     # coordinates are of all pixel edges so need to go one past the end
     x_coords = image_spec.x_coordinates
-    y_coords = image_spec.y_coordinates[
-        strip_slice.start: strip_slice.stop + 1]
+    y_coords = image_spec.y_coordinates[strip_slice.start : strip_slice.stop + 1]
     crs = image_spec.crs
     new_spec = ImageSpec(x_coords, y_coords, crs)
     return new_spec
 
 
-def indices_strip(image_spec: ImageSpec,
-                  strip: int,
-                  nstrips: int,
-                  batchsize: int
-                  ) -> Tuple[Iterator[np.ndarray], int]:
+def indices_strip(
+    image_spec: ImageSpec, strip: int, nstrips: int, batchsize: int
+) -> Tuple[Iterator[np.ndarray], int]:
     """
     Create an iterator over each row of a strip.
 
@@ -334,10 +327,9 @@ def indices_strip(image_spec: ImageSpec,
     assert strip >= 1 and strip <= nstrips
     assert batchsize > 0
     slices = _strip_slices(image_spec.height, nstrips)
-    s = slices[strip - 1]   # indexed from one
+    s = slices[strip - 1]  # indexed from one
     n_total = (s.stop - s.start) * image_spec.width
-    it = _indices_query(image_spec.width, image_spec.height, batchsize,
-                        row_slice=s)
+    it = _indices_query(image_spec.width, image_spec.height, batchsize, row_slice=s)
     return it, n_total
 
 
@@ -369,10 +361,7 @@ def random_ix(
 
 
 def random_indices(
-    image_spec: ImageSpec,
-    npoints: int,
-    batchsize: int,
-    random_seed: int
+    image_spec: ImageSpec, npoints: int, batchsize: int, random_seed: int
 ) -> Tuple[Iterator[np.ndarray], int]:
     """Create an iterator over a random indices into the image."""
     assert batchsize > 0
@@ -393,8 +382,7 @@ def _strip_slices(total_size: int, nstrips: int) -> List[FixedSlice]:
     assert total_size >= nstrips
     strip_size_small, nbig = divmod(total_size, nstrips)
     strip_size_big = strip_size_small + 1
-    strip_sizes = [strip_size_big] * nbig + \
-        [strip_size_small] * (nstrips - nbig)
+    strip_sizes = [strip_size_big] * nbig + [strip_size_small] * (nstrips - nbig)
     indices = np.cumsum([0] + strip_sizes)
     slices = [FixedSlice(i, j) for i, j in zip(indices[0:-1], indices[1:])]
     return slices
@@ -406,19 +394,19 @@ def _array_pair_it(x: Iterable[Any]) -> np.ndarray:
     return a
 
 
-def _indices_query(image_width: int,
-                   image_height: int,
-                   batchsize: int,
-                   column_slice: Optional[FixedSlice] = None,
-                   row_slice: Optional[FixedSlice] = None
-                   ) -> Iterator[np.ndarray]:
+def _indices_query(
+    image_width: int,
+    image_height: int,
+    batchsize: int,
+    column_slice: Optional[FixedSlice] = None,
+    row_slice: Optional[FixedSlice] = None,
+) -> Iterator[np.ndarray]:
     """Create a generator of batches of coordinates from an image."""
     column_slice = column_slice if column_slice else FixedSlice(0, image_width)
     row_slice = row_slice if row_slice else FixedSlice(0, image_height)
 
     height_ind = np.arange(row_slice.start, row_slice.stop, dtype=IndexType)
-    width_ind = np.arange(column_slice.start, column_slice.stop,
-                          dtype=IndexType)
+    width_ind = np.arange(column_slice.start, column_slice.stop, dtype=IndexType)
 
     coords_it = product(height_ind, width_ind)
     batch_it = iteration.batch(coords_it, batchsize)

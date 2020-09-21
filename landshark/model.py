@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
 import signal
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
@@ -68,15 +68,15 @@ def load_model(config_file: str) -> str:
 
 
 def setup_training(
-    config: str,
-    directory: str
+    config: str, directory: str
 ) -> Tuple[Training, List[str], List[str], str, str]:
     """Get metadata and records needed to train model."""
     metadata, training_records, testing_records = get_training_meta(directory)
 
     # Write the metadata
-    name = os.path.basename(config).rsplit(".")[0] + \
-        "_model_{}of{}".format(metadata.testfold, metadata.nfolds)
+    name = os.path.basename(config).rsplit(".")[0] + "_model_{}of{}".format(
+        metadata.testfold, metadata.nfolds
+    )
     model_dir = os.path.join(os.getcwd(), name)
     try:
         os.makedirs(model_dir)
@@ -90,32 +90,40 @@ def setup_training(
     return metadata, training_records, testing_records, model_dir, module_name
 
 
-def train_test(records_train: List[str],
-               records_test: List[str],
-               metadata: Training,
-               directory: str,
-               cf: Any,  # Module type
-               params: TrainingConfig,
-               iterations: Optional[int]
-               ) -> None:
+def train_test(
+    records_train: List[str],
+    records_test: List[str],
+    metadata: Training,
+    directory: str,
+    cf: Any,  # Module type
+    params: TrainingConfig,
+    iterations: Optional[int],
+) -> None:
     """Model training and periodic hold-out testing."""
     saver = BestScoreSaver(directory)
-    train_fn = dataset_fn(records_train, params.batchsize, metadata.features,
-                          metadata.targets, params.epochs, shuffle=True)
-    test_fn = dataset_fn(records_test, params.test_batchsize,
-                         metadata.features, metadata.targets)
+    train_fn = dataset_fn(
+        records_train,
+        params.batchsize,
+        metadata.features,
+        metadata.targets,
+        params.epochs,
+        shuffle=True,
+    )
+    test_fn = dataset_fn(
+        records_test, params.test_batchsize, metadata.features, metadata.targets
+    )
 
     run_config = tf.estimator.RunConfig(
         # tf_random_seed=params.seed,
         model_dir=directory,
         save_checkpoints_secs=300,
-        keep_checkpoint_max=1
+        keep_checkpoint_max=1,
     )
 
     estimator = tf.estimator.Estimator(
         model_fn=_model_wrapper,
         config=run_config,
-        params={"metadata": metadata, "config": cf.model}
+        params={"metadata": metadata, "config": cf.model},
     )
 
     counter = range(iterations) if iterations else count()
@@ -144,12 +152,13 @@ def setup_query(
     return train_meta, query_meta, query_records, strip, nstrip, module_name
 
 
-def predict(checkpoint_dir: str,
-            cf: Any,  # Module type
-            metadata: Training,
-            records: List[str],
-            params: QueryConfig
-            ) -> Generator:
+def predict(
+    checkpoint_dir: str,
+    cf: Any,  # Module type
+    metadata: Training,
+    records: List[str],
+    params: QueryConfig,
+) -> Generator:
     """Load a model and predict results for record inputs."""
     predict_fn = dataset_fn(records, params.batchsize, metadata.features)
     run_config = tf.estimator.RunConfig(
@@ -160,7 +169,7 @@ def predict(checkpoint_dir: str,
     estimator = tf.estimator.Estimator(
         model_fn=_model_wrapper,
         config=run_config,
-        params={"metadata": metadata, "config": cf.model}
+        params={"metadata": metadata, "config": cf.model},
     )
     it = estimator.predict(predict_fn, yield_single_examples=False)
     while True:
@@ -174,11 +183,13 @@ def predict(checkpoint_dir: str,
 # Private module utility functions
 #
 
-def _model_wrapper(features: Dict[str, tf.Tensor],
-                   labels: tf.Tensor,
-                   mode: tf.estimator.ModeKeys,
-                   params: Dict[str, Any]
-                   ) -> tf.estimator.EstimatorSpec:
+
+def _model_wrapper(
+    features: Dict[str, tf.Tensor],
+    labels: tf.Tensor,
+    mode: tf.estimator.ModeKeys,
+    params: Dict[str, Any],
+) -> tf.estimator.EstimatorSpec:
     metadata = params["metadata"]
     model_fn = params["config"]
 
@@ -189,8 +200,17 @@ def _model_wrapper(features: Dict[str, tf.Tensor],
     if "cat" in features:
         cat = features["cat"]
         cat_mask = features["cat_mask"]
-    result = model_fn(mode, con, con_mask, cat, cat_mask, labels,
-                      features["indices"], features["coords"], metadata)
+    result = model_fn(
+        mode,
+        con,
+        con_mask,
+        cat,
+        cat_mask,
+        labels,
+        features["indices"],
+        features["coords"],
+        metadata,
+    )
     return result
 
 

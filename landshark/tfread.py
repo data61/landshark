@@ -17,8 +17,7 @@
 import logging
 import os
 from glob import glob
-from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional,
-                    Tuple, Union)
+from typing import Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
@@ -30,7 +29,6 @@ from landshark.util import points_per_batch
 log = logging.getLogger(__name__)
 
 
-
 def dataset_fn(
     records: List[str],
     batchsize: int,
@@ -40,20 +38,23 @@ def dataset_fn(
     take: int = -1,
     shuffle: bool = False,
     shuffle_buffer: int = 1000,
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = None,
 ) -> Callable[[], tf.data.TFRecordDataset]:
     """Dataset feeder."""
+
     def f() -> tf.data.TFRecordDataset:
-        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB") \
-            .repeat(count=epochs)
+        dataset = tf.data.TFRecordDataset(records, compression_type="ZLIB").repeat(
+            count=epochs
+        )
         if shuffle:
-            dataset = dataset.shuffle(
-                buffer_size=shuffle_buffer, seed=random_seed
-            )
-        dataset = dataset.take(take) \
-            .batch(batchsize) \
+            dataset = dataset.shuffle(buffer_size=shuffle_buffer, seed=random_seed)
+        dataset = (
+            dataset.take(take)
+            .batch(batchsize)
             .map(lambda x: deserialise(x, features, targets))
+        )
         return dataset
+
     return f
 
 
@@ -78,9 +79,9 @@ def get_query_meta(query_dir: str) -> Tuple[FeatureSet, List[str], int, int]:
     return query_metadata, query_records, strip, nstrip
 
 
-def _make_mask(x: Dict[str, np.ndarray],
-               xm: Dict[str, np.ndarray]
-               ) -> Dict[str, np.ma.MaskedArray]:
+def _make_mask(
+    x: Dict[str, np.ndarray], xm: Dict[str, np.ndarray]
+) -> Dict[str, np.ma.MaskedArray]:
     """Combine arrays and masks to MaskedArray's."""
     assert x.keys() == xm.keys()
     d = {k: np.ma.MaskedArray(data=x[k], mask=xm[k]) for k in x.keys()}

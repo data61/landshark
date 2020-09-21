@@ -49,8 +49,7 @@ def test_bounding_box_contains():
 
     b = image.BoundingBox(x_coords, y_coords)
 
-    tests = np.array([[1, 1], [-1, 3], [3, -1],
-                      [8, 7], [0, 0], [9, 4], [10, 10]])
+    tests = np.array([[1, 1], [-1, 3], [3, -1], [8, 7], [0, 0], [9, 4], [10, 10]])
     result = b.contains(tests)
     ans = np.array([True, False, False, False, True, True, False])
     assert np.all(result == ans)
@@ -71,11 +70,10 @@ def test_image_spec(mocker):
 def test_pixel_coordinates(random_image_transform):
     """Test that pixel coordinates are valid for random examples."""
     data = random_image_transform
-    coords_x, coords_y = image.pixel_coordinates(data.width, data.height,
-                                                 data.affine)
+    coords_x, coords_y = image.pixel_coordinates(data.width, data.height, data.affine)
     # outer corners of last pixel
     pix_x = np.arange(data.width + 1, dtype=np.float64)
-    pix_y = np.arange(data.height + 1, dtype=np.float64)    # ditto
+    pix_y = np.arange(data.height + 1, dtype=np.float64)  # ditto
     true_coords_x = (pix_x * data.pixel_width) + data.origin_x
     true_coords_y = (pix_y * (-1.0 * data.pixel_height)) + data.origin_y
     assert np.allclose(true_coords_x, coords_x)
@@ -85,8 +83,7 @@ def test_pixel_coordinates(random_image_transform):
 def test_image_to_world(random_image_transform):
     """Test that pixel coordinates are valid for random examples."""
     data = random_image_transform
-    coords_x, coords_y = image.pixel_coordinates(data.width, data.height,
-                                                 data.affine)
+    coords_x, coords_y = image.pixel_coordinates(data.width, data.height, data.affine)
     w = np.arange(data.width, dtype=IndexType)
     h = np.arange(data.height, dtype=IndexType)
     true_coords_x = (w * data.pixel_width) + data.origin_x
@@ -100,9 +97,9 @@ def test_image_to_world(random_image_transform):
 def test_world_to_image_edges(random_image_transform):
     """Checks that pixel edges are correctly mapped to indices."""
     data = random_image_transform
-    pixel_coords_x, pixel_coords_y = image.pixel_coordinates(data.width,
-                                                             data.height,
-                                                             data.affine)
+    pixel_coords_x, pixel_coords_y = image.pixel_coordinates(
+        data.width, data.height, data.affine
+    )
     w = np.arange(data.width + 1, dtype=IndexType)
     h = np.arange(data.height + 1, dtype=IndexType)
     coords_x = (w * data.pixel_width) + data.origin_x
@@ -110,10 +107,8 @@ def test_world_to_image_edges(random_image_transform):
     idx_x = image.world_to_image(coords_x, pixel_coords_x)
     idx_y = image.world_to_image(coords_y, pixel_coords_y)
 
-    true_idx_x = np.array(list(range(data.width)) +
-                          [data.width - 1], dtype=IndexType)
-    true_idx_y = np.array(list(range(data.height)) +
-                          [data.height - 1], dtype=IndexType)
+    true_idx_x = np.array(list(range(data.width)) + [data.width - 1], dtype=IndexType)
+    true_idx_y = np.array(list(range(data.height)) + [data.height - 1], dtype=IndexType)
 
     assert np.all(true_idx_x == idx_x)
     assert np.all(true_idx_y == idx_y)
@@ -122,14 +117,13 @@ def test_world_to_image_edges(random_image_transform):
 def test_world_to_image_centers(random_image_transform):
     """Checks that pixel centres are correctly mapped to indices."""
     data = random_image_transform
-    pixel_coords_x, pixel_coords_y = image.pixel_coordinates(data.width,
-                                                             data.height,
-                                                             data.affine)
+    pixel_coords_x, pixel_coords_y = image.pixel_coordinates(
+        data.width, data.height, data.affine
+    )
     w = np.arange(data.width, dtype=IndexType)
     h = np.arange(data.height, dtype=IndexType)
     coords_x = ((w.astype(float) + 0.5) * data.pixel_width) + data.origin_x
-    coords_y = ((h.astype(float) + 0.5) * (-1.0 * data.pixel_height)) \
-        + data.origin_y
+    coords_y = ((h.astype(float) + 0.5) * (-1.0 * data.pixel_height)) + data.origin_y
     idx_x = image.world_to_image(coords_x, pixel_coords_x)
     idx_y = image.world_to_image(coords_y, pixel_coords_y)
 
@@ -140,27 +134,25 @@ def test_world_to_image_centers(random_image_transform):
     assert np.all(true_idx_y == idx_y)
 
 
-@pytest.mark.parametrize("nstrips,rows,cols",
-                         [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
+@pytest.mark.parametrize("nstrips,rows,cols", [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
 def test_strip_image_spec(nstrips, rows, cols):
     # coords are 1 past last pixel
     x_coords = np.arange(cols + 1)
     y_coords = np.arange(rows + 1)
     crs = {"init": "egs123"}
     spec = image.ImageSpec(x_coords, y_coords, crs)
-    specs = [image.strip_image_spec(i + 1, nstrips, spec)
-             for i in range(nstrips)]
+    specs = [image.strip_image_spec(i + 1, nstrips, spec) for i in range(nstrips)]
     for s in specs:
         assert s.crs == crs
         assert np.all(x_coords == s.x_coordinates)
 
-    y_coords_new = np.concatenate([a.y_coordinates[:-1] for a in specs[:-1]] +
-                                  [specs[-1].y_coordinates], axis=0)
+    y_coords_new = np.concatenate(
+        [a.y_coordinates[:-1] for a in specs[:-1]] + [specs[-1].y_coordinates], axis=0
+    )
     assert np.all(y_coords == y_coords_new)
 
 
-@pytest.mark.parametrize("nstrips,rows,cols",
-                         [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
+@pytest.mark.parametrize("nstrips,rows,cols", [(1, 10, 3), (3, 3, 10), (4, 101, 102)])
 def test_indices_strip(nstrips, rows, cols):
     # coords are 1 past last pixel
     x_coords = np.arange(cols + 1)
@@ -184,8 +176,7 @@ def test_indices_strip(nstrips, rows, cols):
     assert np.all(xy_inds == ans)
 
 
-@pytest.mark.parametrize("total_size, nstrips",
-                         [(100, 4), (10, 10), (7, 2), (8, 1)])
+@pytest.mark.parametrize("total_size, nstrips", [(100, 4), (10, 10), (7, 2), (8, 1)])
 def test_strip_slices(total_size, nstrips):
     slice_list = image._strip_slices(total_size, nstrips)
     assert len(slice_list) == nstrips

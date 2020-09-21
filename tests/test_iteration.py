@@ -19,10 +19,7 @@ import pytest
 
 from landshark.iteration import batch, batch_slices, with_slices
 
-batch_params = [
-    (10, 5),
-    (123456, 79)
-]
+batch_params = [(10, 5), (123456, 79)]
 
 
 @pytest.mark.parametrize("N,B", batch_params)

@@ -33,12 +33,9 @@ log = logging.getLogger(__name__)
 class BatchWriter:
     """Writer class for incrementally writing to a tif file."""
 
-    def __init__(self,
-                 rs_file: rs.DatasetReader,
-                 width: int,
-                 height: int,
-                 dtype: np.dtype
-                 ) -> None:
+    def __init__(
+        self, rs_file: rs.DatasetReader, width: int, height: int, dtype: np.dtype
+    ) -> None:
         self.f = rs_file
         self.width = width
         self.height = height
@@ -52,11 +49,11 @@ class BatchWriter:
         all_data = np.hstack((self.res, data))
         nrows = len(all_data) // self.width
         if nrows > 0:
-            d = all_data[0: nrows * self.width].reshape(nrows, self.width)
+            d = all_data[0 : nrows * self.width].reshape(nrows, self.width)
             w = Window(0, self.rows_written, d.shape[1], d.shape[0])
             self.f.write(d, 1, window=w)
             self.rows_written += nrows
-            self.res = all_data[nrows * self.width:]
+            self.res = all_data[nrows * self.width :]
         else:
             self.res = all_data
 
@@ -65,11 +62,9 @@ class BatchWriter:
         self.f.close()
 
 
-def _make_writer(directory: str,
-                 label: str,
-                 dtype: np.dtype,
-                 image_spec: ImageSpec
-                 ) -> BatchWriter:
+def _make_writer(
+    directory: str, label: str, dtype: np.dtype, image_spec: ImageSpec
+) -> BatchWriter:
     """Create a writer for a tif file."""
     crs = rs.crs.CRS(**image_spec.crs)
     params = {
@@ -79,24 +74,25 @@ def _make_writer(directory: str,
         "count": 1,
         "dtype": dtype,
         "crs": crs,
-        "transform": image_spec.affine
+        "transform": image_spec.affine,
     }
     fname = os.path.join(directory, label + ".tif")
     f = rs.open(fname, "w", **params)
-    writer = BatchWriter(f, width=image_spec.width, height=image_spec.height,
-                         dtype=dtype)
+    writer = BatchWriter(
+        f, width=image_spec.width, height=image_spec.height, dtype=dtype
+    )
     return writer
 
 
-def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
-                   directory: str,
-                   imspec: ImageSpec,
-                   tag: str = ""
-                   ) -> None:
+def write_geotiffs(
+    y_dash: Iterator[Dict[str, np.ndarray]],
+    directory: str,
+    imspec: ImageSpec,
+    tag: str = "",
+) -> None:
     """Write predictions `y` to tifs according to the query image spec."""
     log.info("Initialising Geotiff writers")
-    log.info("Image width: {} height: {}".format(imspec.width,
-                                                 imspec.height))
+    log.info("Image width: {} height: {}".format(imspec.width, imspec.height))
 
     # "peek" at the first prediction so we can see what we're dealing with
     y0 = next(y_dash)
@@ -106,8 +102,10 @@ def write_geotiffs(y_dash: Iterator[Dict[str, np.ndarray]],
         if not (v.ndim == 1 or (v.ndim == 2 and v.shape[1] == 1)):
             raise InvalidPredictionShape(k, v.shape)
 
-    writers = {k: _make_writer(directory, k + "_" + tag, v.dtype,
-                               imspec) for k, v in y0.items()}
+    writers = {
+        k: _make_writer(directory, k + "_" + tag, v.dtype, imspec)
+        for k, v in y0.items()
+    }
 
     with tqdm(total=imspec.width * imspec.height) as pbar:
         for y_i in y_dash:

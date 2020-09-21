@@ -32,8 +32,7 @@ tifs = [
 dirs_tifs = [
     (["./integration/data"], tifs),
     (["./integration/data/categorical/"], tifs[:2]),
-    (["./integration/data/continuous/",
-      "./integration/data/categorical/"], tifs[:4]),
+    (["./integration/data/continuous/", "./integration/data/categorical/"], tifs[:4]),
 ]
 
 

@@ -41,8 +41,8 @@ def model(
     coords: tf.keras.Input,
     targets: List[TargetData],
 ) -> tf.keras.Model:
-    """ Example model config.
-        Must match the signature above and return a compiled tf.keras.Model
+    """Example model config.
+    Must match the signature above and return a compiled tf.keras.Model
     """
 
     l0 = impute_embed_concat_layer(num_feats, cat_feats, cat_embed_dims=3)

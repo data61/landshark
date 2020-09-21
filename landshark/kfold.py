@@ -21,12 +21,9 @@ import numpy as np
 BATCH_SIZE = 10000
 
 
-def _batch_randn(start: int,
-                 stop: int,
-                 size: int,
-                 batch_size: int,
-                 seed: int
-                 ) -> Iterator[np.ndarray]:
+def _batch_randn(
+    start: int, stop: int, size: int, batch_size: int, seed: int
+) -> Iterator[np.ndarray]:
     rnd = np.random.RandomState(seed)
     total_n = 0
     while total_n < size:
@@ -40,7 +37,6 @@ def _batch_randn(start: int,
 
 
 class KFolds:
-
     def __init__(self, N: int, K: int = 10, seed: int = 666) -> None:
         """Low-ish memory k-fold cross validation indices generator.
 

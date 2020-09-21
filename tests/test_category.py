@@ -21,8 +21,7 @@ from landshark.basetypes import CategoricalArraySource, CategoricalType
 
 
 def test_unique_values():
-    x = np.array([[1, 2, 2], [1, 2, 3],
-                 [1, 1, 2], [1, 1, 1]], dtype=CategoricalType)
+    x = np.array([[1, 2, 2], [1, 2, 3], [1, 1, 2], [1, 1, 1]], dtype=CategoricalType)
     unique_vals, counts = category._unique_values(x)
     true_vals = [np.array([1]), np.array([1, 2]), np.array([1, 2, 3])]
     true_counts = [np.array([4]), np.array([2, 2]), np.array([1, 2, 1])]
@@ -85,8 +84,5 @@ def test_categorical_transform():
     x = np.array([[2, 2, 3, 1], [4, 1, 1, 2]], dtype=CategoricalType).T
     f = category.CategoryMapper(mappings, missing_value=-1)
     out = f(x)
-    ans = np.array([[1, 2],
-                    [1, 0],
-                    [2, 0],
-                    [0, 1]], dtype=CategoricalType)
+    ans = np.array([[1, 2], [1, 0], [2, 0], [0, 1]], dtype=CategoricalType)
     assert np.all(out == ans)

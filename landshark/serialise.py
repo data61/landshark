@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import CategoricalType
-from landshark.metadata import FeatureSet, Target, Feature
+from landshark.metadata import Feature, FeatureSet, Target
 
 #
 # Module constants and types
@@ -34,8 +34,8 @@ _FDICT = {
     "x_con_mask": tf.io.FixedLenFeature([], tf.string),
     "y": tf.io.FixedLenFeature([], tf.string),
     "indices": tf.io.FixedLenFeature([], tf.string),
-    "coords": tf.io.FixedLenFeature([], tf.string)
-    }
+    "coords": tf.io.FixedLenFeature([], tf.string),
+}
 
 
 class DataArrays(NamedTuple):
@@ -45,6 +45,7 @@ class DataArrays(NamedTuple):
     world_coords: np.ndarray
     image_indices: np.ndarray
 
+
 #
 # Module functions
 #
@@ -52,10 +53,16 @@ class DataArrays(NamedTuple):
 
 def serialise(x: DataArrays) -> List[bytes]:
     """Serialise data to tf.records."""
-    x_con = repeat(np.ma.MaskedArray(data=[], mask=[])) \
-        if x.con_marray is None else x.con_marray
-    x_cat = repeat(np.ma.MaskedArray(data=[], mask=[])) \
-        if x.cat_marray is None else x.cat_marray
+    x_con = (
+        repeat(np.ma.MaskedArray(data=[], mask=[]))
+        if x.con_marray is None
+        else x.con_marray
+    )
+    x_cat = (
+        repeat(np.ma.MaskedArray(data=[], mask=[]))
+        if x.cat_marray is None
+        else x.cat_marray
+    )
     y = repeat(np.array([])) if x.targets is None else x.targets
     indices = x.image_indices
     coords = x.world_coords
@@ -63,8 +70,7 @@ def serialise(x: DataArrays) -> List[bytes]:
     string_list = []
     for xo_i, xc_i, y_i, idx_i, c_i in zip(x_con, x_cat, y, indices, coords):
         fdict = _make_features(xo_i, xc_i, y_i, idx_i, c_i)
-        example = tf.train.Example(
-            features=tf.train.Features(feature=fdict))
+        example = tf.train.Example(features=tf.train.Features(feature=fdict))
         string_list.append(example.SerializeToString())
     return string_list
 
@@ -90,26 +96,19 @@ def deserialise(
         indices.set_shape((None, 2))
         coords.set_shape((None, 2))
 
-        feat_dict = {"indices": indices,
-                     "coords": coords}
+        feat_dict = {"indices": indices, "coords": coords}
 
         if features.continuous:
-            feat_dict["con"] = _unpack(x_con,
-                                       features.continuous.columns,
-                                       npatch_side)
+            feat_dict["con"] = _unpack(x_con, features.continuous.columns, npatch_side)
             feat_dict["con_mask"] = _unpack(
-                x_con_mask,
-                features.continuous.columns,
-                npatch_side)
+                x_con_mask, features.continuous.columns, npatch_side
+            )
 
         if features.categorical:
-            feat_dict["cat"] = _unpack(x_cat,
-                                       features.categorical.columns,
-                                       npatch_side)
+            feat_dict["cat"] = _unpack(x_cat, features.categorical.columns, npatch_side)
             feat_dict["cat_mask"] = _unpack(
-                x_cat_mask,
-                features.categorical.columns,
-                npatch_side)
+                x_cat_mask, features.categorical.columns, npatch_side
+            )
 
         if targets is not None:
             categorical = targets.dtype == CategoricalType
@@ -125,11 +124,11 @@ def deserialise(
 
 
 @tf.function
-def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
-        -> Dict[str, tf.Tensor]:
+def _unpack(
+    x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int
+) -> Dict[str, tf.Tensor]:
     nfeatures = len(columns)
-    x_all = tf.reshape(x, (tf.shape(input=x)[0], npatch_side,
-                           npatch_side, nfeatures))
+    x_all = tf.reshape(x, (tf.shape(input=x)[0], npatch_side, npatch_side, nfeatures))
     start = 0
     stop = 0
     d = {}
@@ -139,6 +138,7 @@ def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
         start = stop
     return d
 
+
 #
 # Private module utilities
 #
@@ -147,17 +147,17 @@ def _unpack(x: tf.Tensor, columns: Dict[str, Feature], npatch_side: int) \
 def _ndarray_feature(x: np.ndarray) -> tf.train.Feature:
     """Create an ndarray feature stored as bytes."""
     x_bytes = x.tostring()
-    feature = tf.train.Feature(
-        bytes_list=tf.train.BytesList(value=[x_bytes]))
+    feature = tf.train.Feature(bytes_list=tf.train.BytesList(value=[x_bytes]))
     return feature
 
 
-def _make_features(x_con: np.ma.MaskedArray,
-                   x_cat: np.ma.MaskedArray,
-                   y: np.ndarray,
-                   idx: np.ndarray,
-                   coords: np.ndarray
-                   ) -> dict:
+def _make_features(
+    x_con: np.ma.MaskedArray,
+    x_cat: np.ma.MaskedArray,
+    y: np.ndarray,
+    idx: np.ndarray,
+    coords: np.ndarray,
+) -> dict:
     """Do stuff."""
     fdict = {
         "x_cat": _ndarray_feature(x_cat.data),
@@ -166,6 +166,6 @@ def _make_features(x_con: np.ma.MaskedArray,
         "x_con_mask": _ndarray_feature(x_con.mask),
         "y": _ndarray_feature(y),
         "indices": _ndarray_feature(idx),
-        "coords": _ndarray_feature(coords)
-        }
+        "coords": _ndarray_feature(coords),
+    }
     return fdict

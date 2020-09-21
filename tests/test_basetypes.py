@@ -34,7 +34,6 @@ def test_featurevalues(mocker):
 
 
 class NpyCatArraySource(basetypes.CategoricalArraySource):
-
     def __init__(self, x, missing, columns):
         self._shape = x.shape
         self._native = 1

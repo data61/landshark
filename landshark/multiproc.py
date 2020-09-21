@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 # Required for debugging multiprocess applications with ptvsd
 if sys.gettrace() is not None:
     import multiprocessing
+
     multiprocessing.set_start_method("spawn", True)
     log.info("Setting multiprocessing start method to 'spawn' for debugging")
 
@@ -44,15 +45,15 @@ REQ_QUEUE_SIZE = 0
 
 
 class _Task(Process):
-
-    def __init__(self,
-                 datasrc: Reader,
-                 f: Worker,
-                 in_queue: Queue,
-                 out_queue: Queue,
-                 shutdown: Any,
-                 blocktime: float = 0.1
-                 ) -> None:
+    def __init__(
+        self,
+        datasrc: Reader,
+        f: Worker,
+        in_queue: Queue,
+        out_queue: Queue,
+        shutdown: Any,
+        blocktime: float = 0.1,
+    ) -> None:
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.shutdown = shutdown
@@ -77,21 +78,16 @@ class _Task(Process):
                     pass
 
 
-def task_list(task_list: List[Any],
-              reader: Reader,
-              worker: Worker,
-              n_workers: int
-              ) -> Iterator[Any]:
+def task_list(
+    task_list: List[Any], reader: Reader, worker: Worker, n_workers: int
+) -> Iterator[Any]:
     if n_workers == 0:
         return _task_list_0(task_list, reader, worker)
     else:
         return _task_list_multi(task_list, reader, worker, n_workers)
 
 
-def _task_list_0(task_list: List[Any],
-                 reader: Reader,
-                 worker: Worker
-                 ) -> Iterator[Any]:
+def _task_list_0(task_list: List[Any], reader: Reader, worker: Worker) -> Iterator[Any]:
     total = len(task_list)
     with reader:
         with tqdm(total=total) as pbar:
@@ -102,17 +98,16 @@ def _task_list_0(task_list: List[Any],
                 pbar.update()
 
 
-def _task_list_multi(task_list: List[Any],
-                     reader: Reader,
-                     worker: Worker,
-                     n_workers: int
-                     ) -> Iterator[Any]:
+def _task_list_multi(
+    task_list: List[Any], reader: Reader, worker: Worker, n_workers: int
+) -> Iterator[Any]:
     req_queue: Queue = Queue(REQ_QUEUE_SIZE)
     result_queue: Queue = Queue(RESULT_QUEUE_SIZE)
     shutdown_recv, shutdown_send = Pipe(False)
-    worker_procs = [_Task(reader, worker, req_queue, result_queue,
-                          shutdown_recv)
-                    for _ in range(n_workers)]
+    worker_procs = [
+        _Task(reader, worker, req_queue, result_queue, shutdown_recv)
+        for _ in range(n_workers)
+    ]
     cache: Dict[int, Any] = {}
 
     task_id = 0

@@ -16,15 +16,21 @@
 
 import datetime
 import logging
+
 # for mypy type checking
 from typing import List, Tuple
 
 import numpy as np
 import shapefile
 
-from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 CategoricalType, ContinuousArraySource,
-                                 ContinuousType, CoordinateArraySource)
+from landshark.basetypes import (
+    ArraySource,
+    CategoricalArraySource,
+    CategoricalType,
+    ContinuousArraySource,
+    ContinuousType,
+    CoordinateArraySource,
+)
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +64,9 @@ def _get_indices(labels: List[str], all_labels: List[str]) -> List[int]:
     return label_indices
 
 
-def _get_dtype(labels: List[str], all_labels: List[str],
-               all_dtypes: List[np.dtype]) -> np.dtype:
+def _get_dtype(
+    labels: List[str], all_labels: List[str], all_dtypes: List[np.dtype]
+) -> np.dtype:
     dtype_dict = dict(zip(all_labels, all_dtypes))
     dtype_set = {dtype_dict[l] for l in labels}
     if len(dtype_set) > 1:
@@ -69,11 +76,7 @@ def _get_dtype(labels: List[str], all_labels: List[str],
 
 
 class _AbstractShpArraySource(ArraySource):
-    def __init__(self,
-                 filename: str,
-                 labels: List[str],
-                 random_seed: int
-                 ) -> None:
+    def __init__(self, filename: str, labels: List[str], random_seed: int) -> None:
         self._sf = shapefile.Reader(filename)
         all_fields, all_dtypes = _get_recinfo(self._sf)
         self._columns = labels
@@ -81,15 +84,16 @@ class _AbstractShpArraySource(ArraySource):
         self._original_dtypes = [all_dtypes[i] for i in self._column_indices]
         self._shape = (self._sf.numRecords, len(labels))
         self._missing = None
-        log.info("Shapefile contains {} records "
-                 "of {} requested columns.".format(
-                     self._shape[0], self._shape[1]))
+        log.info(
+            "Shapefile contains {} records "
+            "of {} requested columns.".format(self._shape[0], self._shape[1])
+        )
         self._native = 1
         rnd = np.random.RandomState(random_seed)
         self._perm = rnd.permutation(self._shape[0])
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
-        indices = self._perm[start: end]
+        indices = self._perm[start:end]
         records = (self._sf.record(r) for r in indices)
         data = [[r[i] for i in self._column_indices] for r in records]
         array = np.array(data, dtype=self.dtype)
@@ -100,13 +104,11 @@ class ContinuousShpArraySource(_AbstractShpArraySource, ContinuousArraySource):
     pass
 
 
-class CategoricalShpArraySource(_AbstractShpArraySource,
-                                CategoricalArraySource):
+class CategoricalShpArraySource(_AbstractShpArraySource, CategoricalArraySource):
     pass
 
 
 class CoordinateShpArraySource(CoordinateArraySource):
-
     def __init__(self, filename: str, random_seed: int) -> None:
         self._sf = shapefile.Reader(filename)
         self._shape = (self._sf.numRecords, 2)
@@ -117,9 +119,8 @@ class CoordinateShpArraySource(CoordinateArraySource):
         self._perm = rnd.permutation(self._shape[0])
 
     def _arrayslice(self, start: int, end: int) -> np.ndarray:
-        indices = self._perm[start: end]
-        coords = [self._sf.shape(r).__geo_interface__["coordinates"]
-                  for r in indices]
+        indices = self._perm[start:end]
+        coords = [self._sf.shape(r).__geo_interface__["coordinates"] for r in indices]
         array = np.array(coords, dtype=self.dtype).squeeze()
         if array.ndim == 1:
             array == array[:, np.newaxis]

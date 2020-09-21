@@ -26,8 +26,11 @@ from affine import Affine
 from mypy_extensions import NoReturn
 from rasterio.io import DatasetReader
 
-from landshark.basetypes import (ArraySource, CategoricalArraySource,
-                                 ContinuousArraySource)
+from landshark.basetypes import (
+    ArraySource,
+    CategoricalArraySource,
+    ContinuousArraySource,
+)
 from landshark.image import ImageSpec, pixel_coordinates
 
 log = logging.getLogger(__name__)
@@ -40,25 +43,23 @@ WindowType = Tuple[Tuple[int, int], Tuple[int, int]]
 # Convenience types
 class Band(NamedTuple):
     """Rasterio dataset reader and band index."""
+
     image: DatasetReader
     idx: int
 
 
-def shared_image_spec(path_list: List[str],
-                      ignore_crs: bool = False
-                      ) -> ImageSpec:
+def shared_image_spec(path_list: List[str], ignore_crs: bool = False) -> ImageSpec:
     """Get the (hopefully matching) image spec from a list of images."""
     with ExitStack() as stack:
-        all_images = [stack.enter_context(rasterio.open(k, "r"))
-                      for k in path_list]
+        all_images = [stack.enter_context(rasterio.open(k, "r")) for k in path_list]
         width = _match(lambda x: x.width, all_images, "width")
         height = _match(lambda x: x.height, all_images, "height")
-        affine = _match_transforms([x.transform for x in all_images],
-                                   all_images)
+        affine = _match_transforms([x.transform for x in all_images], all_images)
         coords_x, coords_y = pixel_coordinates(width, height, affine)
 
-    crs = _match(lambda x: x.crs.data if x.crs else None,
-                 all_images, "crs", anyof=ignore_crs)
+    crs = _match(
+        lambda x: x.crs.data if x.crs else None, all_images, "crs", anyof=ignore_crs
+    )
     imspec = ImageSpec(coords_x, coords_y, crs)
     return imspec
 
@@ -85,12 +86,10 @@ class _ImageStackSource(ArraySource):
         """Construct an instance of ImageStack."""
         self._path_list = path_list
         with ExitStack() as stack:
-            all_images = [stack.enter_context(rasterio.open(k, "r"))
-                          for k in path_list]
+            all_images = [stack.enter_context(rasterio.open(k, "r")) for k in path_list]
             bands = _bands(all_images)
             nbands = len(bands)
-            self._shape = (image_spec.height,
-                           image_spec.width, nbands)
+            self._shape = (image_spec.height, image_spec.width, nbands)
             self._missing = self._missing_val if _has_missing(bands) else None
             self._columns = _names(bands)
             self._native = _block_rows(bands)
@@ -103,12 +102,11 @@ class _ImageStackSource(ArraySource):
         self._bands = _bands(self._images)
         super().__enter__()
 
-    def __exit__(self, ex_type: type, ex_val: Exception,
-                 ex_tb: TracebackType) -> None:
+    def __exit__(self, ex_type: type, ex_val: Exception, ex_tb: TracebackType) -> None:
         for i in self._images:
             i.close()
-        del(self._images)
-        del(self._bands)
+        del self._images
+        del self._bands
         super().__exit__(ex_type, ex_val, ex_tb)
         pass
 
@@ -130,8 +128,7 @@ class _ImageStackSource(ArraySource):
                 marray.data[marray.mask] = self._missing
             n_missing = np.sum(marray.mask)
             if n_missing > 0:
-                log.debug(("Tif slice contains {} "
-                           "missing pixels").format(n_missing))
+                log.debug(("Tif slice contains {} " "missing pixels").format(n_missing))
             data = marray.data
             data = np.moveaxis(data, 0, -1)
             out_array[..., start_band:stop_band] = data
@@ -149,11 +146,9 @@ class CategoricalStackSource(_ImageStackSource, CategoricalArraySource):
     _type_name = "categorical"
 
 
-def _match(f: Callable[[Any], Any],
-           images: List[DatasetReader],
-           name: str,
-           anyof: bool = False
-           ) -> Any:
+def _match(
+    f: Callable[[Any], Any], images: List[DatasetReader], name: str, anyof: bool = False
+) -> Any:
     """Return specified property of images if they match."""
     property_list = [f(k) for k in images]
     if len(images) == 1:
@@ -167,9 +162,7 @@ def _match(f: Callable[[Any], Any],
     return result
 
 
-def _match_transforms(transforms: List[Affine],
-                      images: List[DatasetReader]
-                      ) -> Affine:
+def _match_transforms(transforms: List[Affine], images: List[DatasetReader]) -> Affine:
     t0 = transforms[0]
     for t in transforms[1:]:
         if not t0.almost_equals(t):
@@ -177,10 +170,9 @@ def _match_transforms(transforms: List[Affine],
     return t0
 
 
-def _fatal_mismatch(property_list: List[Any],
-                    images: List[DatasetReader],
-                    name: str
-                    ) -> NoReturn:
+def _fatal_mismatch(
+    property_list: List[Any], images: List[DatasetReader], name: str
+) -> NoReturn:
     """Print a fatal log with helpful table of property mismatch."""
     assert len(property_list) == len(images)
 
@@ -217,7 +209,7 @@ def _bands(images: List[DatasetReader]) -> List[Band]:
     bandlist = []
     for im in images:
         for i, _ in enumerate(im.dtypes):
-            band = Band(image=im, idx=(i + 1))   # bands start from 1
+            band = Band(image=im, idx=(i + 1))  # bands start from 1
             bandlist.append(band)
     return bandlist
 

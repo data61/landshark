@@ -16,8 +16,7 @@
 
 import logging
 from types import TracebackType
-from typing import (Any, List, NamedTuple, Optional, Sized, Tuple, TypeVar,
-                    Union)
+from typing import Any, List, NamedTuple, Optional, Sized, Tuple, TypeVar, Union
 
 import numpy as np
 
@@ -58,8 +57,7 @@ class Reader:
     def __enter__(self) -> None:
         pass
 
-    def __exit__(self, ex_type: type, ex_val: Exception,
-                 ex_tb: TracebackType) -> None:
+    def __exit__(self, ex_type: type, ex_val: Exception, ex_tb: TracebackType) -> None:
         pass
 
     def __call__(self, index: Any) -> T:
@@ -189,11 +187,7 @@ class ArraySource(Sized, Reader):
         """
         self._open = True
 
-    def __exit__(self,
-                 ex_type: type,
-                 ex_val: Exception,
-                 ex_tb: TracebackType
-                 ) -> None:
+    def __exit__(self, ex_type: type, ex_val: Exception, ex_tb: TracebackType) -> None:
         """
         Exit the context.
 

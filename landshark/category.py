@@ -45,8 +45,7 @@ class CategoryInfo(NamedTuple):
 def _unique_values(x: np.ndarray) -> Tuple[List[np.ndarray], List[int]]:
     """Provide the unique entries and their counts for each column x."""
     x = x.reshape((-1), x.shape[-1])
-    unique_vals, counts = zip(*[np.unique(c, return_counts=True)
-                                for c in x.T])
+    unique_vals, counts = zip(*[np.unique(c, return_counts=True) for c in x.T])
     return unique_vals, counts
 
 
@@ -116,8 +115,7 @@ def get_maps(src: CategoricalArraySource, batchrows: int) -> CategoryInfo:
 
     count_dicts = [m.counts for m in accums]
     unsorted_mappings = [np.array(list(c.keys())) for c in count_dicts]
-    unsorted_counts = [np.array(list(c.values()), dtype=np.int64)
-                       for c in count_dicts]
+    unsorted_counts = [np.array(list(c.values()), dtype=np.int64) for c in count_dicts]
     sortings = [np.argsort(m, kind="mergesort") for m in unsorted_mappings]
     mappings = [m[s] for m, s in zip(unsorted_mappings, sortings)]
     counts = [c[s] for c, s in zip(unsorted_counts, sortings)]
@@ -140,10 +138,9 @@ class CategoryMapper(Worker):
         that it gets mapped to 0 (helpful for doing extra-category imputing).
     """
 
-    def __init__(self,
-                 mappings: List[np.ndarray],
-                 missing_value: Optional[int]
-                 ) -> None:
+    def __init__(
+        self, mappings: List[np.ndarray], missing_value: Optional[int]
+    ) -> None:
         """Initialise the worker object."""
         for m in mappings:
             is_sorted = np.all(m[:-1] <= m[1:])
@@ -170,12 +167,13 @@ class CategoryMapper(Worker):
         x_new = np.empty_like(x)
         for i, cats in enumerate(self._mappings):
             x_i = x[..., i].ravel()
-            mask = x_i != self._missing if self._missing \
-                else np.ones_like(x_i, dtype=bool)
+            mask = (
+                x_i != self._missing if self._missing else np.ones_like(x_i, dtype=bool)
+            )
             x_i_valid = x_i[mask].flatten()
             flat = np.hstack((cats, x_i_valid))
             actual_cat, remap = np.unique(flat, return_inverse=True)
-            x_i_new_valid = remap[len(cats):]
+            x_i_new_valid = remap[len(cats) :]
             x_i_new = np.full_like(x_i, fill)
             x_i_new[mask] = x_i_new_valid
             x_new[..., i] = x_i_new.reshape(x[..., i].shape)

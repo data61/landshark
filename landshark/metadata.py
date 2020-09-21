@@ -63,9 +63,12 @@ Feature = Union[CategoricalFeature, ContinuousFeature]
 
 
 class ContinuousFeatureSet:
-
-    def __init__(self, labels: List[str], missing: ContinuousType,
-                 stats: Optional[Tuple[np.ndarray, np.ndarray]]) -> None:
+    def __init__(
+        self,
+        labels: List[str],
+        missing: ContinuousType,
+        stats: Optional[Tuple[np.ndarray, np.ndarray]],
+    ) -> None:
 
         D = len(labels)
         if stats is None:
@@ -78,10 +81,12 @@ class ContinuousFeatureSet:
 
         self._missing = missing
         # hard-code that each feature has 1 band for now
-        self._columns = OrderedDict([
-            (l, ContinuousFeature(1, np.array([m]), np.array([v])))
-            for l, m, v in zip(labels, means, sds)
-        ])
+        self._columns = OrderedDict(
+            [
+                (l, ContinuousFeature(1, np.array([m]), np.array([v])))
+                for l, m, v in zip(labels, means, sds)
+            ]
+        )
         self._n = len(self._columns)
 
     @property
@@ -97,16 +102,22 @@ class ContinuousFeatureSet:
 
 
 class CategoricalFeatureSet:
-
-    def __init__(self, labels: List[str], missing: CategoricalType,
-                 nvalues: np.ndarray, mappings: List[np.ndarray],
-                 counts: np.ndarray) -> None:
+    def __init__(
+        self,
+        labels: List[str],
+        missing: CategoricalType,
+        nvalues: np.ndarray,
+        mappings: List[np.ndarray],
+        counts: np.ndarray,
+    ) -> None:
         self._missing = missing
         # hard-code that each feature has 1 band for now
-        self._columns = OrderedDict([
-            (l, CategoricalFeature(n, 1, m, c))
-            for l, n, m, c in zip(labels, nvalues, mappings, counts)
-        ])
+        self._columns = OrderedDict(
+            [
+                (l, CategoricalFeature(n, 1, m, c))
+                for l, n, m, c in zip(labels, nvalues, mappings, counts)
+            ]
+        )
         self._n = len(self._columns)
 
     @property
@@ -125,9 +136,14 @@ class FeatureSet(PickleObj):
 
     _filename = "FEATURESET.bin"
 
-    def __init__(self, continuous: Optional[ContinuousFeatureSet],
-                 categorical: Optional[CategoricalFeatureSet],
-                 image: ImageSpec, N: int, halfwidth: int) -> None:
+    def __init__(
+        self,
+        continuous: Optional[ContinuousFeatureSet],
+        categorical: Optional[CategoricalFeatureSet],
+        image: ImageSpec,
+        N: int,
+        halfwidth: int,
+    ) -> None:
         self.continuous = continuous
         self.categorical = categorical
         self.image = image
@@ -143,9 +159,14 @@ class CategoricalTarget(PickleObj):
     _filename = "CATEGORICALTARGET.bin"
     dtype = CategoricalType
 
-    def __init__(self, N: int, labels: np.ndarray, nvalues: np.ndarray,
-                 mappings: List[np.ndarray], counts: List[np.ndarray]) \
-            -> None:
+    def __init__(
+        self,
+        N: int,
+        labels: np.ndarray,
+        nvalues: np.ndarray,
+        mappings: List[np.ndarray],
+        counts: List[np.ndarray],
+    ) -> None:
         self.N = N
         self.D = len(labels)
         self.nvalues = nvalues
@@ -159,8 +180,9 @@ class ContinuousTarget(PickleObj):
     _filename = "CONTINUOUSTARGET.bin"
     dtype = ContinuousType
 
-    def __init__(self, N: int, labels: np.ndarray, means: np.ndarray,
-                 sds: np.ndarray) -> None:
+    def __init__(
+        self, N: int, labels: np.ndarray, means: np.ndarray, sds: np.ndarray
+    ) -> None:
         self.N = N
         self.D = len(labels)
         self.normalised = means is not None
@@ -176,8 +198,14 @@ class Training(PickleObj):
 
     _filename = "TRAINING.bin"
 
-    def __init__(self, targets: Target, features: FeatureSet, nfolds: int,
-                 testfold: int, fold_counts: Dict[int, int]) -> None:
+    def __init__(
+        self,
+        targets: Target,
+        features: FeatureSet,
+        nfolds: int,
+        testfold: int,
+        fold_counts: Dict[int, int],
+    ) -> None:
         self.targets = targets
         self.features = features
         self.nfolds = nfolds
