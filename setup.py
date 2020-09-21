@@ -57,11 +57,12 @@ setup(
     ],
     extras_require={
         "dev": [
-            "isort<5.0",
+            "isort>=5.0.0",
             "jedi>=0.10.2",
             "pytest>=3.1.3",
             "pytest-flake8>=0.8.1",
             "pytest-mock>=1.6.2",
+            "flake8-black>=0.2.1",
             "flake8-bugbear>=18.2.0",
             "flake8-builtins>=1.4.1",
             "pytest-cov>=2.5.1",
