@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import os
+import logging
 import signal
 import sys
 from importlib.util import module_from_spec, spec_from_file_location

@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 from landshark.basetypes import CategoricalType
-from landshark.metadata import Feature, FeatureSet, Target
+from landshark.metadata import FeatureSet, Target, Feature
 
 #
 # Module constants and types
@@ -39,8 +39,6 @@ _FDICT = {
 
 
 class DataArrays(NamedTuple):
-    """Container for training/query data presented to a model."""
-
     con_marray: Optional[np.ma.MaskedArray]
     cat_marray: Optional[np.ma.MaskedArray]
     targets: Optional[np.ndarray]

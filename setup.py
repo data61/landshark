@@ -53,7 +53,7 @@ setup(
         "tqdm>=4.19.6",
         "scikit-learn>=0.20.0",
         "tensorflow>=2.0",
-        "tensorflow_probability>=0.8"
+        "tensorflow_probability>=0.8",
     ],
     extras_require={
         "dev": [
