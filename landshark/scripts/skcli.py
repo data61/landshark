@@ -89,7 +89,7 @@ def train_entrypoint(data: str,
     ndims_cat = len(metadata.features.categorical) \
         if metadata.features.categorical else 0
     batchsize = mb_to_points(batchMB, ndims_con, ndims_cat,
-                             metadata.features.halfwidth)
+                             halfwidth=metadata.features.halfwidth)
     # copy the model spec to the model dir
     copyfile(config, os.path.join(model_dir, "config.py"))
     skmodel.train_test(cf, training_records, testing_records,
@@ -128,7 +128,7 @@ def predict_entrypoint(config: str,
     ndims_cat = len(train_metadata.features.categorical) \
         if train_metadata.features.categorical else 0
     points_per_batch = mb_to_points(batchMB, ndims_con, ndims_cat,
-                                    train_metadata.features.halfwidth)
+                                    halfwidth=train_metadata.features.halfwidth)
 
     y_dash_it = skmodel.predict(checkpoint, train_metadata, query_records,
                                 points_per_batch)
