@@ -121,7 +121,7 @@ def _concat_dict(xlist: List[TData]) -> TData:
     """Join dicts of arrays together."""
     out_dict = {}
     for k, v in xlist[0].items():
-        if isinstance(v, tf.python.framework.ops.EagerTensor):
+        if tf.is_tensor(v):
             out_dict[k] = np.concatenate([di[k] for di in xlist], axis=0)
         else:
             out_dict[k] = _concat_dict([di[k] for di in xlist])
